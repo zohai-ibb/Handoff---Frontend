@@ -4,10 +4,11 @@ import Footer from './components/Footer';
 import HomeScreen from './pages/HomeScreen';
 import ReceiveScreen from './pages/ReceiveScreen';
 import AddInstrumentScreen from './pages/AddInstrumentScreen';
+import IssueWizardScreen from './pages/IssueWizardScreen';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('Home');
-  const [currentView, setCurrentView] = useState('home'); // 'home' | 'receive' | 'issue' | 'add-item'
+  const [currentView, setCurrentView] = useState('home'); // 'home' | 'receive' | 'add-item'
   const [toast, setToast] = useState(null);
 
   const showToast = (message) => {
@@ -18,10 +19,11 @@ export default function App() {
   };
 
   const handleActionClick = (action) => {
-    if (action === 'Receive') {
+    if (action === 'Issue') {
+      setActiveTab('Issue');
+      setCurrentView('home');
+    } else if (action === 'Receive') {
       setCurrentView('receive');
-    } else if (action === 'Issue') {
-      setCurrentView('issue');
     } else if (action === 'Add item') {
       setCurrentView('add-item');
     } else {
@@ -32,7 +34,7 @@ export default function App() {
 
   const handleFooterTabChange = (tabId) => {
     setActiveTab(tabId);
-    setCurrentView('home'); // Reset back to default view on tab switch
+    setCurrentView('home');
   };
 
   return (
@@ -40,13 +42,12 @@ export default function App() {
       {/* --- Fixed Top Header Navbar --- */}
       <Header />
 
-      {/* --- Main Screen Viewport --- */}
+      {/* --- Main Viewport Area --- */}
       <main className="flex-1 p-4 max-w-md mx-auto w-full">
         {activeTab === 'Home' && currentView === 'home' && (
           <HomeScreen onNavigate={handleActionClick} />
         )}
 
-        {/* --- Render Receive Back Screen --- */}
         {currentView === 'receive' && (
           <ReceiveScreen
             onBack={() => setCurrentView('home')}
@@ -54,7 +55,6 @@ export default function App() {
           />
         )}
 
-        {/* --- Render Add Instrument Screen --- */}
         {currentView === 'add-item' && (
           <AddInstrumentScreen
             onBack={() => setCurrentView('home')}
@@ -62,40 +62,33 @@ export default function App() {
           />
         )}
 
-        {currentView === 'issue' && (
-          <div className="bg-white p-4 rounded-2xl border border-black/10 space-y-2">
-            <h2 className="text-base font-bold text-[#1b4d8f]">Issue New Instrument</h2>
-            <p className="text-xs text-gray-500">Checkout wizard and QR scanner form.</p>
-            <button
-              onClick={() => setCurrentView('home')}
-              className="text-xs text-[#1b4d8f] font-semibold underline mt-2"
-            >
-              Back to Home
-            </button>
-          </div>
+        {/* --- Render Issue Wizard Screen for Tab 3 --- */}
+        {activeTab === 'Issue' && currentView === 'home' && (
+          <IssueWizardScreen
+            onBack={() => setActiveTab('Home')}
+            onShowToast={showToast}
+            onIssueComplete={() => setActiveTab('Home')}
+          />
         )}
 
         {activeTab === 'Items' && currentView === 'home' && (
           <div className="bg-white p-4 rounded-2xl border border-black/10">
             <h2 className="text-base font-semibold text-gray-800">Items Screen</h2>
-          </div>
-        )}
-
-        {activeTab === 'Issue' && currentView === 'home' && (
-          <div className="bg-white p-4 rounded-2xl border border-black/10">
-            <h2 className="text-base font-semibold text-gray-800">Issue Tab</h2>
+            <p className="text-xs text-gray-500 mt-1">Inventory list & filters.</p>
           </div>
         )}
 
         {activeTab === 'Due' && currentView === 'home' && (
           <div className="bg-white p-4 rounded-2xl border border-black/10">
             <h2 className="text-base font-semibold text-gray-800">Due Tracker</h2>
+            <p className="text-xs text-gray-500 mt-1">Return & overdue loans tracking.</p>
           </div>
         )}
 
         {activeTab === 'People' && currentView === 'home' && (
           <div className="bg-white p-4 rounded-2xl border border-black/10">
             <h2 className="text-base font-semibold text-gray-800">People Directory</h2>
+            <p className="text-xs text-gray-500 mt-1">Scientist directory.</p>
           </div>
         )}
       </main>
@@ -107,7 +100,7 @@ export default function App() {
         </div>
       )}
 
-      {/* --- Fixed Bottom Footer --- */}
+      {/* --- Fixed Bottom Footer Nav --- */}
       <Footer currentTab={activeTab} onTabChange={handleFooterTabChange} />
     </div>
   );
