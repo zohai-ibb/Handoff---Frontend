@@ -3,6 +3,7 @@ import Header from './components/Header';
 import Footer from './components/Footer';
 import HomeScreen from './pages/HomeScreen';
 import ReceiveScreen from './pages/ReceiveScreen';
+import AddInstrumentScreen from './pages/AddInstrumentScreen';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('Home');
@@ -16,7 +17,6 @@ export default function App() {
     }, 4200);
   };
 
-  // Handles clicking the Issue, Receive, or Add item buttons from Home
   const handleActionClick = (action) => {
     if (action === 'Receive') {
       setCurrentView('receive');
@@ -30,7 +30,6 @@ export default function App() {
     }
   };
 
-  // Handles switching tabs from the bottom footer
   const handleFooterTabChange = (tabId) => {
     setActiveTab(tabId);
     setCurrentView('home'); // Reset back to default view on tab switch
@@ -53,6 +52,27 @@ export default function App() {
             onBack={() => setCurrentView('home')}
             onShowToast={showToast}
           />
+        )}
+
+        {/* --- Render Add Instrument Screen --- */}
+        {currentView === 'add-item' && (
+          <AddInstrumentScreen
+            onBack={() => setCurrentView('home')}
+            onShowToast={showToast}
+          />
+        )}
+
+        {currentView === 'issue' && (
+          <div className="bg-white p-4 rounded-2xl border border-black/10 space-y-2">
+            <h2 className="text-base font-bold text-[#1b4d8f]">Issue New Instrument</h2>
+            <p className="text-xs text-gray-500">Checkout wizard and QR scanner form.</p>
+            <button
+              onClick={() => setCurrentView('home')}
+              className="text-xs text-[#1b4d8f] font-semibold underline mt-2"
+            >
+              Back to Home
+            </button>
+          </div>
         )}
 
         {activeTab === 'Items' && currentView === 'home' && (
