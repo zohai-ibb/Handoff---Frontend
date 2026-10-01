@@ -23,10 +23,10 @@ export default function Footer({ currentTab = 'Home', onTabChange }) {
             >
               {/* Outer Checkbox / Rounded Box */}
               <div
-                className={`w-6 h-6 rounded-md flex items-center justify-center transition-all ${
+                className={`w-5 h-5 rounded-md flex items-center justify-center transition-all ${
                   isActive
                     ? 'bg-[#dce7f4] border-2 border-[#1b4d8f]'
-                    : 'bg-white border-2 border-gray-400'
+                    : 'bg-white border-1 border-gray-400'
                 }`}
               >
                 {/* Checkbox Inner Mark / Icon */}
