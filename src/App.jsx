@@ -1,10 +1,16 @@
 import React from 'react';
+import Header from './components/Header';
 
 export default function App() {
   return (
-    <div className="p-4">
-      <h1 className="text-xl font-bold">APEEG Instrument Register</h1>
-      <p className="text-sm text-gray-600">Ready to build frontend features.</p>
+    <div className="min-h-screen bg-[#f7f6f3] flex flex-col font-sans">
+      {/* --- Fixed Top Header --- */}
+      <Header />
+
+      {/* --- Main Screen Content Area --- */}
+      <main className="flex-1 p-4 max-w-md mx-auto w-full">
+        {/* We will insert your next screen component here */}
+      </main>
     </div>
   );
 }
