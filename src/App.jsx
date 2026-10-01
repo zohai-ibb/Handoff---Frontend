@@ -2,9 +2,12 @@ import React, { useState } from 'react';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import HomeScreen from './pages/HomeScreen';
+import ItemsScreen from './pages/ItemsScreen';
 import ReceiveScreen from './pages/ReceiveScreen';
 import AddInstrumentScreen from './pages/AddInstrumentScreen';
 import IssueWizardScreen from './pages/IssueWizardScreen';
+import DueScreen from './pages/DueScreen';
+import PeopleScreen from './pages/PeopleScreen';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('Home');
@@ -34,6 +37,12 @@ export default function App() {
 
   const handleFooterTabChange = (tabId) => {
     setActiveTab(tabId);
+    setCurrentView('home');
+  };
+
+  const handleSelectInstrumentFromInventory = (instrument) => {
+    showToast(`Selected ${instrument.name} (${instrument.assetId})`);
+    setActiveTab('Issue');
     setCurrentView('home');
   };
 
@@ -71,25 +80,19 @@ export default function App() {
           />
         )}
 
+        {/* --- Render Items / Inventory Screen --- */}
         {activeTab === 'Items' && currentView === 'home' && (
-          <div className="bg-white p-4 rounded-2xl border border-black/10">
-            <h2 className="text-base font-semibold text-gray-800">Items Screen</h2>
-            <p className="text-xs text-gray-500 mt-1">Inventory list & filters.</p>
-          </div>
+          <ItemsScreen onSelectInstrument={handleSelectInstrumentFromInventory} />
         )}
 
+        {/* --- Render Due Tracker Screen --- */}
         {activeTab === 'Due' && currentView === 'home' && (
-          <div className="bg-white p-4 rounded-2xl border border-black/10">
-            <h2 className="text-base font-semibold text-gray-800">Due Tracker</h2>
-            <p className="text-xs text-gray-500 mt-1">Return & overdue loans tracking.</p>
-          </div>
+          <DueScreen onShowToast={showToast} />
         )}
 
+        {/* --- Render People Directory Screen --- */}
         {activeTab === 'People' && currentView === 'home' && (
-          <div className="bg-white p-4 rounded-2xl border border-black/10">
-            <h2 className="text-base font-semibold text-gray-800">People Directory</h2>
-            <p className="text-xs text-gray-500 mt-1">Scientist directory.</p>
-          </div>
+          <PeopleScreen onShowToast={showToast} />
         )}
       </main>
 
