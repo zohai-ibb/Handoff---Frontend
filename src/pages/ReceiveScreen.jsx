@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
-import { CheckCircle2, FileText, ArrowLeft, X } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { CheckCircle2, ArrowLeft, X, Camera } from 'lucide-react';
 
 export default function ReceiveScreen({ onBack, onShowToast }) {
-  // Mock active loans (state === 'OPEN') matching your backend IssueRecord models
+  // Mock active loans matching backend IssueRecord models
   const [issuedRecords, setIssuedRecords] = useState([
     {
       id: '65f3c4d5e6f7a8b9c0d1e2f1',
@@ -46,9 +46,59 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [conditionIn, setConditionIn] = useState('Returned intact, cleaned and functioning normally');
 
+  // Camera & Photo State for Return
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [capturedPhoto, setCapturedPhoto] = useState(null);
+  const videoRef = useRef(null);
+  const mediaStreamRef = useRef(null);
+
+  // Camera Controls
+  const startCamera = async () => {
+    try {
+      setIsCameraOpen(true);
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' },
+      });
+      mediaStreamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+    } catch (err) {
+      if (onShowToast) onShowToast('Unable to access live camera stream.');
+      setIsCameraOpen(false);
+    }
+  };
+
+  const stopCamera = () => {
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
+    }
+    setIsCameraOpen(false);
+  };
+
+  const takePhoto = () => {
+    if (!videoRef.current) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = videoRef.current.videoWidth || 640;
+    canvas.height = videoRef.current.videoHeight || 480;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+    const dataUrl = canvas.toDataURL('image/jpeg');
+    
+    setCapturedPhoto(dataUrl);
+    stopCamera();
+    if (onShowToast) onShowToast('Return photo attached to record!');
+  };
+
+  useEffect(() => {
+    return () => stopCamera();
+  }, []);
+
   const handleOpenReturnModal = (record) => {
     setSelectedRecord(record);
     setConditionIn('Returned intact, cleaned and functioning normally');
+    setCapturedPhoto(null);
   };
 
   const handleConfirmReturn = () => {
@@ -65,6 +115,7 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
     }
 
     setSelectedRecord(null);
+    setCapturedPhoto(null);
   };
 
   return (
@@ -96,7 +147,7 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
           issuedRecords.map((item) => (
             <div
               key={item.id}
-              className="bg-white p-3.5 rounded-2xl border border-black/10 space-y-3 shadow-xs"
+              className="bg-white p-3.5 rounded-2xl border border-black/10 space-y-3 shadow-2xs"
             >
               {/* Header: Title & Status Badge */}
               <div className="flex items-start justify-between gap-2">
@@ -126,7 +177,7 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
               <div className="flex items-center gap-2 pt-0.5">
                 <button
                   onClick={() => handleOpenReturnModal(item)}
-                  className="flex-1 bg-[#1b4d8f] text-white py-2 px-3 rounded-xl text-[13px] font-semibold active:scale-98 transition-all shadow-xs text-center"
+                  className="flex-1 bg-[#1b4d8f] text-white py-2 px-3 rounded-xl text-[13px] font-semibold active:scale-98 transition-all shadow-2xs text-center"
                 >
                   Mark returned
                 </button>
@@ -161,17 +212,57 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
               <p className="text-[11px] text-gray-500">Holder: {selectedRecord.holder}</p>
             </div>
 
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold uppercase text-gray-500 tracking-wider">
-                Condition at Return
-              </label>
+            {/* Condition In + Capture Photo Button */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-semibold uppercase text-gray-500 tracking-wider">
+                  Condition at Return
+                </label>
+                <button
+                  type="button"
+                  onClick={startCamera}
+                  className="bg-[#1b4d8f] hover:bg-[#143d73] text-white text-[10.5px] font-medium py-1 px-2.5 rounded-lg transition-all flex items-center gap-1 active:scale-95 shadow-2xs"
+                >
+                  <Camera size={12} />
+                  <span>Take Photo</span>
+                </button>
+              </div>
+
               <textarea
                 value={conditionIn}
                 onChange={(e) => setConditionIn(e.target.value)}
-                rows={3}
+                rows={2}
                 className="w-full text-xs p-2.5 rounded-xl border border-gray-300 focus:outline-none focus:border-[#1b4d8f]"
                 placeholder="Specify physical condition upon return..."
               />
+
+              {/* Photo Preview Attachment */}
+              {capturedPhoto && (
+                <div className="mt-2 p-2 bg-white rounded-xl border border-black/10 flex items-center justify-between gap-2 shadow-2xs">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <img
+                      src={capturedPhoto}
+                      alt="Return Condition"
+                      className="w-10 h-10 object-cover rounded-lg border border-gray-200 shrink-0"
+                    />
+                    <div className="min-w-0">
+                      <span className="text-[10.5px] font-semibold text-[#12695a] flex items-center gap-1">
+                        <CheckCircle2 size={11} /> Photo Attached
+                      </span>
+                      <p className="text-[9.5px] text-gray-500 truncate">
+                        Saved with return record
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setCapturedPhoto(null)}
+                    className="p-1 hover:bg-red-50 text-red-500 rounded-lg transition-colors"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="flex items-center gap-2 pt-1">
@@ -183,9 +274,60 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
               </button>
               <button
                 onClick={handleConfirmReturn}
-                className="flex-1 py-2 rounded-xl text-xs font-bold bg-[#1b4d8f] text-white active:scale-98 shadow-xs"
+                className="flex-1 py-2 rounded-xl text-xs font-bold bg-[#1b4d8f] text-white active:scale-98 shadow-2xs"
               >
                 Confirm Return
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Live Camera Viewfinder Overlay (Covers 70% of screen height) */}
+      {isCameraOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in">
+          <div className="w-full max-w-sm h-[70vh] bg-black rounded-3xl overflow-hidden flex flex-col justify-between p-3.5 shadow-2xl border border-white/20">
+            {/* Header */}
+            <div className="flex items-center justify-between text-white pb-1">
+              <h3 className="text-xs font-bold flex items-center gap-1.5">
+                <Camera size={14} className="text-[#1b4d8f]" />
+                Capture Return Condition Photo
+              </h3>
+              <button
+                type="button"
+                onClick={stopCamera}
+                className="p-1 rounded-full bg-white/20 hover:bg-white/30 text-white transition-all"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Video Viewport */}
+            <div className="relative flex-1 bg-black rounded-2xl overflow-hidden flex items-center justify-center my-2">
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 border-2 border-white/20 rounded-2xl pointer-events-none" />
+            </div>
+
+            {/* Controls */}
+            <div className="pt-1 pb-1 flex items-center justify-center gap-4">
+              <button
+                type="button"
+                onClick={stopCamera}
+                className="bg-white/20 hover:bg-white/30 text-white text-xs px-4 py-2 rounded-xl transition-all font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={takePhoto}
+                className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-all border-4 border-[#1b4d8f]"
+              >
+                <div className="w-8 h-8 bg-[#1b4d8f] rounded-full" />
               </button>
             </div>
           </div>
