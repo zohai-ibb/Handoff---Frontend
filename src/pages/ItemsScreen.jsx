@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Search } from 'lucide-react';
 
-export default function ItemsScreen({ onSelectInstrument }) {
+export default function ItemsScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('All');
 
@@ -94,7 +94,7 @@ export default function ItemsScreen({ onSelectInstrument }) {
     });
   }, [searchQuery, activeFilter, instruments]);
 
-  // Helper for Status Pill Colors
+  // Helper for Status Pill Badges
   const getStatusBadge = (status, isOverdue) => {
     if (isOverdue || status === 'OVERDUE') {
       return (
@@ -129,7 +129,7 @@ export default function ItemsScreen({ onSelectInstrument }) {
 
   return (
     <div className="h-full flex flex-col justify-between overflow-hidden font-sans text-[#1b1a18]">
-      {/* --- Top Fixed Header Controls --- */}
+      {/* --- Top Fixed Search & Filter Bar --- */}
       <div className="shrink-0 space-y-2.5 pb-2">
         {/* Search Input */}
         <div className="relative">
@@ -163,21 +163,20 @@ export default function ItemsScreen({ onSelectInstrument }) {
           })}
         </div>
 
-        {/* Result Count Indicator */}
+        {/* Count Indicator */}
         <div className="text-[11.5px] text-[#7a7872] px-0.5">
           {filteredInstruments.length} of {instruments.length} instruments
         </div>
       </div>
 
-      {/* --- Middle Scrollable Item List --- */}
+      {/* --- Middle Scrollable Display List (Read-Only) --- */}
       <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
         {filteredInstruments.map((item) => (
           <div
             key={item.id}
-            onClick={() => onSelectInstrument && onSelectInstrument(item)}
-            className="bg-white p-3.5 rounded-2xl border border-black/10 hover:border-[#1b4d8f] transition-all cursor-pointer active:scale-99 shadow-xs space-y-1"
+            className="bg-white p-3.5 rounded-2xl border border-black/10 shadow-xs space-y-1"
           >
-            {/* Row Header: Name & Status */}
+            {/* Header: Name & Status */}
             <div className="flex items-start justify-between gap-2">
               <h3 className="text-[13.5px] font-semibold text-[#1b1a18] leading-snug">
                 {item.name}

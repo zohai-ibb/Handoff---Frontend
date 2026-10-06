@@ -1,0 +1,450 @@
+import React, { useState, useRef, useEffect } from 'react';
+import {
+  User,
+  Mail,
+  Phone,
+  Building,
+  Calendar,
+  Edit3,
+  ArrowLeft,
+  CheckCircle2,
+  Camera,
+  X,
+  Upload,
+} from 'lucide-react';
+
+export default function ProfileScreen({ onBack, onShowToast }) {
+  // Static state reflecting Person model fields from backend
+  const [person, setPerson] = useState({
+    id: "65f3c4d5e6f7a8b9c0d1e2f0",
+    name: "Dr. Kishor S. Kulkarni",
+    email: "kskulkarni@cbri.res.in",
+    mobile: "+91 98765 43210",
+    department: "APEEG",
+    photo_path: null, // Stores photo path or base64 preview
+    is_active: true,
+    created_at: "2026-01-15T10:30:00",
+  });
+
+  const [isEditing, setIsEditing] = useState(false);
+  const [formData, setFormData] = useState({ ...person });
+
+  // Live Camera Viewfinder State
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const videoRef = useRef(null);
+  const mediaStreamRef = useRef(null);
+  const fileInputRef = useRef(null);
+
+  // Synchronize edit form data when starting edit mode
+  const handleEditClick = () => {
+    setFormData({ ...person });
+    setIsEditing(true);
+  };
+
+  // Handle standard text/checkbox input changes
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value,
+    }));
+  };
+
+  // --- File Upload Handler (Gallery / File Picker) ---
+  const handleFileChange = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData((prev) => ({
+          ...prev,
+          photo_path: reader.result, // Sets base64 image string for preview
+        }));
+        if (onShowToast) onShowToast("Photo selected!");
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // --- Live Camera Controls ---
+  const startCamera = async () => {
+    try {
+      setIsCameraOpen(true);
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user" }, // Front-facing camera for profile photos
+      });
+      mediaStreamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+    } catch (err) {
+      if (onShowToast) onShowToast("Unable to access live camera stream.");
+      setIsCameraOpen(false);
+    }
+  };
+
+  const stopCamera = () => {
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
+    }
+    setIsCameraOpen(false);
+  };
+
+  const takePhoto = () => {
+    if (!videoRef.current) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = videoRef.current.videoWidth || 640;
+    canvas.height = videoRef.current.videoHeight || 480;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+    const dataUrl = canvas.toDataURL("image/jpeg");
+
+    setFormData((prev) => ({
+      ...prev,
+      photo_path: dataUrl,
+    }));
+
+    stopCamera();
+    if (onShowToast) onShowToast("Profile photo captured!");
+  };
+
+  // Cleanup camera stream when component unmounts
+  useEffect(() => {
+    return () => stopCamera();
+  }, []);
+
+  // Save changes locally
+  const handleSave = (e) => {
+    e.preventDefault();
+    setPerson({ ...formData });
+    setIsEditing(false);
+    if (onShowToast) {
+      onShowToast("Profile details updated successfully!");
+    }
+  };
+
+  return (
+    <div className="space-y-4 font-sans text-[#1b1a18] animate-fade-in">
+      {/* --- Header / Navigation --- */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onBack}
+            className="p-1 rounded-lg hover:bg-black/5 active:scale-95 transition-all"
+            aria-label="Back"
+          >
+            <ArrowLeft size={18} className="text-[#1b4d8f]" />
+          </button>
+          <h2 className="text-base font-bold text-[#1b4d8f]">User Profile</h2>
+        </div>
+
+        {!isEditing && (
+          <button
+            onClick={handleEditClick}
+            className="flex items-center gap-1.5 bg-[#1b4d8f] text-white text-xs font-semibold py-1.5 px-3 rounded-xl hover:bg-[#143d73] active:scale-95 transition-all shadow-2xs"
+          >
+            <Edit3 size={13} />
+            <span>Edit</span>
+          </button>
+        )}
+      </div>
+
+      {/* --- Avatar & Key Info Card --- */}
+      <div className="bg-white p-4 rounded-2xl border border-black/10 shadow-2xs flex items-center gap-3.5">
+        {/* Render Photo Image or Fallback Initials */}
+        {person.photo_path ? (
+          <img
+            src={person.photo_path}
+            alt={person.name}
+            className="w-14 h-14 rounded-full object-cover shrink-0 border-2 border-[#1b4d8f]/20"
+          />
+        ) : (
+          <div className="w-14 h-14 rounded-full bg-[#1b4d8f] text-white flex items-center justify-center font-bold text-lg shrink-0 border-2 border-[#1b4d8f]/20">
+            {person.name
+              ? person.name
+                  .split(' ')
+                  .map((n) => n[0])
+                  .join('')
+                  .substring(0, 2)
+                  .toUpperCase()
+              : 'AP'}
+          </div>
+        )}
+
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <h3 className="text-base font-bold text-[#1b1a18] truncate leading-tight">
+              {person.name}
+            </h3>
+            {person.is_active && (
+              <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-semibold px-1.5 py-0.5 rounded-md flex items-center gap-0.5">
+                <CheckCircle2 size={10} /> Active
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-[#5d5b56] mt-0.5 font-medium">{person.department} Department</p>
+          <p className="text-[11px] font-mono text-gray-400 mt-0.5 truncate">{person.email}</p>
+        </div>
+      </div>
+
+      {/* --- View Mode --- */}
+      {!isEditing ? (
+        <div className="bg-white p-4 rounded-2xl border border-black/10 shadow-2xs space-y-3">
+          <h4 className="text-xs font-bold text-[#1b4d8f] uppercase tracking-wider border-b pb-2">
+            Person Model Details
+          </h4>
+
+          <div className="space-y-2.5 text-xs">
+            <div className="flex items-center gap-2.5 text-[#5d5b56]">
+              <User size={15} className="text-[#1b4d8f] shrink-0" />
+              <div>
+                <span className="text-[10px] uppercase font-semibold text-gray-400 block">Name</span>
+                <span className="font-semibold text-[#1b1a18]">{person.name}</span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5 text-[#5d5b56]">
+              <Mail size={15} className="text-[#1b4d8f] shrink-0" />
+              <div>
+                <span className="text-[10px] uppercase font-semibold text-gray-400 block">Official Email</span>
+                <span className="font-mono text-[#1b1a18]">{person.email}</span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5 text-[#5d5b56]">
+              <Phone size={15} className="text-[#1b4d8f] shrink-0" />
+              <div>
+                <span className="text-[10px] uppercase font-semibold text-gray-400 block">Mobile Number</span>
+                <span className="text-[#1b1a18]">{person.mobile || 'Not set'}</span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5 text-[#5d5b56]">
+              <Building size={15} className="text-[#1b4d8f] shrink-0" />
+              <div>
+                <span className="text-[10px] uppercase font-semibold text-gray-400 block">Department</span>
+                <span className="text-[#1b1a18]">{person.department}</span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5 text-[#5d5b56]">
+              <Calendar size={15} className="text-[#1b4d8f] shrink-0" />
+              <div>
+                <span className="text-[10px] uppercase font-semibold text-gray-400 block">Created At</span>
+                <span className="font-mono text-[#1b1a18]">
+                  {new Date(person.created_at).toLocaleDateString('en-GB', {
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric',
+                  })}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* --- Edit Form Mode --- */
+        <form onSubmit={handleSave} className="bg-white p-4 rounded-2xl border border-black/10 shadow-2xs space-y-3.5 animate-fade-in">
+          <h4 className="text-xs font-bold text-[#1b4d8f] uppercase tracking-wider border-b pb-2">
+            Edit Profile Details
+          </h4>
+
+          {/* Photo Upload / Capture Section */}
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-semibold text-[#5d5b56] block">Profile Photo (photo_path)</label>
+            <div className="flex items-center gap-3">
+              {/* Photo Preview Thumbnail */}
+              {formData.photo_path ? (
+                <div className="relative shrink-0">
+                  <img
+                    src={formData.photo_path}
+                    alt="Preview"
+                    className="w-12 h-12 rounded-full object-cover border border-[#1b4d8f]/30"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setFormData((prev) => ({ ...prev, photo_path: null }))}
+                    className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 shadow-xs hover:bg-red-600"
+                  >
+                    <X size={10} />
+                  </button>
+                </div>
+              ) : (
+                <div className="w-12 h-12 rounded-full bg-gray-100 border border-dashed border-gray-300 flex items-center justify-center text-gray-400 shrink-0">
+                  <User size={20} />
+                </div>
+              )}
+
+              {/* Action Buttons: Camera & File Upload */}
+              <div className="flex items-center gap-2 flex-1">
+                <button
+                  type="button"
+                  onClick={startCamera}
+                  className="flex-1 bg-[#1b4d8f] text-white text-[11px] font-medium py-2 px-2.5 rounded-xl flex items-center justify-center gap-1 active:scale-95 transition-all shadow-2xs"
+                >
+                  <Camera size={13} />
+                  <span>Camera</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current && fileInputRef.current.click()}
+                  className="flex-1 bg-gray-100 hover:bg-gray-200 text-[#1b1a18] border border-black/10 text-[11px] font-medium py-2 px-2.5 rounded-xl flex items-center justify-center gap-1 active:scale-95 transition-all"
+                >
+                  <Upload size={13} />
+                  <span>Upload</span>
+                </button>
+
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileChange}
+                  accept="image/*"
+                  className="hidden"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Name Field */}
+          <div className="space-y-1">
+            <label className="text-[11px] font-semibold text-[#5d5b56]">Full Name</label>
+            <input
+              type="text"
+              name="name"
+              value={formData.name}
+              onChange={handleChange}
+              placeholder="e.g. Dr. Kishor S. Kulkarni"
+              required
+              className="w-full bg-white text-xs p-2.5 rounded-xl border border-black/15 focus:outline-none focus:border-[#1b4d8f]"
+            />
+          </div>
+
+          {/* Email Field */}
+          <div className="space-y-1">
+            <label className="text-[11px] font-semibold text-[#5d5b56]">Official Email</label>
+            <input
+              type="email"
+              name="email"
+              value={formData.email}
+              onChange={handleChange}
+              placeholder="e.g. kskulkarni@cbri.res.in"
+              required
+              className="w-full bg-white text-xs p-2.5 rounded-xl border border-black/15 focus:outline-none focus:border-[#1b4d8f]"
+            />
+          </div>
+
+          {/* Mobile Field */}
+          <div className="space-y-1">
+            <label className="text-[11px] font-semibold text-[#5d5b56]">Mobile Number</label>
+            <input
+              type="text"
+              name="mobile"
+              value={formData.mobile}
+              onChange={handleChange}
+              placeholder="e.g. +91 98765 43210"
+              className="w-full bg-white text-xs p-2.5 rounded-xl border border-black/15 focus:outline-none focus:border-[#1b4d8f]"
+            />
+          </div>
+
+          {/* Department Field */}
+          <div className="space-y-1">
+            <label className="text-[11px] font-semibold text-[#5d5b56]">Department</label>
+            <input
+              type="text"
+              name="department"
+              value={formData.department}
+              onChange={handleChange}
+              placeholder="e.g. APEEG"
+              className="w-full bg-white text-xs p-2.5 rounded-xl border border-black/15 focus:outline-none focus:border-[#1b4d8f]"
+            />
+          </div>
+
+          {/* Active Status Checkbox */}
+          <div className="flex items-center gap-2 pt-1">
+            <input
+              type="checkbox"
+              id="is_active"
+              name="is_active"
+              checked={formData.is_active}
+              onChange={handleChange}
+              className="w-4 h-4 text-[#1b4d8f] rounded focus:ring-0 cursor-pointer"
+            />
+            <label htmlFor="is_active" className="text-xs font-medium text-[#1b1a18] cursor-pointer">
+              Account Active Status (is_active)
+            </label>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex items-center gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setIsEditing(false)}
+              className="flex-1 py-2.5 rounded-xl text-xs font-medium border border-gray-300 text-gray-700 active:scale-98 transition-all"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-[#1b4d8f] text-white active:scale-98 shadow-2xs transition-all"
+            >
+              Save Changes
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* --- Live Camera Modal Overlay (70% Screen Height) --- */}
+      {isCameraOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in">
+          <div className="w-full max-w-sm h-[70vh] bg-black rounded-3xl overflow-hidden flex flex-col justify-between p-3.5 shadow-2xl border border-white/20">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between text-white pb-1">
+              <h3 className="text-xs font-bold flex items-center gap-1.5">
+                <Camera size={14} className="text-[#1b4d8f]" />
+                Capture Profile Photo
+              </h3>
+              <button
+                type="button"
+                onClick={stopCamera}
+                className="p-1 rounded-full bg-white/20 hover:bg-white/30 text-white transition-all"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Video Viewport Container */}
+            <div className="relative flex-1 bg-black rounded-2xl overflow-hidden flex items-center justify-center my-2">
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                className="w-full h-full object-cover transform -scale-x-100" // Mirror stream for selfie view
+              />
+              <div className="absolute inset-0 border-2 border-white/20 rounded-2xl pointer-events-none" />
+            </div>
+
+            {/* Bottom Controls */}
+            <div className="pt-1 pb-1 flex items-center justify-center gap-4">
+              <button
+                type="button"
+                onClick={stopCamera}
+                className="bg-white/20 hover:bg-white/30 text-white text-xs px-4 py-2 rounded-xl transition-all font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={takePhoto}
+                className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-all border-4 border-[#1b4d8f]"
+              >
+                <div className="w-8 h-8 bg-[#1b4d8f] rounded-full" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

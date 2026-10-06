@@ -8,6 +8,7 @@ import AddInstrumentScreen from './pages/AddInstrumentScreen';
 import IssueWizardScreen from './pages/IssueWizardScreen';
 import DueScreen from './pages/DueScreen';
 import PeopleScreen from './pages/PeopleScreen';
+import ProfileScreen from './pages/ProfileScreen';
 import LoginScreen from './pages/LoginScreen';
 import RegisterScreen from './pages/RegisterScreen';
 
@@ -17,7 +18,7 @@ export default function App() {
   const [authView, setAuthView] = useState('login'); // 'login' | 'register'
 
   const [activeTab, setActiveTab] = useState('Home');
-  const [currentView, setCurrentView] = useState('home'); // 'home' | 'receive' | 'add-item'
+  const [currentView, setCurrentView] = useState('home'); // 'home' | 'receive' | 'add-item' | 'profile'
   const [toast, setToast] = useState(null);
 
   const showToast = (message) => {
@@ -67,7 +68,7 @@ export default function App() {
   if (!user) {
     return (
       <div className="min-h-screen bg-[#f7f6f3] flex flex-col font-sans relative">
-        <Header user={null} />
+        <Header userPhotoUrl={null} onProfileClick={() => {}} />
         <main className="flex-1 p-4 max-w-md mx-auto w-full">
           {authView === 'login' ? (
             <LoginScreen
@@ -95,11 +96,22 @@ export default function App() {
   // -------------------------------------------------------------
   return (
     <div className="min-h-screen bg-[#f7f6f3] flex flex-col font-sans pb-20 relative">
-      {/* Fixed Header Navbar */}
-      <Header user={user} />
+      {/* Fixed Header Navbar with Profile Click Handler */}
+      <Header
+        userPhotoUrl={user?.photo_path || null}
+        onProfileClick={() => setCurrentView('profile')}
+      />
 
       {/* Main Viewport Area */}
       <main className="flex-1 p-4 max-w-md mx-auto w-full">
+        {/* --- Profile Screen View --- */}
+        {currentView === 'profile' && (
+          <ProfileScreen
+            onBack={() => setCurrentView('home')}
+            onShowToast={showToast}
+          />
+        )}
+
         {activeTab === 'Home' && currentView === 'home' && (
           <HomeScreen onNavigate={handleActionClick} />
         )}

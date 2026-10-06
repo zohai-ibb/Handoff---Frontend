@@ -1,7 +1,7 @@
 import React from 'react';
 import { ShieldCheck, User } from 'lucide-react';
 
-export default function Header({ userPhotoUrl = null }) {
+export default function Header({ userPhotoUrl = null, onProfileClick }) {
   return (
     <header className="sticky top-0 left-0 right-0 w-full bg-[#1b4d8f] text-white px-4 py-3 flex items-center justify-between shadow-md z-50">
       {/* --- Left Side: Logo & App Title --- */}
@@ -16,7 +16,8 @@ export default function Header({ userPhotoUrl = null }) {
 
       {/* --- Right Side: Profile Photo Icon --- */}
       <button 
-        className="w-9 h-9 rounded-full bg-white/20 border-2 border-white/40 flex items-center justify-center overflow-hidden hover:bg-white/30 transition-all active:scale-95"
+        onClick={onProfileClick}
+        className="w-9 h-9 rounded-full bg-white/20 border-2 border-white/40 flex items-center justify-center overflow-hidden hover:bg-white/30 transition-all active:scale-95 cursor-pointer"
         aria-label="User Profile"
       >
         {userPhotoUrl ? (
