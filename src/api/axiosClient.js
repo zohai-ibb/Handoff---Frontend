@@ -22,15 +22,22 @@ axiosClient.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Interceptor: Catch global 401 Unauthenticated responses
+// Interceptor: Catch global 401 Unauthenticated responses EXCEPT on auth endpoints
 axiosClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response && error.response.status === 401) {
+    const isAuthEndpoint =
+      error.config?.url?.includes('/auth/login') ||
+      error.config?.url?.includes('/auth/signup') ||
+      error.config?.url?.includes('/persons/login');
+
+    // Only force redirect if 401 occurs on a protected resource, NOT during login itself
+    if (error.response && error.response.status === 401 && !isAuthEndpoint) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      window.location.href = '/login';
+      window.location.href = '/';
     }
+
     return Promise.reject(error);
   }
 );

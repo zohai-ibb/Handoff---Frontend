@@ -1,52 +1,96 @@
+
 import React, { useState } from "react";
-import { loginUser } from '../api/authService';
+import { loginUser } from "../api/authService";
 import { Lock, Mail, ArrowRight, ShieldCheck } from "lucide-react";
 
-export default function LoginScreen({ onLoginSuccess, onNavigateToRegister }) {
+export default function LoginScreen({
+  onLoginSuccess,
+  onNavigateToRegister,
+}) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  // Inside LoginScreen component...
-const handleSubmit = async (e) => {
-  e.preventDefault();
-  setError('');
+  const handleSubmit = async (e) => {
+    // Prevent browser from refreshing/reloading the page
+    e.preventDefault();
+    e.stopPropagation();
 
-  if (!email.trim() || !password.trim()) {
-    setError('Please enter both email and password.');
-    return;
-  }
+    setError("");
 
-  setIsLoading(true);
+    // Validate email
+    if (!email.trim()) {
+      setError("Please enter your email address.");
+      return;
+    }
 
-  try {
-    const data = await loginUser({ email: email.trim(), password });
-    
-    // Store token and user details in localStorage
-    localStorage.setItem('token', data.token);
-    localStorage.setItem('user', JSON.stringify(data.scientist || data.person));
+    // Validate password
+    if (!password) {
+      setError("Please enter your password.");
+      return;
+    }
 
-    // Call parent handler to update state
-    onLoginSuccess(data.scientist || data.person, data.token);
-  } catch (err) {
-    setError(
-      err.response?.data?.message || err.response?.data || 'Invalid email or password.'
-    );
-  } finally {
-    setIsLoading(false);
-  }
-};
+    setIsLoading(true);
+
+    try {
+      // Call login API
+      const data = await loginUser({
+        email: email.trim(),
+        password: password,
+      });
+
+      // Get token and user
+      const token = data.token;
+      const user = data.scientist || data.person || data.user;
+
+      // Check API response
+      if (!token || !user) {
+        setError("Invalid response received from server.");
+        return;
+      }
+
+      // Store login information
+      localStorage.setItem("token", token);
+      localStorage.setItem("user", JSON.stringify(user));
+
+      // Login successful
+      onLoginSuccess(user, token);
+    } catch (err) {
+      console.error("Login error:", err);
+
+      // Clear only the password.
+      // Email will remain unchanged.
+      setPassword("");
+
+      // Get error message from backend
+      const errorMessage =
+        err.response?.data?.message ||
+        (typeof err.response?.data === "string"
+          ? err.response.data
+          : null) ||
+        "Invalid email or password.";
+
+      setError(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="h-full flex flex-col justify-between overflow-hidden font-sans text-[#1b1a18] p-1">
+
       {/* Top Branding Section */}
       <div className="shrink-0 text-center pt-4 pb-2 space-y-2">
         <div className="w-14 h-14 rounded-2xl bg-[#1b4d8f] mx-auto flex items-center justify-center text-white shadow-md">
           <ShieldCheck size={32} />
         </div>
+
         <div>
-          <h1 className="text-xl font-bold text-[#1b4d8f]">CSIR - CBRI</h1>
+          <h1 className="text-xl font-bold text-[#1b4d8f]">
+            CSIR - CBRI
+          </h1>
+
           <p className="text-[11px] font-mono tracking-wider uppercase text-[#7a7872] mt-0.5">
             APEEG Instrument Register
           </p>
@@ -55,9 +99,15 @@ const handleSubmit = async (e) => {
 
       {/* Main Form Section */}
       <div className="flex-1 overflow-y-auto py-2 pr-1 custom-scrollbar">
-        <form onSubmit={handleSubmit} className="space-y-3.5 bg-white p-4 rounded-2xl border border-black/10 shadow-xs">
-          <h2 className="text-sm font-bold text-[#1b1a18]">Sign in to your account</h2>
+        <form
+          onSubmit={handleSubmit}
+          className="space-y-3.5 bg-white p-4 rounded-2xl border border-black/10 shadow-xs"
+        >
+          <h2 className="text-sm font-bold text-[#1b1a18]">
+            Sign in to your account
+          </h2>
 
+          {/* Error Message */}
           {error && (
             <div className="bg-[#fcf2f2] border border-[#f5c2c2] text-[#c92a2a] text-[11.5px] p-2.5 rounded-xl">
               {error}
@@ -69,32 +119,52 @@ const handleSubmit = async (e) => {
             <label className="text-[11px] font-semibold text-[#5d5b56]">
               Official Email Address
             </label>
+
             <div className="relative">
               <input
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setError("");
+                }}
                 placeholder="e.g. kskulkarni@cbri.res.in"
                 className="w-full bg-white text-[12.5px] py-2.5 pl-9 pr-3 rounded-xl border border-black/15 focus:outline-none focus:border-[#1b4d8f]"
                 required
+                autoComplete="email"
               />
-              <Mail size={16} className="absolute left-3 top-3 text-gray-400 pointer-events-none" />
+
+              <Mail
+                size={16}
+                className="absolute left-3 top-3 text-gray-400 pointer-events-none"
+              />
             </div>
           </div>
 
           {/* Password Input */}
           <div className="space-y-1">
-            <label className="text-[11px] font-semibold text-[#5d5b56]">Password</label>
+            <label className="text-[11px] font-semibold text-[#5d5b56]">
+              Password
+            </label>
+
             <div className="relative">
               <input
                 type="password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  setError("");
+                }}
                 placeholder="••••••••"
                 className="w-full bg-white text-[12.5px] py-2.5 pl-9 pr-3 rounded-xl border border-black/15 focus:outline-none focus:border-[#1b4d8f]"
                 required
+                autoComplete="current-password"
               />
-              <Lock size={16} className="absolute left-3 top-3 text-gray-400 pointer-events-none" />
+
+              <Lock
+                size={16}
+                className="absolute left-3 top-3 text-gray-400 pointer-events-none"
+              />
             </div>
           </div>
 
@@ -102,7 +172,7 @@ const handleSubmit = async (e) => {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full bg-[#1b4d8f] text-white py-2.5 rounded-xl text-[13px] font-semibold active:scale-98 transition-all shadow-xs flex items-center justify-center gap-2 mt-2"
+            className="w-full bg-[#1b4d8f] text-white py-2.5 rounded-xl text-[13px] font-semibold active:scale-98 transition-all shadow-xs flex items-center justify-center gap-2 mt-2 disabled:opacity-50"
           >
             {isLoading ? (
               <span>Signing in...</span>

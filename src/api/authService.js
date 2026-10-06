@@ -5,7 +5,6 @@ import axiosClient from './axiosClient';
  * @param {Object} credentials - { email, password }
  */
 export const loginUser = async (credentials) => {
-  // Corrected endpoint path matching AuthController @PostMapping("/login")
   const response = await axiosClient.post('/auth/login', credentials);
   return response.data; // Returns { token, person }
 };
@@ -15,7 +14,6 @@ export const loginUser = async (credentials) => {
  * @param {Object} userData - { name, email, password, mobile, department }
  */
 export const registerUser = async (userData) => {
-  // Corrected endpoint path matching AuthController @PostMapping("/signup")
   const response = await axiosClient.post('/auth/signup', userData);
   return response.data; // Returns { token, person }
 };
