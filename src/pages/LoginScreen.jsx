@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { loginUser } from '../api/authService';
 import { Lock, Mail, ArrowRight, ShieldCheck } from "lucide-react";
 
 export default function LoginScreen({ onLoginSuccess, onNavigateToRegister }) {
@@ -7,37 +8,35 @@ export default function LoginScreen({ onLoginSuccess, onNavigateToRegister }) {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    setError("");
+  // Inside LoginScreen component...
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  setError('');
 
-    if (!email.trim() || !password.trim()) {
-      setError("Please enter both email and password.");
-      return;
-    }
+  if (!email.trim() || !password.trim()) {
+    setError('Please enter both email and password.');
+    return;
+  }
 
-    setIsLoading(true);
+  setIsLoading(true);
 
-    // Simulate authentication API call
-    setTimeout(() => {
-      setIsLoading(false);
-      // Hardcoded validation check for demonstration
-      if (password.length >= 6) {
-        const userData = {
-          id: "65f1a2b3c4d5e6f7a8b9c0d2",
-          name: "Dr. Kishor S. Kulkarni",
-          email: email.trim(),
-          department: "APEEG",
-        };
-        const token = "mock-jwt-token-xyz123";
+  try {
+    const data = await loginUser({ email: email.trim(), password });
+    
+    // Store token and user details in localStorage
+    localStorage.setItem('token', data.token);
+    localStorage.setItem('user', JSON.stringify(data.scientist || data.person));
 
-        // Call parent handler to update auth state and trigger redirect
-        onLoginSuccess(userData, token);
-      } else {
-        setError("Invalid email or password. Please check your credentials.");
-      }
-    }, 1000);
-  };
+    // Call parent handler to update state
+    onLoginSuccess(data.scientist || data.person, data.token);
+  } catch (err) {
+    setError(
+      err.response?.data?.message || err.response?.data || 'Invalid email or password.'
+    );
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   return (
     <div className="h-full flex flex-col justify-between overflow-hidden font-sans text-[#1b1a18] p-1">

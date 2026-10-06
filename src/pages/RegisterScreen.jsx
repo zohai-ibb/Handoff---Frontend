@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { registerUser } from '../api/authService';
 import { User, Mail, Lock, Phone, Building, ArrowRight, ShieldCheck } from "lucide-react";
 
 export default function RegisterScreen({ onRegisterSuccess, onNavigateToLogin }) {
@@ -10,39 +11,48 @@ export default function RegisterScreen({ onRegisterSuccess, onNavigateToLogin })
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    setError("");
+// Inside RegisterScreen.jsx form submit handler:
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  setError('');
 
-    if (!name.trim() || !email.trim() || !password.trim()) {
-      setError("Please fill in all mandatory fields.");
-      return;
+  if (!name.trim() || !email.trim() || !password.trim()) {
+    setError('Please fill in all mandatory fields.');
+    return;
+  }
+
+  setIsLoading(true);
+
+  try {
+    const payload = {
+      name: name.trim(),
+      email: email.trim(),
+      password: password,
+      mobile: mobile.trim(),
+      department: department.trim() || 'APEEG',
+    };
+
+    const data = await registerUser(payload);
+
+    // Extract token and user object from AuthController response
+    const token = data.token;
+    const user = data.person || data.scientist;
+
+    if (token && user) {
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(user));
+      onRegisterSuccess(user, token);
+    } else {
+      setError('Invalid response structure received from server.');
     }
-
-    if (!email.includes("@cbri.res.in")) {
-      setError("Please use an official CSIR-CBRI email address (@cbri.res.in).");
-      return;
-    }
-
-    setIsLoading(true);
-
-    // Simulate backend registration API call
-    setTimeout(() => {
-      setIsLoading(false);
-
-      const newUser = {
-        id: "65f1a2b3c4d5e6f7a8b9c0d3",
-        name: name.trim(),
-        email: email.trim(),
-        mobile: mobile.trim(),
-        department: department.trim() || "APEEG",
-      };
-      const token = "mock-jwt-token-newuser456";
-
-      // Call parent handler to update auth state and trigger redirect
-      onRegisterSuccess(newUser, token);
-    }, 1000);
-  };
+  } catch (err) {
+    setError(
+      err.response?.data?.message || err.response?.data || 'Registration failed. Email may already exist.'
+    );
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   return (
     <div className="h-full flex flex-col justify-between overflow-hidden font-sans text-[#1b1a18] p-1">

@@ -11,6 +11,8 @@ import PeopleScreen from './pages/PeopleScreen';
 import ProfileScreen from './pages/ProfileScreen';
 import LoginScreen from './pages/LoginScreen';
 import RegisterScreen from './pages/RegisterScreen';
+import axiosClient from './api/axiosClient';
+console.log('Axios Base URL Configured:', axiosClient.defaults.baseURL);
 
 export default function App() {
   const [user, setUser] = useState(null); // Current authenticated user profile
