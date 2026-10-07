@@ -23,24 +23,37 @@ export default function ItemsScreen({ onSelectInstrument }) {
         const rawInstruments = instData || [];
         const activeLoans = recordsData || [];
 
-        // Map active issue record details (dueDate, borrower, overdue state) onto each instrument
+        // Map active issue record details onto each instrument
         const mappedInstruments = rawInstruments.map((item) => {
           const itemId = item.id || item._id;
 
           // Find if this instrument is currently checked out in an active issue record
           const activeRecord = activeLoans.find((record) => {
-            const recordInstId = record.instrument?.id || record.instrument?._id || record.instrument;
-            return recordInstId === itemId && record.state === 'OPEN';
+            const recordInstId =
+              record.instrument?.id || record.instrument?._id || record.instrument;
+            return (
+              recordInstId === itemId &&
+              (record.state === 'OPEN' || record.state === 'ISSUED' || !record.state)
+            );
           });
 
           if (activeRecord) {
             const overdue = isRecordOverdue(activeRecord);
+
+            // DYNAMICALLY RESOLVE BORROWER NAME FROM ALL POSSIBLE BACKEND KEYS
+            const borrowerName =
+              activeRecord.borrowerScientist?.name ||
+              activeRecord.borrower_scientist?.name ||
+              activeRecord.staffName ||
+              activeRecord.staff_name ||
+              'Borrower';
+
             return {
               ...item,
-              status: overdue ? 'OVERDUE' : 'ISSUED', // Override status to OVERDUE if pass return date
+              status: overdue ? 'OVERDUE' : 'ISSUED',
               isOverdue: overdue,
               dueDate: activeRecord.dueDate || activeRecord.due_date,
-              holder: activeRecord.borrowerScientist?.name || activeRecord.staffName || 'Borrower',
+              holder: borrowerName,
             };
           }
 
@@ -67,6 +80,7 @@ export default function ItemsScreen({ onSelectInstrument }) {
         !query ||
         item.name?.toLowerCase().includes(query) ||
         item.assetId?.toLowerCase().includes(query) ||
+        item.asset_id?.toLowerCase().includes(query) ||
         item.make?.toLowerCase().includes(query) ||
         item.holder?.toLowerCase().includes(query);
 
@@ -140,16 +154,15 @@ export default function ItemsScreen({ onSelectInstrument }) {
         ) : (
           filteredInstruments.map((item) => {
             const isOverdueItem = item.status === 'OVERDUE' || item.isOverdue;
+            const assetIdDisplay = item.assetId || item.asset_id || 'N/A';
 
             return (
               <div
                 key={item.id || item._id}
-                onClick={() => onSelectInstrument && onSelectInstrument(item)}
                 className={`bg-white p-3.5 rounded-2xl border shadow-xs space-y-1 ${
                   isOverdueItem ? 'border-[#f5c2c2]' : 'border-black/10'
                 }`}
               >
-                {/* Title & Status Badge (Uses exact same styling logic as DueScreen) */}
                 <div className="flex items-start justify-between gap-2">
                   <h3 className="text-[13.5px] font-bold text-[#1b1a18] leading-snug">
                     {item.name}
@@ -165,12 +178,18 @@ export default function ItemsScreen({ onSelectInstrument }) {
                         : 'bg-[#eef8f5] text-[#12695a]'
                     }`}
                   >
-                    {isOverdueItem ? 'OVERDUE' : item.status === 'ISSUED' ? 'Issued' : item.status === 'MAINTENANCE' ? 'Maintenance' : 'Available'}
+                    {isOverdueItem
+                      ? 'OVERDUE'
+                      : item.status === 'ISSUED'
+                      ? 'Issued'
+                      : item.status === 'MAINTENANCE'
+                      ? 'Maintenance'
+                      : 'Available'}
                   </span>
                 </div>
 
                 <div className="font-mono text-[10.5px] text-[#7a7872]">
-                  Asset ID: {item.assetId}
+                  Asset ID: {assetIdDisplay}
                 </div>
 
                 <div className="text-[12px] text-[#5d5b56] pt-0.5">

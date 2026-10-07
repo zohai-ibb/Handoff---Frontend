@@ -32,12 +32,20 @@ export default function DueScreen({ onShowToast }) {
   const handleSendReminder = async (item) => {
     try {
       const recordId = item.id || item._id;
-      // Trigger instant reminder endpoint if present or notify user
+      
+      // Resolve borrower name dynamically
+      const borrowerName =
+        item.borrowerScientist?.name ||
+        item.borrower_scientist?.name ||
+        item.staffName ||
+        item.staff_name ||
+        'Borrower';
+
       if (onShowToast) {
         onShowToast(
-          `Reminder email dispatched to ${
-            item.borrowerScientist?.name || item.staffName || 'Borrower'
-          } for ${item.instrument?.name || 'Instrument'}.`
+          `Reminder email dispatched to ${borrowerName} for ${
+            item.instrument?.name || 'Instrument'
+          }.`
         );
       }
     } catch (err) {
@@ -45,26 +53,26 @@ export default function DueScreen({ onShowToast }) {
     }
   };
 
-  const handleMarkReceived = async (id, name) => {
-    try {
-      // Execute live backend return call
-      await axiosClient.put(`/issue-records/${id}/return`, {
-        condition_in: 'GOOD',
-        conditionIn: 'GOOD',
-      });
+  // const handleMarkReceived = async (id, name) => {
+  //   try {
+  //     // Execute live backend return call
+  //     await axiosClient.put(`/issue-records/${id}/return`, {
+  //       condition_in: 'GOOD',
+  //       conditionIn: 'GOOD',
+  //     });
 
-      // Filter returned item out of local state
-      setLoans((prev) => prev.filter((item) => (item.id || item._id) !== id));
+  //     // Filter returned item out of local state
+  //     setLoans((prev) => prev.filter((item) => (item.id || item._id) !== id));
 
-      if (onShowToast) {
-        onShowToast(`Marked ${name} as received back into inventory.`);
-      }
-    } catch (err) {
-      if (onShowToast) {
-        onShowToast('Failed to update return state in backend database.');
-      }
-    }
-  };
+  //     if (onShowToast) {
+  //       onShowToast(`Marked ${name || 'instrument'} as received back into inventory.`);
+  //     }
+  //   } catch (err) {
+  //     if (onShowToast) {
+  //       onShowToast('Failed to update return state in backend database.');
+  //     }
+  //   }
+  // };
 
   const overdueCount = loans.filter((i) => isRecordOverdue(i)).length;
   const activeCount = loans.length - overdueCount;
@@ -102,6 +110,14 @@ export default function DueScreen({ onShowToast }) {
             const overdue = isRecordOverdue(item);
             const dueDateDisplay = item.dueDate || item.due_date || 'N/A';
 
+            // BORROWER NAME RESOLUTION FIX
+            const borrowerName =
+              item.borrowerScientist?.name ||
+              item.borrower_scientist?.name ||
+              item.staffName ||
+              item.staff_name ||
+              'Borrower';
+
             return (
               <div
                 key={item.id || item._id}
@@ -127,7 +143,7 @@ export default function DueScreen({ onShowToast }) {
 
                 {/* Borrower & Due Date */}
                 <p className="text-[11.5px] text-[#5d5b56] leading-tight">
-                  {item.borrowerScientist?.name || item.staffName || 'Borrower'} · Due:{' '}
+                  {borrowerName} · Due:{' '}
                   <span className={overdue ? 'font-bold text-[#c92a2a]' : 'font-semibold'}>
                     {dueDateDisplay}
                   </span>
@@ -135,7 +151,7 @@ export default function DueScreen({ onShowToast }) {
 
                 {/* Asset ID */}
                 <p className="font-mono text-[10.5px] text-[#7a7872]">
-                  Asset ID: {item.instrument?.assetId || 'N/A'}
+                  Asset ID: {item.instrument?.assetId || item.instrument?.asset_id || 'N/A'}
                 </p>
 
                 {/* Actions */}
@@ -147,7 +163,7 @@ export default function DueScreen({ onShowToast }) {
                   >
                     Send reminder now
                   </button>
-                  <button
+                  {/* <button
                     type="button"
                     onClick={() =>
                       handleMarkReceived(item.id || item._id, item.instrument?.name)
@@ -155,7 +171,7 @@ export default function DueScreen({ onShowToast }) {
                     className="bg-white text-[#1b1a18] border border-gray-300 py-2 px-4 rounded-xl text-[12.5px] font-medium active:scale-98 transition-all hover:bg-gray-50"
                   >
                     Received
-                  </button>
+                  </button> */}
                 </div>
               </div>
             );
@@ -169,7 +185,7 @@ export default function DueScreen({ onShowToast }) {
             </h4>
             <p className="text-[11px] text-[#7a7872]">
               All equipment is currently returned and available in lab inventory.
-            </p> 
+            </p>
           </div>
         )}
       </div>

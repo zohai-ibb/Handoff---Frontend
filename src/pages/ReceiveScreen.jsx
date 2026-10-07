@@ -41,7 +41,7 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
       // Only keep records that are active OPEN loans
       const openOnly = (data || []).filter(
         (record) =>
-          record.state === "OPEN" || record.state === "ISSUED" || !record.state,
+          record.state === "OPEN" || record.state === "ISSUED" || !record.state
       );
       setIssuedRecords(openOnly);
     } catch (err) {
@@ -99,60 +99,61 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
   };
 
   const handleConfirmReturn = async () => {
-  if (!selectedRecord) return;
-  const recordId = selectedRecord.id || selectedRecord._id;
+    if (!selectedRecord) return;
+    const recordId = selectedRecord.id || selectedRecord._id;
 
-  try {
-    setIsSubmitting(true);
+    try {
+      setIsSubmitting(true);
 
-    if (capturedPhoto) {
-      // MULTIPART FORM-DATA SUBMISSION (WITH PHOTO)
-      const formData = new FormData();
-      formData.append('condition_in', conditionIn);
+      if (capturedPhoto) {
+        // MULTIPART FORM-DATA SUBMISSION (WITH PHOTO)
+        const formData = new FormData();
+        formData.append("condition_in", conditionIn);
 
-      // Convert base64 data URL to Blob and attach file under key "photo"
-      const photoBlob = dataURLtoBlob(capturedPhoto);
-      formData.append('photo', photoBlob, 'return_condition.jpg');
+        // Convert base64 data URL to Blob and attach file under key "photo"
+        const photoBlob = dataURLtoBlob(capturedPhoto);
+        formData.append("photo", photoBlob, "return_condition.jpg");
 
-      // Call the multipart endpoint
-      await axiosClient.put(`/issue-records/${recordId}/return/photo`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-    } else {
-      // PLAIN JSON SUBMISSION (WITHOUT PHOTO)
-      await axiosClient.put(`/issue-records/${recordId}/return`, {
-        condition_in: conditionIn,
-      });
-    }
+        // Call the multipart endpoint
+        await axiosClient.put(`/issue-records/${recordId}/return/photo`, formData, {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        });
+      } else {
+        // PLAIN JSON SUBMISSION (WITHOUT PHOTO)
+        await axiosClient.put(`/issue-records/${recordId}/return`, {
+          condition_in: conditionIn,
+        });
+      }
 
-    // Remove returned record from active list
-    setIssuedRecords((prev) =>
-      prev.filter((item) => (item.id || item._id) !== recordId)
-    );
-
-    if (onShowToast) {
-      onShowToast(
-        `Received back. Instrument status set to ${
-          conditionIn === 'GOOD' ? 'AVAILABLE' : 'MAINTENANCE'
-        }.`
+      // Remove returned record from active list
+      setIssuedRecords((prev) =>
+        prev.filter((item) => (item.id || item._id) !== recordId)
       );
-    }
 
-    setSelectedRecord(null);
-    setCapturedPhoto(null);
-    stopCamera();
-  } catch (err) {
-    if (onShowToast) {
-      onShowToast(
-        err.response?.data?.message || 'Failed to record return in backend database.'
-      );
+      if (onShowToast) {
+        onShowToast(
+          `Received back. Instrument status set to ${
+            conditionIn === "GOOD" ? "AVAILABLE" : "MAINTENANCE"
+          }.`
+        );
+      }
+
+      setSelectedRecord(null);
+      setCapturedPhoto(null);
+      stopCamera();
+    } catch (err) {
+      if (onShowToast) {
+        onShowToast(
+          err.response?.data?.message || "Failed to record return in backend database."
+        );
+      }
+    } finally {
+      setIsSubmitting(false);
     }
-  } finally {
-    setIsSubmitting(false);
-  }
-};
+  };
+
   return (
     <div className="space-y-3.5 font-sans text-[#1b1a18]">
       {/* Intro Subheader */}
@@ -201,6 +202,14 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
             const overdue = isRecordOverdue(item);
             const dateDisplay = item.dueDate || item.due_date || "N/A";
 
+            // RESOLVES ACTUAL BORROWER SCIENTIST NAME
+            const borrowerName =
+              item.borrowerScientist?.name ||
+              item.borrower_scientist?.name ||
+              item.staffName ||
+              item.staff_name ||
+              "Borrower";
+
             return (
               <div
                 key={item.id || item._id}
@@ -215,13 +224,11 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
                       {item.instrument?.name || "Instrument"}
                     </h3>
                     <p className="font-mono text-[10.5px] text-[#7a7872]">
-                      Asset ID: {item.instrument?.assetId || "N/A"}
+                      Asset ID: {item.instrument?.assetId || item.instrument?.asset_id || "N/A"}
                     </p>
                     <div className="text-[12px] text-[#5d5b56] pt-0.5">
                       <span className="font-medium text-[#3f3d39]">
-                        {item.borrowerScientist?.name ||
-                          item.staffName ||
-                          "Borrower"}
+                        {borrowerName}
                       </span>{" "}
                       · Due: {dateDisplay}
                     </div>
@@ -281,7 +288,9 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
               <p className="text-[11px] text-gray-500">
                 Borrower:{" "}
                 {selectedRecord.borrowerScientist?.name ||
+                  selectedRecord.borrower_scientist?.name ||
                   selectedRecord.staffName ||
+                  selectedRecord.staff_name ||
                   "N/A"}
               </p>
             </div>

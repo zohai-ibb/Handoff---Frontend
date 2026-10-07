@@ -154,6 +154,14 @@ export default function HomeScreen({ onNavigate }) {
             const overdue = isRecordOverdue(record);
             const dateDisplay = record.dueDate || record.due_date || 'N/A';
 
+            // DYNAMIC BORROWER SCIENTIST NAME RESOLUTION
+            const borrowerName =
+              record.borrowerScientist?.name ||
+              record.borrower_scientist?.name ||
+              record.staffName ||
+              record.staff_name ||
+              'Borrower';
+
             return (
               <div
                 key={record.id || record._id}
@@ -166,13 +174,13 @@ export default function HomeScreen({ onNavigate }) {
                     {record.instrument?.name || 'Instrument'}
                   </h4>
                   <div className="font-mono text-[11px] text-[#7a7872]">
-                    {record.instrument?.assetId || record.instrument?.asset_id || 'N/A'}
+                    Asset Id: {record.instrument?.assetId || record.instrument?.asset_id || 'N/A'}
                   </div>
                   <div className="text-[12px] text-[#5d5b56]">
                     <span className="font-medium">
-                      {record.borrowerScientist?.name || record.staffName || 'Borrower'}
+                    Borrower: {borrowerName}
                     </span>{' '}
-                    · {overdue ? `due ${dateDisplay} (OVERDUE)` : `return by ${dateDisplay}`}
+                    · {overdue ? `Due ${dateDisplay}` : `Return by ${dateDisplay}`}
                   </div>
                 </div>
 
