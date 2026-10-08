@@ -12,6 +12,7 @@ import {
   Upload,
   LogOut,
   Loader2,
+  AlertCircle,
 } from "lucide-react";
 
 export default function ProfileScreen({
@@ -23,7 +24,7 @@ export default function ProfileScreen({
 }) {
   const BASE_URL = "http://localhost:8080";
 
-  // State initialized with authenticated user data[cite: 1]
+  // State initialized with authenticated user data
   const [person, setPerson] = useState({
     id: user?.id || "",
     name: user?.name || "",
@@ -40,13 +41,21 @@ export default function ProfileScreen({
   const [selectedPhotoFile, setSelectedPhotoFile] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Confirmation Dialog Modal State
+  const [confirmDialog, setConfirmDialog] = useState({
+    isOpen: false,
+    title: "",
+    message: "",
+    actionType: null, // 'SAVE' | 'LOGOUT'
+  });
+
   // Live Camera Controls
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const videoRef = useRef(null);
   const mediaStreamRef = useRef(null);
   const fileInputRef = useRef(null);
 
-  // Sync state if user prop updates[cite: 1]
+  // Sync state if user prop updates
   useEffect(() => {
     if (user) {
       const updated = {
@@ -64,14 +73,14 @@ export default function ProfileScreen({
     }
   }, [user]);
 
-  // Handle Edit Toggle[cite: 1]
+  // Handle Edit Toggle
   const handleEditClick = () => {
     setFormData({ ...person });
     setSelectedPhotoFile(null);
     setIsEditing(true);
   };
 
-  // Handle Form Input Changes[cite: 1]
+  // Handle Form Input Changes
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     setFormData((prev) => ({
@@ -80,7 +89,7 @@ export default function ProfileScreen({
     }));
   };
 
-  // File Picker Handler[cite: 1]
+  // File Picker Handler
   const handleFileChange = (e) => {
     const file = e.target.files && e.target.files[0];
     if (file) {
@@ -89,7 +98,7 @@ export default function ProfileScreen({
       reader.onloadend = () => {
         setFormData((prev) => ({
           ...prev,
-          photo_path: reader.result, // Temporary preview
+          photo_path: reader.result,
         }));
       };
       reader.readAsDataURL(file);
@@ -97,7 +106,7 @@ export default function ProfileScreen({
     }
   };
 
-  // Camera Handlers[cite: 1]
+  // Camera Handlers
   const startCamera = async () => {
     try {
       setIsCameraOpen(true);
@@ -151,8 +160,41 @@ export default function ProfileScreen({
     return () => stopCamera();
   }, []);
 
-  const handleSave = async (e) => {
+  // Open confirmation dialog prior to form submit
+  const handleSavePrompt = (e) => {
     e.preventDefault();
+    setConfirmDialog({
+      isOpen: true,
+      title: "Confirm Profile Update",
+      message: "Are you sure you want to save changes to your profile details?",
+      actionType: "SAVE",
+    });
+  };
+
+  // Open confirmation dialog prior to logout
+  const handleLogoutPrompt = () => {
+    setConfirmDialog({
+      isOpen: true,
+      title: "Confirm Sign Out",
+      message: "Are you sure you want to sign out of your account?",
+      actionType: "LOGOUT",
+    });
+  };
+
+  // Confirmed action dispatcher
+  const handleConfirmAction = () => {
+    const { actionType } = confirmDialog;
+    setConfirmDialog({ isOpen: false, title: "", message: "", actionType: null });
+
+    if (actionType === "SAVE") {
+      executeSave();
+    } else if (actionType === "LOGOUT") {
+      if (onLogout) onLogout();
+    }
+  };
+
+  // Actual Save API Call
+  const executeSave = async () => {
     if (!person.id) {
       if (onShowToast) onShowToast("Error: User ID missing.");
       return;
@@ -199,7 +241,6 @@ export default function ProfileScreen({
           }
         );
 
-        // Handle File Size Exceeded Error from Spring Boot
         if (photoResponse.status === 413 || photoResponse.status === 500) {
           const errorText = await photoResponse.text();
           if (
@@ -240,7 +281,7 @@ export default function ProfileScreen({
     }
   };
 
-  // Helper function to resolve the image URL
+  // Helper function to resolve image URL
   const getPhotoUrl = (photoPath) => {
     if (!photoPath) return null;
     if (photoPath.startsWith("data:")) return photoPath;
@@ -253,7 +294,6 @@ export default function ProfileScreen({
     return `${fullPath}?t=${new Date().getTime()}`;
   };
 
-  // Render avatar helper
   const renderAvatar = (photoPath, name) => {
     if (photoPath) {
       return (
@@ -284,7 +324,7 @@ export default function ProfileScreen({
   };
 
   return (
-    <div className="space-y-4 font-sans text-[#1b1a18] animate-fade-in">
+    <div className="space-y-4 font-sans text-[#1b1a18] animate-fade-in relative">
       {/* --- Header Title --- */}
       <div className="flex items-center justify-between">
         <h2 className="text-base font-bold text-[#1b4d8f]">User Profile</h2>
@@ -389,7 +429,7 @@ export default function ProfileScreen({
             )}
           </div>
 
-          {/* Action Buttons: Edit and Sign Out placed together */}
+          {/* Action Buttons */}
           <div className="pt-3 border-t border-gray-100 flex items-center gap-2">
             <button
               type="button"
@@ -403,7 +443,7 @@ export default function ProfileScreen({
             {onLogout && (
               <button
                 type="button"
-                onClick={onLogout}
+                onClick={handleLogoutPrompt}
                 className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl text-xs font-semibold transition-all active:scale-98"
               >
                 <LogOut size={14} />
@@ -415,7 +455,7 @@ export default function ProfileScreen({
       ) : (
         /* --- Edit Form Mode --- */
         <form
-          onSubmit={handleSave}
+          onSubmit={handleSavePrompt}
           className="bg-white p-4 rounded-2xl border border-black/10 shadow-2xs space-y-3.5 animate-fade-in"
         >
           <h4 className="text-xs font-bold text-[#1b4d8f] uppercase tracking-wider border-b pb-2">
@@ -597,7 +637,54 @@ export default function ProfileScreen({
         </form>
       )}
 
-      {/* Camera Viewfinder Modal */}
+      {/* Confirmation Dialog Box Modal */}
+      {confirmDialog.isOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-2xl p-5 max-w-xs w-full shadow-2xl border border-gray-200 space-y-3">
+            <div className="flex items-center gap-2.5 text-[#1b4d8f]">
+              <AlertCircle size={20} className="shrink-0 text-[#1b4d8f]" />
+              <h3 className="text-sm font-bold text-[#1b1a18]">
+                {confirmDialog.title}
+              </h3>
+            </div>
+
+            <p className="text-xs text-[#5d5b56] leading-relaxed">
+              {confirmDialog.message}
+            </p>
+
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() =>
+                  setConfirmDialog({
+                    isOpen: false,
+                    title: "",
+                    message: "",
+                    actionType: null,
+                  })
+                }
+                className="flex-1 py-2 rounded-xl text-xs font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 active:scale-98 transition-all"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={handleConfirmAction}
+                className={`flex-1 py-2 rounded-xl text-xs font-bold text-white active:scale-98 transition-all shadow-xs ${
+                  confirmDialog.actionType === "LOGOUT"
+                    ? "bg-red-600 hover:bg-red-700"
+                    : "bg-[#1b4d8f] hover:bg-[#143d73]"
+                }`}
+              >
+                Okay
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Live Camera Viewfinder Modal */}
       {isCameraOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in">
           <div className="w-full max-w-sm h-[70vh] bg-black rounded-3xl overflow-hidden flex flex-col justify-between p-3.5 shadow-2xl border border-white/20">
