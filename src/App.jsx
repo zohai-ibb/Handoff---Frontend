@@ -81,16 +81,19 @@ export default function App() {
   };
 
   const handleSelectInstrumentFromInventory = (instrument) => {
-    showToast(`Selected ${instrument.name} (${instrument.assetId})`);
+    showToast(`Selected ${instrument.name} (${instrument.assetId || instrument.asset_id || ''})`);
     setActiveTab('Issue');
     setCurrentView('home');
   };
 
+  // -------------------------------------------------------------
+  // Unauthenticated View (Login / Register)
+  // -------------------------------------------------------------
   if (!user || !token) {
     return (
       <div className="min-h-screen bg-[#f7f6f3] flex flex-col font-sans relative">
         <Header user={null} />
-        {/* Changed pt-[64px] to pt-3 */}
+        {/* Adjusted pt-[64px] to pt-3 to eliminate top gap */}
         <main className="flex-1 p-4 pt-3 max-w-md mx-auto w-full">
           {authView === 'login' ? (
             <LoginScreen
@@ -113,6 +116,9 @@ export default function App() {
     );
   }
 
+  // -------------------------------------------------------------
+  // Main Authenticated Application Layout
+  // -------------------------------------------------------------
   return (
     <div className="min-h-screen bg-[#f7f6f3] flex flex-col font-sans pb-20 relative">
       <Header
@@ -125,7 +131,7 @@ export default function App() {
         onLogout={handleLogout}
       />
 
-      {/* Changed pt-[64px] to pt-3 to eliminate gap below header */}
+      {/* Main Viewport Content Area (Adjusted pt-[64px] to pt-3) */}
       <main className="flex-1 p-4 pt-3 max-w-md mx-auto w-full">
         {currentView === 'profile' && (
           <ProfileScreen
@@ -163,7 +169,10 @@ export default function App() {
         )}
 
         {currentView === 'home' && activeTab === 'Items' && (
-          <ItemsScreen onSelectInstrument={handleSelectInstrumentFromInventory} />
+          <ItemsScreen
+            onNavigate={handleActionClick}
+            onSelectInstrument={handleSelectInstrumentFromInventory}
+          />
         )}
 
         {currentView === 'home' && activeTab === 'Due' && (
@@ -178,12 +187,14 @@ export default function App() {
         )}
       </main>
 
+      {/* Toast Notification Banner */}
       {toast && (
         <div className="fixed bottom-[72px] left-4 right-4 z-50 max-w-md mx-auto bg-[#1b1a18] text-white text-[12px] leading-relaxed rounded-xl p-3 shadow-2xl border border-white/10 animate-fade-in flex items-center justify-between">
           <span>{toast}</span>
         </div>
       )}
 
+      {/* Fixed Bottom Navigation Footer */}
       <Footer currentTab={activeTab} onTabChange={handleFooterTabChange} />
     </div>
   );

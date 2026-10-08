@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search } from 'lucide-react';
+import { Search, Plus } from 'lucide-react';
 import { getInstruments, getActiveIssueRecords } from '../api/instrumentService';
 import { isRecordOverdue } from '../utils/dateUtils';
 
-export default function ItemsScreen({ onSelectInstrument }) {
+export default function ItemsScreen({ onNavigate }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('All');
   const [instruments, setInstruments] = useState([]);
@@ -14,7 +14,6 @@ export default function ItemsScreen({ onSelectInstrument }) {
     const fetchInventoryAndLoans = async () => {
       try {
         setIsLoading(true);
-        // Fetch both inventory items AND active checkout records simultaneously
         const [instData, recordsData] = await Promise.all([
           getInstruments(),
           getActiveIssueRecords(),
@@ -23,11 +22,9 @@ export default function ItemsScreen({ onSelectInstrument }) {
         const rawInstruments = instData || [];
         const activeLoans = recordsData || [];
 
-        // Map active issue record details onto each instrument
         const mappedInstruments = rawInstruments.map((item) => {
           const itemId = item.id || item._id;
 
-          // Find if this instrument is currently checked out in an active issue record
           const activeRecord = activeLoans.find((record) => {
             const recordInstId =
               record.instrument?.id || record.instrument?._id || record.instrument;
@@ -40,7 +37,6 @@ export default function ItemsScreen({ onSelectInstrument }) {
           if (activeRecord) {
             const overdue = isRecordOverdue(activeRecord);
 
-            // DYNAMICALLY RESOLVE BORROWER NAME FROM ALL POSSIBLE BACKEND KEYS
             const borrowerName =
               activeRecord.borrowerScientist?.name ||
               activeRecord.borrower_scientist?.name ||
@@ -102,7 +98,7 @@ export default function ItemsScreen({ onSelectInstrument }) {
   }, [searchQuery, activeFilter, instruments]);
 
   return (
-    <div className="h-full flex flex-col justify-between overflow-hidden font-sans text-[#1b1a18]">
+    <div className="h-full flex flex-col justify-between overflow-hidden font-sans text-[#1b1a18] relative">
       {/* Search & Filter Header */}
       <div className="shrink-0 space-y-2.5 pb-2">
         <div className="relative">
@@ -124,7 +120,7 @@ export default function ItemsScreen({ onSelectInstrument }) {
               <button
                 key={pill}
                 onClick={() => setActiveFilter(pill)}
-                className={`text-[11.5px] font-medium px-3 py-1 rounded-full whitespace-nowrap transition-all ${
+                className={`text-[11.5px] font-medium px-3 py-1 rounded-full whitespace-nowrap transition-all cursor-pointer ${
                   isSelected
                     ? 'bg-[#1b4d8f] text-white border border-[#1b4d8f]'
                     : 'bg-white text-[#3f3d39] border border-black/15 hover:border-gray-400'
@@ -142,7 +138,7 @@ export default function ItemsScreen({ onSelectInstrument }) {
       </div>
 
       {/* Inventory Cards List */}
-      <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+      <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar pb-16">
         {error && (
           <div className="bg-[#fcf2f2] text-[#c92a2a] text-[11.5px] p-2.5 rounded-xl border border-[#f5c2c2]">
             {error}
@@ -218,6 +214,15 @@ export default function ItemsScreen({ onSelectInstrument }) {
           </div>
         )}
       </div>
+
+      {/* Floating Action Button (FAB) -> Navigates via App.jsx handler */}
+      <button
+        onClick={() => onNavigate && onNavigate('Add item')}
+        aria-label="Add Instrument"
+        className="fixed bottom-20 right-5 z-40 bg-[#1b4d8f] hover:bg-[#143d73] text-white p-3.5 rounded-full shadow-lg active:scale-95 transition-all flex items-center justify-center cursor-pointer border border-white/20"
+      >
+        <Plus size={22} className="stroke-[2.5]" />
+      </button>
     </div>
   );
 }
