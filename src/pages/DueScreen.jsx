@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { ArrowLeft } from 'lucide-react';
 import axiosClient from '../api/axiosClient';
 import { getActiveIssueRecords } from '../api/instrumentService';
 import { isRecordOverdue } from '../utils/dateUtils';
 
-export default function DueScreen({ onShowToast }) {
+export default function DueScreen({ onBack, onShowToast }) {
   const [loans, setLoans] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -13,7 +14,6 @@ export default function DueScreen({ onShowToast }) {
       setIsLoading(true);
       setError('');
       const data = await getActiveIssueRecords();
-      // Keep only active open loans
       const openOnly = (data || []).filter(
         (record) => record.state === 'OPEN' || record.state === 'ISSUED' || !record.state
       );
@@ -31,9 +31,6 @@ export default function DueScreen({ onShowToast }) {
 
   const handleSendReminder = async (item) => {
     try {
-      const recordId = item.id || item._id;
-      
-      // Resolve borrower name dynamically
       const borrowerName =
         item.borrowerScientist?.name ||
         item.borrower_scientist?.name ||
@@ -53,34 +50,25 @@ export default function DueScreen({ onShowToast }) {
     }
   };
 
-  // const handleMarkReceived = async (id, name) => {
-  //   try {
-  //     // Execute live backend return call
-  //     await axiosClient.put(`/issue-records/${id}/return`, {
-  //       condition_in: 'GOOD',
-  //       conditionIn: 'GOOD',
-  //     });
-
-  //     // Filter returned item out of local state
-  //     setLoans((prev) => prev.filter((item) => (item.id || item._id) !== id));
-
-  //     if (onShowToast) {
-  //       onShowToast(`Marked ${name || 'instrument'} as received back into inventory.`);
-  //     }
-  //   } catch (err) {
-  //     if (onShowToast) {
-  //       onShowToast('Failed to update return state in backend database.');
-  //     }
-  //   }
-  // };
-
   const overdueCount = loans.filter((i) => isRecordOverdue(i)).length;
   const activeCount = loans.length - overdueCount;
 
   return (
     <div className="h-full flex flex-col justify-between overflow-hidden font-sans text-[#1b1a18]">
-      {/* Header Info */}
-      <div className="shrink-0 pb-2">
+      {/* Header Info & Back Button */}
+      <div className="shrink-0 pb-2 space-y-1">
+        <div className="flex items-center gap-2 mb-1">
+          <button
+            type="button"
+            onClick={onBack}
+            className="p-1 rounded-lg hover:bg-black/5 active:scale-95 transition-all focus:outline-none"
+            aria-label="Back to Home"
+          >
+            <ArrowLeft size={18} className="text-[#1b4d8f]" />
+          </button>
+          <h2 className="text-base font-bold text-[#1b4d8f]">Due & Overdue Tracker</h2>
+        </div>
+
         <p className="text-[12px] text-[#5d5b56] leading-relaxed">
           {isLoading ? (
             'Loading active records...'
@@ -110,7 +98,6 @@ export default function DueScreen({ onShowToast }) {
             const overdue = isRecordOverdue(item);
             const dueDateDisplay = item.dueDate || item.due_date || 'N/A';
 
-            // BORROWER NAME RESOLUTION FIX
             const borrowerName =
               item.borrowerScientist?.name ||
               item.borrower_scientist?.name ||
@@ -125,7 +112,6 @@ export default function DueScreen({ onShowToast }) {
                   overdue ? 'bg-white border-[#f5c2c2]' : 'bg-white border-black/10'
                 }`}
               >
-                {/* Title & Badge */}
                 <div className="flex items-start justify-between gap-2">
                   <h3 className="text-[13.5px] font-bold text-[#1b1a18] leading-snug">
                     {item.instrument?.name || 'Instrument'}
@@ -141,7 +127,6 @@ export default function DueScreen({ onShowToast }) {
                   </span>
                 </div>
 
-                {/* Borrower & Due Date */}
                 <p className="text-[11.5px] text-[#5d5b56] leading-tight">
                   {borrowerName} · Due:{' '}
                   <span className={overdue ? 'font-bold text-[#c92a2a]' : 'font-semibold'}>
@@ -149,12 +134,10 @@ export default function DueScreen({ onShowToast }) {
                   </span>
                 </p>
 
-                {/* Asset ID */}
                 <p className="font-mono text-[10.5px] text-[#7a7872]">
                   Asset ID: {item.instrument?.assetId || item.instrument?.asset_id || 'N/A'}
                 </p>
 
-                {/* Actions */}
                 <div className="flex items-center gap-2 pt-1">
                   <button
                     type="button"
@@ -163,15 +146,6 @@ export default function DueScreen({ onShowToast }) {
                   >
                     Send reminder now
                   </button>
-                  {/* <button
-                    type="button"
-                    onClick={() =>
-                      handleMarkReceived(item.id || item._id, item.instrument?.name)
-                    }
-                    className="bg-white text-[#1b1a18] border border-gray-300 py-2 px-4 rounded-xl text-[12.5px] font-medium active:scale-98 transition-all hover:bg-gray-50"
-                  >
-                    Received
-                  </button> */}
                 </div>
               </div>
             );

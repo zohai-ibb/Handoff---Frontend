@@ -11,13 +11,11 @@ import PeopleScreen from './pages/PeopleScreen';
 import ProfileScreen from './pages/ProfileScreen';
 import LoginScreen from './pages/LoginScreen';
 import RegisterScreen from './pages/RegisterScreen';
-import axiosClient from './api/axiosClient';
-console.log('Axios Base URL Configured:', axiosClient.defaults.baseURL);
 
 export default function App() {
-  const [user, setUser] = useState(null); // Current authenticated user profile
-  const [token, setToken] = useState(null); // JWT Bearer token
-  const [authView, setAuthView] = useState('login'); // 'login' | 'register'
+  const [user, setUser] = useState(null);
+  const [token, setToken] = useState(null);
+  const [authView, setAuthView] = useState('login');
 
   const [activeTab, setActiveTab] = useState('Home');
   const [currentView, setCurrentView] = useState('home'); // 'home' | 'receive' | 'add-item' | 'profile'
@@ -30,13 +28,21 @@ export default function App() {
     }, 4200);
   };
 
-  // Handle successful Auth -> Redirect to Home
   const handleAuthSuccess = (userData, authToken) => {
     setUser(userData);
     setToken(authToken);
     setActiveTab('Home');
     setCurrentView('home');
     showToast(`Welcome back, ${userData.name}!`);
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    setToken(null);
+    setAuthView('login');
+    setCurrentView('home');
+    setActiveTab('Home');
+    showToast('Signed out successfully.');
   };
 
   const handleActionClick = (action) => {
@@ -55,22 +61,23 @@ export default function App() {
 
   const handleFooterTabChange = (tabId) => {
     setActiveTab(tabId);
+    if (tabId === 'Profile') {
+      setCurrentView('profile');
+    } else {
+      setCurrentView('home');
+    }
+  };
+
+  // Helper function to reset both tab and view state back to Home
+  const handleBackToHome = () => {
+    setActiveTab('Home');
     setCurrentView('home');
   };
 
-  const handleSelectInstrumentFromInventory = (instrument) => {
-    showToast(`Selected ${instrument.name} (${instrument.assetId})`);
-    setActiveTab('Issue');
-    setCurrentView('home');
-  };
-
-  // -------------------------------------------------------------
-  // If User is Not Authenticated -> Show Login or Register Screen
-  // -------------------------------------------------------------
   if (!user) {
     return (
       <div className="min-h-screen bg-[#f7f6f3] flex flex-col font-sans relative">
-        <Header userPhotoUrl={null} onProfileClick={() => {}} />
+        <Header user={null} />
         <main className="flex-1 p-4 max-w-md mx-auto w-full">
           {authView === 'login' ? (
             <LoginScreen
@@ -93,74 +100,79 @@ export default function App() {
     );
   }
 
-  // -------------------------------------------------------------
-  // Main Authenticated Application Layout
-  // -------------------------------------------------------------
   return (
     <div className="min-h-screen bg-[#f7f6f3] flex flex-col font-sans pb-20 relative">
-      {/* Fixed Header Navbar with Profile Click Handler */}
       <Header
-        userPhotoUrl={user?.photo_path || null}
-        onProfileClick={() => setCurrentView('profile')}
+        user={user}
+        onProfileClick={() => {
+          setActiveTab('Profile');
+          setCurrentView('profile');
+        }}
       />
 
-      {/* Main Viewport Area */}
       <main className="flex-1 p-4 max-w-md mx-auto w-full">
-        {/* --- Profile Screen View --- */}
         {currentView === 'profile' && (
           <ProfileScreen
-            onBack={() => setCurrentView('home')}
+            user={user}
+            onBack={handleBackToHome}
+            onLogout={handleLogout}
             onShowToast={showToast}
           />
         )}
 
-        {activeTab === 'Home' && currentView === 'home' && (
+        {currentView === 'home' && activeTab === 'Home' && (
           <HomeScreen onNavigate={handleActionClick} />
         )}
 
         {currentView === 'receive' && (
           <ReceiveScreen
-            onBack={() => setCurrentView('home')}
+            onBack={handleBackToHome}
             onShowToast={showToast}
           />
         )}
 
         {currentView === 'add-item' && (
           <AddInstrumentScreen
-            onBack={() => setCurrentView('home')}
+            onBack={handleBackToHome}
             onShowToast={showToast}
           />
         )}
 
-        {activeTab === 'Issue' && currentView === 'home' && (
+        {currentView === 'home' && activeTab === 'Issue' && (
           <IssueWizardScreen
-            onBack={() => setActiveTab('Home')}
+            onBack={handleBackToHome}
             onShowToast={showToast}
-            onIssueComplete={() => setActiveTab('Home')}
+            onIssueComplete={handleBackToHome}
           />
         )}
 
-        {activeTab === 'Items' && currentView === 'home' && (
-          <ItemsScreen onSelectInstrument={handleSelectInstrumentFromInventory} />
+        {currentView === 'home' && activeTab === 'Items' && (
+          <ItemsScreen onSelectInstrument={(inst) => {
+            showToast(`Selected ${inst.name}`);
+            setActiveTab('Issue');
+            setCurrentView('home');
+          }} />
         )}
 
-        {activeTab === 'Due' && currentView === 'home' && (
-          <DueScreen onShowToast={showToast} />
+        {/* --- Render Due Tracker with Back-to-Home Handler --- */}
+        {currentView === 'home' && activeTab === 'Due' && (
+          <DueScreen
+            onBack={handleBackToHome}
+            onShowToast={showToast}
+          />
         )}
 
-        {activeTab === 'People' && currentView === 'home' && (
+        {currentView === 'home' && activeTab === 'People' && (
           <PeopleScreen onShowToast={showToast} />
         )}
       </main>
 
-      {/* Toast Banner Notification */}
       {toast && (
         <div className="fixed bottom-[72px] left-4 right-4 z-50 max-w-md mx-auto bg-[#1b1a18] text-white text-[12px] leading-relaxed rounded-xl p-3 shadow-2xl border border-white/10 animate-fade-in flex items-center justify-between">
           <span>{toast}</span>
         </div>
       )}
 
-      {/* Fixed Bottom Footer Nav */}
       <Footer currentTab={activeTab} onTabChange={handleFooterTabChange} />
     </div>
   );

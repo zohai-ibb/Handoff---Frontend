@@ -104,10 +104,10 @@ export default function HomeScreen({ onNavigate }) {
       {/* Quick Action Shortcuts */}
       <div className="flex gap-2.5 pt-1">
         <button
-          onClick={() => onNavigate && onNavigate('Issue')}
-          className="flex-1 bg-[#1b4d8f] text-white py-2.5 px-2 rounded-xl text-[13px] font-semibold shadow-xs active:scale-95 transition-all text-center"
+          onClick={() => onNavigate && onNavigate('Due')}
+          className="flex-1 bg-white text-[#1b1a18] border border-gray-300 py-2.5 px-2 rounded-xl text-[13px] font-medium shadow-xs active:scale-95 transition-all text-center"
         >
-          Issue
+          Due
         </button>
         <button
           onClick={() => onNavigate && onNavigate('Receive')}

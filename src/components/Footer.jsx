@@ -1,48 +1,50 @@
 import React from 'react';
-import { Home, List, PlusCircle, Clock, Users } from 'lucide-react';
+import { Home, List, PlusCircle, Users, User } from 'lucide-react';
 
 export default function Footer({ currentTab = 'Home', onTabChange }) {
   const tabs = [
     { id: 'Home', label: 'Home', icon: Home },
     { id: 'Items', label: 'Items', icon: List },
     { id: 'Issue', label: 'Issue', icon: PlusCircle },
-    { id: 'Due', label: 'Due', icon: Clock },
     { id: 'People', label: 'People', icon: Users },
+    { id: 'Profile', label: 'Profile', icon: User },
   ];
 
   return (
-    <footer className="fixed bottom-0 left-0 right-0 w-full bg-white border-t border-gray-200 py-2 px-4 shadow-lg z-50">
+    <footer className="fixed bottom-0 left-0 right-0 w-full bg-white border-t border-gray-200 py-1.5 px-3 shadow-lg z-50 h-[62px]">
       <div className="max-w-md mx-auto flex items-center justify-between">
         {tabs.map((tab) => {
+          const Icon = tab.icon;
           const isActive = currentTab === tab.id;
+
           return (
             <button
               key={tab.id}
               onClick={() => onTabChange && onTabChange(tab.id)}
-              className="flex flex-col items-center justify-center flex-1 focus:outline-none"
+              className="flex flex-col items-center justify-center flex-1 focus:outline-none transition-all group"
             >
-              {/* Outer Checkbox / Rounded Box */}
+              {/* Icon Container Box with Active Pill Highlight */}
               <div
-                className={`w-5 h-5 rounded-md flex items-center justify-center transition-all ${
+                className={`w-9 h-8 rounded-xl flex items-center justify-center transition-all duration-200 ${
                   isActive
-                    ? 'bg-[#dce7f4] border-2 border-[#1b4d8f]'
-                    : 'bg-white border-1 border-gray-400'
+                    ? ' text-[#1b4d8f] scale-105'
+                    : 'bg-transparent text-gray-500 hover:text-gray-700'
                 }`}
               >
-                {/* Checkbox Inner Mark / Icon */}
-                <span
-                  className={`text-xs font-bold ${
-                    isActive ? 'text-[#1b4d8f]' : 'text-transparent'
-                  }`}
-                >
-                  ✓
-                </span>
+                <Icon
+                  size={20}
+                  strokeWidth={isActive ? 2.2 : 1.8}
+                  fill={isActive ? 'currentColor' : 'none'}
+                  className="transition-all duration-200"
+                />
               </div>
 
               {/* Label */}
               <span
-                className={`text-[11px] mt-1 font-medium ${
-                  isActive ? 'text-[#1b4d8f] font-bold' : 'text-gray-600'
+                className={`text-[10px] mt-0.5 transition-all ${
+                  isActive
+                    ? 'text-[#1b4d8f] font-bold'
+                    : 'text-gray-500 font-medium'
                 }`}
               >
                 {tab.label}
