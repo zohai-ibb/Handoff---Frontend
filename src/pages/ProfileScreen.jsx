@@ -75,7 +75,9 @@ export default function ProfileScreen({
 
   // Handle Edit Toggle
   const handleEditClick = () => {
-    setFormData({ ...person });
+    // Strip prefix if stored with +91 or non-digits to keep pure 10 digits in edit state
+    const cleanMobile = (person.mobile || "").replace(/\D/g, "").slice(-10);
+    setFormData({ ...person, mobile: cleanMobile });
     setSelectedPhotoFile(null);
     setIsEditing(true);
   };
@@ -83,6 +85,17 @@ export default function ProfileScreen({
   // Handle Form Input Changes
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
+    
+    if (name === "mobile") {
+      // Allow only numbers and restrict to max 10 digits
+      const digitsOnly = value.replace(/\D/g, "").slice(0, 10);
+      setFormData((prev) => ({
+        ...prev,
+        mobile: digitsOnly,
+      }));
+      return;
+    }
+
     setFormData((prev) => ({
       ...prev,
       [name]: type === "checkbox" ? checked : value,
@@ -163,6 +176,15 @@ export default function ProfileScreen({
   // Open confirmation dialog prior to form submit
   const handleSavePrompt = (e) => {
     e.preventDefault();
+
+    // Validate 10-digit phone number
+    if (formData.mobile && formData.mobile.length !== 10) {
+      if (onShowToast) {
+        onShowToast("Mobile number must be exactly 10 digits!");
+      }
+      return;
+    }
+
     setConfirmDialog({
       isOpen: true,
       title: "Confirm Profile Update",
@@ -207,6 +229,8 @@ export default function ProfileScreen({
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     };
 
+    const formattedMobile = formData.mobile ? `+91 ${formData.mobile}` : "";
+
     try {
       // 1. Save Text Fields via PUT /api/persons/{id}
       const response = await fetch(`${BASE_URL}/api/persons/${person.id}`, {
@@ -215,7 +239,7 @@ export default function ProfileScreen({
         body: JSON.stringify({
           name: formData.name,
           email: formData.email,
-          mobile: formData.mobile,
+          mobile: formattedMobile,
           department: formData.department,
           is_active: formData.is_active,
         }),
@@ -544,7 +568,7 @@ export default function ProfileScreen({
             />
           </div>
 
-          {/* Email Field */}
+          {/* Email Field (Disabled) */}
           <div className="space-y-1">
             <label className="text-[11px] font-semibold text-[#5d5b56]">
               Official Email
@@ -553,26 +577,31 @@ export default function ProfileScreen({
               type="email"
               name="email"
               value={formData.email}
-              onChange={handleChange}
-              placeholder="e.g. kskulkarni@cbri.res.in"
-              required
-              className="w-full bg-white text-xs p-2.5 rounded-xl border border-black/15 focus:outline-none focus:border-[#1b4d8f]"
+              disabled
+              readOnly
+              className="w-full bg-gray-100 text-gray-500 text-xs p-2.5 rounded-xl border border-black/10 focus:outline-none cursor-not-allowed opacity-75 font-mono"
             />
           </div>
 
-          {/* Mobile Field */}
+          {/* Mobile Field (+91 Fixed Label & 10 Digits Limit) */}
           <div className="space-y-1">
             <label className="text-[11px] font-semibold text-[#5d5b56]">
-              Mobile Number
+              Mobile Number (10 digits)
             </label>
-            <input
-              type="text"
-              name="mobile"
-              value={formData.mobile}
-              onChange={handleChange}
-              placeholder="e.g. +91 98765 43210"
-              className="w-full bg-white text-xs p-2.5 rounded-xl border border-black/15 focus:outline-none focus:border-[#1b4d8f]"
-            />
+            <div className="flex items-center rounded-xl border border-black/15 overflow-hidden bg-white focus-within:border-[#1b4d8f]">
+              <span className="px-3 py-2.5 bg-gray-100 border-r border-black/15 text-xs font-semibold text-gray-600 select-none">
+                +91
+              </span>
+              <input
+                type="text"
+                name="mobile"
+                value={formData.mobile}
+                onChange={handleChange}
+                maxLength={10}
+                placeholder="9876543210"
+                className="w-full text-xs p-2.5 bg-transparent focus:outline-none"
+              />
+            </div>
           </div>
 
           {/* Department Field */}
