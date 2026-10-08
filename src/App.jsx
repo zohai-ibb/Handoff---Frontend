@@ -13,12 +13,15 @@ import LoginScreen from './pages/LoginScreen';
 import RegisterScreen from './pages/RegisterScreen';
 
 export default function App() {
-  const [user, setUser] = useState(null);
-  const [token, setToken] = useState(null);
-  const [authView, setAuthView] = useState('login');
+  const [token, setToken] = useState(() => localStorage.getItem('token') || null);
+  const [user, setUser] = useState(() => {
+    const storedUser = localStorage.getItem('user');
+    return storedUser ? JSON.parse(storedUser) : null;
+  });
 
+  const [authView, setAuthView] = useState('login');
   const [activeTab, setActiveTab] = useState('Home');
-  const [currentView, setCurrentView] = useState('home'); // 'home' | 'receive' | 'add-item' | 'profile'
+  const [currentView, setCurrentView] = useState('home');
   const [toast, setToast] = useState(null);
 
   const showToast = (message) => {
@@ -29,6 +32,8 @@ export default function App() {
   };
 
   const handleAuthSuccess = (userData, authToken) => {
+    localStorage.setItem('token', authToken);
+    localStorage.setItem('user', JSON.stringify(userData));
     setUser(userData);
     setToken(authToken);
     setActiveTab('Home');
@@ -37,6 +42,8 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
     setUser(null);
     setToken(null);
     setAuthView('login');
@@ -68,17 +75,23 @@ export default function App() {
     }
   };
 
-  // Helper function to reset both tab and view state back to Home
   const handleBackToHome = () => {
     setActiveTab('Home');
     setCurrentView('home');
   };
 
-  if (!user) {
+  const handleSelectInstrumentFromInventory = (instrument) => {
+    showToast(`Selected ${instrument.name} (${instrument.assetId})`);
+    setActiveTab('Issue');
+    setCurrentView('home');
+  };
+
+  if (!user || !token) {
     return (
       <div className="min-h-screen bg-[#f7f6f3] flex flex-col font-sans relative">
         <Header user={null} />
-        <main className="flex-1 p-4 max-w-md mx-auto w-full">
+        {/* Changed pt-[64px] to pt-3 */}
+        <main className="flex-1 p-4 pt-3 max-w-md mx-auto w-full">
           {authView === 'login' ? (
             <LoginScreen
               onLoginSuccess={handleAuthSuccess}
@@ -104,13 +117,16 @@ export default function App() {
     <div className="min-h-screen bg-[#f7f6f3] flex flex-col font-sans pb-20 relative">
       <Header
         user={user}
+        userPhotoUrl={user?.photo_path || null}
         onProfileClick={() => {
           setActiveTab('Profile');
           setCurrentView('profile');
         }}
+        onLogout={handleLogout}
       />
 
-      <main className="flex-1 p-4 max-w-md mx-auto w-full">
+      {/* Changed pt-[64px] to pt-3 to eliminate gap below header */}
+      <main className="flex-1 p-4 pt-3 max-w-md mx-auto w-full">
         {currentView === 'profile' && (
           <ProfileScreen
             user={user}
@@ -147,14 +163,9 @@ export default function App() {
         )}
 
         {currentView === 'home' && activeTab === 'Items' && (
-          <ItemsScreen onSelectInstrument={(inst) => {
-            showToast(`Selected ${inst.name}`);
-            setActiveTab('Issue');
-            setCurrentView('home');
-          }} />
+          <ItemsScreen onSelectInstrument={handleSelectInstrumentFromInventory} />
         )}
 
-        {/* --- Render Due Tracker with Back-to-Home Handler --- */}
         {currentView === 'home' && activeTab === 'Due' && (
           <DueScreen
             onBack={handleBackToHome}
