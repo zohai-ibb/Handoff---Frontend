@@ -1,27 +1,29 @@
-import React, { useState } from 'react';
-import Header from './components/Header';
-import Footer from './components/Footer';
-import HomeScreen from './pages/HomeScreen';
-import ItemsScreen from './pages/ItemsScreen';
-import ReceiveScreen from './pages/ReceiveScreen';
-import AddInstrumentScreen from './pages/AddInstrumentScreen';
-import IssueWizardScreen from './pages/IssueWizardScreen';
-import DueScreen from './pages/DueScreen';
-import PeopleScreen from './pages/PeopleScreen';
-import ProfileScreen from './pages/ProfileScreen';
-import LoginScreen from './pages/LoginScreen';
-import RegisterScreen from './pages/RegisterScreen';
+import React, { useState } from "react";
+import Header from "./components/Header";
+import Footer from "./components/Footer";
+import HomeScreen from "./pages/HomeScreen";
+import ItemsScreen from "./pages/ItemsScreen";
+import ReceiveScreen from "./pages/ReceiveScreen";
+import AddInstrumentScreen from "./pages/AddInstrumentScreen";
+import IssueWizardScreen from "./pages/IssueWizardScreen";
+import DueScreen from "./pages/DueScreen";
+import PeopleScreen from "./pages/PeopleScreen";
+import ProfileScreen from "./pages/ProfileScreen";
+import LoginScreen from "./pages/LoginScreen";
+import RegisterScreen from "./pages/RegisterScreen";
 
 export default function App() {
-  const [token, setToken] = useState(() => localStorage.getItem('token') || null);
+  const [token, setToken] = useState(
+    () => localStorage.getItem("token") || null,
+  );
   const [user, setUser] = useState(() => {
-    const storedUser = localStorage.getItem('user');
+    const storedUser = localStorage.getItem("user");
     return storedUser ? JSON.parse(storedUser) : null;
   });
 
-  const [authView, setAuthView] = useState('login');
-  const [activeTab, setActiveTab] = useState('Home');
-  const [currentView, setCurrentView] = useState('home');
+  const [authView, setAuthView] = useState("login");
+  const [activeTab, setActiveTab] = useState("Home");
+  const [currentView, setCurrentView] = useState("home");
   const [toast, setToast] = useState(null);
 
   const showToast = (message) => {
@@ -32,58 +34,65 @@ export default function App() {
   };
 
   const handleAuthSuccess = (userData, authToken) => {
-    localStorage.setItem('token', authToken);
-    localStorage.setItem('user', JSON.stringify(userData));
+    localStorage.setItem("token", authToken);
+    localStorage.setItem("user", JSON.stringify(userData));
     setUser(userData);
     setToken(authToken);
-    setActiveTab('Home');
-    setCurrentView('home');
+    setActiveTab("Home");
+    setCurrentView("home");
     showToast(`Welcome back, ${userData.name}!`);
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
     setUser(null);
     setToken(null);
-    setAuthView('login');
-    setCurrentView('home');
-    setActiveTab('Home');
-    showToast('Signed out successfully.');
+    setAuthView("login");
+    setCurrentView("home");
+    setActiveTab("Home");
+    showToast("Signed out successfully.");
   };
 
   const handleActionClick = (action) => {
-    if (action === 'Issue') {
-      setActiveTab('Issue');
-      setCurrentView('home');
-    } else if (action === 'Receive') {
-      setCurrentView('receive');
-    } else if (action === 'Add item') {
-      setCurrentView('add-item');
+    if (action === "Issue") {
+      setActiveTab("Issue");
+      setCurrentView("home");
+    } else if (action === "Receive") {
+      setCurrentView("receive");
+    } else if (action === "Add item") {
+      setCurrentView("add-item");
     } else {
       setActiveTab(action);
-      setCurrentView('home');
+      setCurrentView("home");
     }
   };
 
   const handleFooterTabChange = (tabId) => {
     setActiveTab(tabId);
-    if (tabId === 'Profile') {
-      setCurrentView('profile');
+    if (tabId === "Profile") {
+      setCurrentView("profile");
     } else {
-      setCurrentView('home');
+      setCurrentView("home");
     }
   };
 
   const handleBackToHome = () => {
-    setActiveTab('Home');
-    setCurrentView('home');
+    setActiveTab("Home");
+    setCurrentView("home");
   };
 
   const handleSelectInstrumentFromInventory = (instrument) => {
-    showToast(`Selected ${instrument.name} (${instrument.assetId || instrument.asset_id || ''})`);
-    setActiveTab('Issue');
-    setCurrentView('home');
+    showToast(
+      `Selected ${instrument.name} (${instrument.assetId || instrument.asset_id || ""})`,
+    );
+    setActiveTab("Issue");
+    setCurrentView("home");
+  };
+
+  const handleUpdateUser = (updatedUserData) => {
+    setUser(updatedUserData);
+    localStorage.setItem("user", JSON.stringify(updatedUserData));
   };
 
   // -------------------------------------------------------------
@@ -95,15 +104,15 @@ export default function App() {
         <Header user={null} />
         {/* Adjusted pt-[64px] to pt-3 to eliminate top gap */}
         <main className="flex-1 p-4 pt-3 max-w-md mx-auto w-full">
-          {authView === 'login' ? (
+          {authView === "login" ? (
             <LoginScreen
               onLoginSuccess={handleAuthSuccess}
-              onNavigateToRegister={() => setAuthView('register')}
+              onNavigateToRegister={() => setAuthView("register")}
             />
           ) : (
             <RegisterScreen
               onRegisterSuccess={handleAuthSuccess}
-              onNavigateToLogin={() => setAuthView('login')}
+              onNavigateToLogin={() => setAuthView("login")}
             />
           )}
         </main>
@@ -125,42 +134,40 @@ export default function App() {
         user={user}
         userPhotoUrl={user?.photo_path || null}
         onProfileClick={() => {
-          setActiveTab('Profile');
-          setCurrentView('profile');
+          setActiveTab("Profile");
+          setCurrentView("profile");
         }}
         onLogout={handleLogout}
       />
 
       {/* Main Viewport Content Area (Adjusted pt-[64px] to pt-3) */}
       <main className="flex-1 p-4 pt-3 max-w-md mx-auto w-full">
-        {currentView === 'profile' && (
+        {currentView === "profile" && (
           <ProfileScreen
             user={user}
             onBack={handleBackToHome}
             onLogout={handleLogout}
             onShowToast={showToast}
+            onUpdateUser={handleUpdateUser}
           />
         )}
 
-        {currentView === 'home' && activeTab === 'Home' && (
+        {currentView === "home" && activeTab === "Home" && (
           <HomeScreen onNavigate={handleActionClick} />
         )}
 
-        {currentView === 'receive' && (
-          <ReceiveScreen
-            onBack={handleBackToHome}
-            onShowToast={showToast}
-          />
+        {currentView === "receive" && (
+          <ReceiveScreen onBack={handleBackToHome} onShowToast={showToast} />
         )}
 
-        {currentView === 'add-item' && (
+        {currentView === "add-item" && (
           <AddInstrumentScreen
             onBack={handleBackToHome}
             onShowToast={showToast}
           />
         )}
 
-        {currentView === 'home' && activeTab === 'Issue' && (
+        {currentView === "home" && activeTab === "Issue" && (
           <IssueWizardScreen
             onBack={handleBackToHome}
             onShowToast={showToast}
@@ -168,21 +175,18 @@ export default function App() {
           />
         )}
 
-        {currentView === 'home' && activeTab === 'Items' && (
+        {currentView === "home" && activeTab === "Items" && (
           <ItemsScreen
             onNavigate={handleActionClick}
             onSelectInstrument={handleSelectInstrumentFromInventory}
           />
         )}
 
-        {currentView === 'home' && activeTab === 'Due' && (
-          <DueScreen
-            onBack={handleBackToHome}
-            onShowToast={showToast}
-          />
+        {currentView === "home" && activeTab === "Due" && (
+          <DueScreen onBack={handleBackToHome} onShowToast={showToast} />
         )}
 
-        {currentView === 'home' && activeTab === 'People' && (
+        {currentView === "home" && activeTab === "People" && (
           <PeopleScreen onShowToast={showToast} />
         )}
       </main>
