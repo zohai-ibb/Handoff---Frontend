@@ -1,9 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ArrowLeft, Camera, Upload, X, CheckCircle2, Loader2 } from 'lucide-react';
+import { ArrowLeft, Camera, Upload, X, CheckCircle2, Loader2, IndianRupee } from 'lucide-react';
 import axiosClient from '../api/axiosClient';
 
 export default function AddInstrumentScreen({ onBack, onShowToast }) {
-  // Form state fields mapped to the Instrument database schema
   const [formData, setFormData] = useState({
     assetId: '',
     name: '',
@@ -11,15 +10,15 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
     serialNo: '',
     location: '',
     calibrationValidity: '',
+    purchaseDate: '',
+    purchaseCost: '',
   });
 
-  // Photo & Submission State
   const [selectedPhotoFile, setSelectedPhotoFile] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // Live Camera State & Refs
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const videoRef = useRef(null);
   const mediaStreamRef = useRef(null);
@@ -33,7 +32,6 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
     }));
   };
 
-  // File Selection Handler
   const handleFileChange = (e) => {
     const file = e.target.files && e.target.files[0];
     if (file) {
@@ -47,7 +45,6 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
     }
   };
 
-  // Camera Controls
   const startCamera = async () => {
     try {
       setIsCameraOpen(true);
@@ -112,7 +109,6 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
     try {
       setIsSubmitting(true);
 
-      // Construct multipart form-data payload for backend consumption
       const multipartPayload = new FormData();
       multipartPayload.append('asset_id', formData.assetId.trim());
       multipartPayload.append('name', formData.name.trim());
@@ -120,15 +116,15 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
       if (formData.serialNo.trim()) multipartPayload.append('serial_no', formData.serialNo.trim());
       multipartPayload.append('location', formData.location.trim());
       if (formData.calibrationValidity) multipartPayload.append('calibration_valid_to', formData.calibrationValidity);
+      if (formData.purchaseDate) multipartPayload.append('purchase_date', formData.purchaseDate);
+      if (formData.purchaseCost) multipartPayload.append('purchase_cost', formData.purchaseCost);
       multipartPayload.append('status', 'AVAILABLE');
       multipartPayload.append('quantity', '1');
 
-      // Attach binary image file if present
       if (selectedPhotoFile) {
         multipartPayload.append('photo', selectedPhotoFile);
       }
 
-      // POST to backend API
       const response = await axiosClient.post('/instruments', multipartPayload, {
         headers: {
           'Content-Type': 'multipart/form-data',
@@ -284,6 +280,42 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
           />
         </div>
 
+        {/* Field 7: Purchase Date */}
+        <div className="space-y-1">
+          <label className="text-[11.5px] font-semibold text-[#5d5b56]">
+            Purchase Date
+          </label>
+          <input
+            type="date"
+            name="purchaseDate"
+            value={formData.purchaseDate}
+            onChange={handleChange}
+            className="w-full bg-white text-[13px] p-3 rounded-xl border border-black/15 focus:outline-none focus:border-[#1b4d8f] focus:ring-1 focus:ring-[#1b4d8f] transition-all"
+            disabled={isSubmitting}
+          />
+        </div>
+
+        {/* Field 8: Purchase Cost */}
+        <div className="space-y-1">
+          <label className="text-[11.5px] font-semibold text-[#5d5b56]">
+            Purchase Cost (₹)
+          </label>
+          <div className="relative flex items-center">
+            <input
+              type="number"
+              name="purchaseCost"
+              step="0.01"
+              min="0"
+              value={formData.purchaseCost}
+              onChange={handleChange}
+              placeholder="125000.00"
+              className="w-full bg-white text-[13px] p-3 pl-8 rounded-xl border border-black/15 focus:outline-none focus:border-[#1b4d8f] focus:ring-1 focus:ring-[#1b4d8f] transition-all"
+              disabled={isSubmitting}
+            />
+            <IndianRupee size={14} className="absolute left-3 text-gray-400 pointer-events-none" />
+          </div>
+        </div>
+
         {/* Photo Upload Section */}
         <div className="space-y-1 pt-1">
           <label className="text-[11.5px] font-semibold text-[#5d5b56]">
@@ -371,7 +403,7 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
         </div>
       </form>
 
-      {/* Live Camera Modal Viewfinder */}
+      {/* Live Camera Viewfinder */}
       {isCameraOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in">
           <div className="w-full max-w-sm h-[70vh] bg-black rounded-3xl overflow-hidden flex flex-col justify-between p-3.5 shadow-2xl border border-white/20">
