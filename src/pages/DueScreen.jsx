@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Image as ImageIcon } from 'lucide-react';
 import axiosClient from '../api/axiosClient';
 import { getActiveIssueRecords } from '../api/instrumentService';
 import { isRecordOverdue } from '../utils/dateUtils';
@@ -104,30 +104,56 @@ export default function DueScreen({ onBack, onShowToast }) {
               item.staff_name ||
               'Borrower';
 
+            // Resolve Photo URL
+            const photoPath = item.instrument?.photoPath || item.instrument?.photo_path;
+            const photoUrl = photoPath
+              ? photoPath.startsWith('http')
+                ? photoPath
+                : `http://localhost:8080${photoPath}`
+              : null;
+
             return (
               <div
                 key={item.id || item._id}
                 className="p-3.5 rounded-2xl border transition-all shadow-xs space-y-2.5 bg-white border-[#f5c2c2]"
               >
-                <div className="flex items-start justify-between gap-2">
-                  <h3 className="text-[13.5px] font-bold text-[#1b1a18] leading-snug">
-                    {item.instrument?.name || 'Instrument'}
-                  </h3>
-                  <span className="shrink-0 text-[10.5px] font-semibold px-2.5 py-0.5 rounded-md bg-[#fbe4e0] text-[#8f2318] border border-[#f5c2c2]">
-                    OVERDUE
-                  </span>
+                <div className="flex items-center gap-3">
+                  {/* Left Side: Photo Thumbnail */}
+                  <div className="w-20 h-20 shrink-0 bg-gray-100 rounded-xl overflow-hidden border border-black/10 flex items-center justify-center">
+                    {photoUrl ? (
+                      <img
+                        src={photoUrl}
+                        alt={item.instrument?.name || 'Instrument'}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <ImageIcon size={22} className="text-gray-400" />
+                    )}
+                  </div>
+
+                  {/* Right Side: Card Header & Details */}
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <div className="flex items-start justify-between gap-1.5">
+                      <h3 className="text-[13.5px] font-bold text-[#1b1a18] leading-snug truncate">
+                        {item.instrument?.name || 'Instrument'}
+                      </h3>
+                      <span className="shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-md bg-[#fbe4e0] text-[#8f2318] border border-[#f5c2c2]">
+                        OVERDUE
+                      </span>
+                    </div>
+
+                    <p className="text-[11.5px] text-[#5d5b56] leading-tight truncate">
+                      {borrowerName} · Due:{' '}
+                      <span className="font-bold text-[#c92a2a]">
+                        {dueDateDisplay}
+                      </span>
+                    </p>
+
+                    <p className="font-mono text-[10.5px] text-[#7a7872] truncate">
+                      Asset ID: {item.instrument?.assetId || item.instrument?.asset_id || 'N/A'}
+                    </p>
+                  </div>
                 </div>
-
-                <p className="text-[11.5px] text-[#5d5b56] leading-tight">
-                  {borrowerName} · Due:{' '}
-                  <span className="font-bold text-[#c92a2a]">
-                    {dueDateDisplay}
-                  </span>
-                </p>
-
-                <p className="font-mono text-[10.5px] text-[#7a7872]">
-                  Asset ID: {item.instrument?.assetId || item.instrument?.asset_id || 'N/A'}
-                </p>
 
                 <div className="flex items-center gap-2 pt-1">
                   <button
@@ -144,7 +170,7 @@ export default function DueScreen({ onBack, onShowToast }) {
         )}
 
         {!isLoading && loans.length === 0 && (
-          <div className="bg-white p-6 rounded-2xl border border-black/10 text-center space-y-1">
+          <div className="bg-[#ffffff] p-6 rounded-2xl border border-black/10 text-center space-y-1">
             <h4 className="text-[13px] font-semibold text-[#12695a]">
               No overdue items
             </h4>

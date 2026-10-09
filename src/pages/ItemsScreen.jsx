@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Plus } from 'lucide-react';
+import { Search, Plus, Image as ImageIcon } from 'lucide-react';
 import { getInstruments, getActiveIssueRecords } from '../api/instrumentService';
 import { isRecordOverdue } from '../utils/dateUtils';
 
@@ -151,58 +151,80 @@ export default function ItemsScreen({ onNavigate, onSelectInstrument }) {
           filteredInstruments.map((item) => {
             const isOverdueItem = item.status === 'OVERDUE' || item.isOverdue;
             const assetIdDisplay = item.assetId || item.asset_id || 'N/A';
+            const photoPath = item.photoPath || item.photo_path;
+            const photoUrl = photoPath
+              ? photoPath.startsWith('http')
+                ? photoPath
+                : `http://localhost:8080${photoPath}`
+              : null;
 
             return (
               <div
                 key={item.id || item._id}
                 onClick={() => onSelectInstrument && onSelectInstrument(item)}
-                className={`bg-white p-3.5 rounded-2xl border shadow-xs space-y-1 cursor-pointer hover:border-[#1b4d8f] active:scale-98 transition-all ${
+                className={`bg-white p-3 rounded-2xl border shadow-xs cursor-pointer hover:border-[#1b4d8f] active:scale-98 transition-all flex items-center gap-3 ${
                   isOverdueItem ? 'border-[#f5c2c2]' : 'border-black/10'
                 }`}
               >
-                <div className="flex items-start justify-between gap-2">
-                  <h3 className="text-[13.5px] font-bold text-[#1b1a18] leading-snug">
-                    {item.name}
-                  </h3>
-                  <span
-                    className={`shrink-0 text-[10.5px] font-semibold px-2.5 py-0.5 rounded-md ${
-                      isOverdueItem
-                        ? 'bg-[#fbe4e0] text-[#8f2318] border border-[#f5c2c2]'
-                        : item.status === 'ISSUED'
-                        ? 'bg-[#fbf0dc] text-[#8a5a12]'
-                        : item.status === 'MAINTENANCE'
-                        ? 'bg-[#f3f0f8] text-[#5c4a86]'
-                        : 'bg-[#eef8f5] text-[#12695a]'
-                    }`}
-                  >
-                    {isOverdueItem
-                      ? 'OVERDUE'
-                      : item.status === 'ISSUED'
-                      ? 'Issued'
-                      : item.status === 'MAINTENANCE'
-                      ? 'Maintenance'
-                      : 'Available'}
-                  </span>
-                </div>
-
-                <div className="font-mono text-[10.5px] text-[#7a7872]">
-                  Asset ID: {assetIdDisplay}
-                </div>
-
-                <div className="text-[12px] text-[#5d5b56] pt-0.5">
-                  {isOverdueItem ? (
-                    <span className="text-[#c92a2a] font-bold">
-                      {item.holder} · Due: {item.dueDate}
-                    </span>
-                  ) : item.status === 'ISSUED' ? (
-                    <span>
-                      {item.holder} · Due: {item.dueDate}
-                    </span>
-                  ) : item.status === 'MAINTENANCE' ? (
-                    <span>Out for repair / calibration</span>
+                {/* Left Side: Photo Thumbnail */}
+                <div className="w-20 h-20 shrink-0 bg-gray-100 rounded-xl overflow-hidden border border-black/10 flex items-center justify-center">
+                  {photoUrl ? (
+                    <img
+                      src={photoUrl}
+                      alt={item.name}
+                      className="w-full h-full object-cover"
+                    />
                   ) : (
-                    <span>Location: {item.location || 'Storage'}</span>
+                    <ImageIcon size={22} className="text-gray-400" />
                   )}
+                </div>
+
+                {/* Right Side: Card Details */}
+                <div className="flex-1 min-w-0 space-y-1">
+                  <div className="flex items-start justify-between gap-1.5">
+                    <h3 className="text-[13px] font-bold text-[#1b1a18] leading-snug truncate">
+                      {item.name}
+                    </h3>
+                    <span
+                      className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-md ${
+                        isOverdueItem
+                          ? 'bg-[#fbe4e0] text-[#8f2318] border border-[#f5c2c2]'
+                          : item.status === 'ISSUED'
+                          ? 'bg-[#fbf0dc] text-[#8a5a12]'
+                          : item.status === 'MAINTENANCE'
+                          ? 'bg-[#f3f0f8] text-[#5c4a86]'
+                          : 'bg-[#eef8f5] text-[#12695a]'
+                      }`}
+                    >
+                      {isOverdueItem
+                        ? 'OVERDUE'
+                        : item.status === 'ISSUED'
+                        ? 'Issued'
+                        : item.status === 'MAINTENANCE'
+                        ? 'Maintenance'
+                        : 'Available'}
+                    </span>
+                  </div>
+
+                  <div className="font-mono text-[10.5px] text-[#7a7872] truncate">
+                    Asset ID: {assetIdDisplay}
+                  </div>
+
+                  <div className="text-[11.5px] text-[#5d5b56] truncate">
+                    {isOverdueItem ? (
+                      <span className="text-[#c92a2a] font-bold">
+                        {item.holder} · Due: {item.dueDate}
+                      </span>
+                    ) : item.status === 'ISSUED' ? (
+                      <span>
+                        {item.holder} · Due: {item.dueDate}
+                      </span>
+                    ) : item.status === 'MAINTENANCE' ? (
+                      <span>Out for repair / calibration</span>
+                    ) : (
+                      <span>Location: {item.location || 'Storage'}</span>
+                    )}
+                  </div>
                 </div>
               </div>
             );

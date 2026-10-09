@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { Image as ImageIcon } from 'lucide-react';
 import { getInstruments, getActiveIssueRecords } from '../api/instrumentService';
 import { isRecordOverdue } from '../utils/dateUtils';
 
-export default function HomeScreen({ onNavigate }) {
+export default function HomeScreen({ onNavigate, onSelectInstrument }) {
   const [instruments, setInstruments] = useState([]);
   const [issueRecords, setIssueRecords] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -41,7 +42,7 @@ export default function HomeScreen({ onNavigate }) {
     };
   }, []);
 
-  // 1. Available instruments count (from user's owned inventory)
+  // 1. Available instruments count
   const availableCount = instruments.filter((i) => i.status === 'AVAILABLE').length;
 
   // 2. Maintenance instruments count
@@ -53,8 +54,47 @@ export default function HomeScreen({ onNavigate }) {
   // 4. Total items marked ISSUED in instrument inventory
   const totalDbIssuedCount = instruments.filter((i) => i.status === 'ISSUED').length;
 
-  // 5. On-time Issued count = Total ISSUED minus Overdue (Prevents double counting)
+  // 5. On-time Issued count = Total ISSUED minus Overdue
   const issuedCount = Math.max(0, totalDbIssuedCount - overdueCount);
+
+  // Helper function to build a full instrument object before navigating to detail view
+  const handleCardClick = (record) => {
+    if (!onSelectInstrument) return;
+
+    const instrumentData = record.instrument || {};
+    const itemId = instrumentData.id || instrumentData._id || record.instrumentId || record.instrument;
+    const overdue = isRecordOverdue(record);
+    const dateDisplay = record.dueDate || record.due_date || 'N/A';
+
+    const borrowerName =
+      record.borrowerScientist?.name ||
+      record.borrower_scientist?.name ||
+      record.staffName ||
+      record.staff_name ||
+      'Borrower';
+
+    // Find original instrument from list if available, or build full fallback
+    const matchedInstrument = instruments.find(
+      (i) => (i.id || i._id) === itemId
+    );
+
+    const fullInstrumentToPass = {
+      ...(matchedInstrument || instrumentData),
+      id: itemId,
+      _id: itemId,
+      name: instrumentData.name || matchedInstrument?.name || 'Instrument',
+      assetId: instrumentData.assetId || instrumentData.asset_id || matchedInstrument?.assetId || 'N/A',
+      asset_id: instrumentData.assetId || instrumentData.asset_id || matchedInstrument?.asset_id || 'N/A',
+      photoPath: instrumentData.photoPath || instrumentData.photo_path || matchedInstrument?.photoPath,
+      photo_path: instrumentData.photoPath || instrumentData.photo_path || matchedInstrument?.photo_path,
+      status: overdue ? 'OVERDUE' : 'ISSUED',
+      isOverdue: overdue,
+      dueDate: dateDisplay,
+      holder: borrowerName,
+    };
+
+    onSelectInstrument(fullInstrumentToPass);
+  };
 
   return (
     <div className="space-y-4 font-sans text-[#1b1a18]">
@@ -154,7 +194,7 @@ export default function HomeScreen({ onNavigate }) {
             const overdue = isRecordOverdue(record);
             const dateDisplay = record.dueDate || record.due_date || 'N/A';
 
-            // DYNAMIC BORROWER SCIENTIST NAME RESOLUTION
+            // Borrower Name Resolution
             const borrowerName =
               record.borrowerScientist?.name ||
               record.borrower_scientist?.name ||
@@ -162,38 +202,70 @@ export default function HomeScreen({ onNavigate }) {
               record.staff_name ||
               'Borrower';
 
+            // Photo URL Resolution
+            const photoPath = record.instrument?.photoPath || record.instrument?.photo_path;
+            const photoUrl = photoPath
+              ? photoPath.startsWith('http')
+                ? photoPath
+                : `http://localhost:8080${photoPath}`
+              : null;
+
+            const assetIdDisplay =
+              record.instrument?.assetId || record.instrument?.asset_id || 'N/A';
+
             return (
               <div
                 key={record.id || record._id}
-                className={`p-3.5 rounded-2xl border shadow-xs flex items-start justify-between bg-white transition-all ${
+                onClick={() => handleCardClick(record)}
+                className={`bg-white p-3 rounded-2xl border shadow-xs cursor-pointer hover:border-[#1b4d8f] active:scale-98 transition-all flex items-center gap-3 ${
                   overdue ? 'border-[#f5c2c2]' : 'border-black/10'
                 }`}
               >
-                <div className="space-y-1 max-w-[72%]">
-                  <h4 className="text-[13.5px] font-semibold text-[#1b1a18]">
-                    {record.instrument?.name || 'Instrument'}
-                  </h4>
-                  <div className="font-mono text-[11px] text-[#7a7872]">
-                    Asset Id: {record.instrument?.assetId || record.instrument?.asset_id || 'N/A'}
-                  </div>
-                  <div className="text-[12px] text-[#5d5b56]">
-                    <span className="font-medium">
-                    Borrower: {borrowerName}
-                    </span>{' '}
-                    · {overdue ? `Due ${dateDisplay}` : `Return by ${dateDisplay}`}
-                  </div>
+                {/* Left Side: Photo Thumbnail */}
+                <div className="w-20 h-20 shrink-0 bg-gray-100 rounded-xl overflow-hidden border border-black/10 flex items-center justify-center">
+                  {photoUrl ? (
+                    <img
+                      src={photoUrl}
+                      alt={record.instrument?.name || 'Instrument'}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <ImageIcon size={22} className="text-gray-400" />
+                  )}
                 </div>
 
-                <div className="shrink-0 mt-0.5">
-                  {overdue ? (
-                    <span className="bg-[#fbe4e0] text-[#8f2318] text-[11px] font-medium px-2.5 py-1 rounded-md border border-[#f5c2c2]">
-                      Overdue
+                {/* Right Side: Card Details */}
+                <div className="flex-1 min-w-0 space-y-1">
+                  <div className="flex items-start justify-between gap-1.5">
+                    <h3 className="text-[13px] font-bold text-[#1b1a18] leading-snug truncate">
+                      {record.instrument?.name || 'Instrument'}
+                    </h3>
+                    <span
+                      className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-md ${
+                        overdue
+                          ? 'bg-[#fbe4e0] text-[#8f2318] border border-[#f5c2c2]'
+                          : 'bg-[#fbf0dc] text-[#8a5a12]'
+                      }`}
+                    >
+                      {overdue ? 'OVERDUE' : 'Issued'}
                     </span>
-                  ) : (
-                    <span className="bg-[#fbf0dc] text-[#8a5a12] text-[11px] font-medium px-2.5 py-1 rounded-md">
-                      Issued
-                    </span>
-                  )}
+                  </div>
+
+                  <div className="font-mono text-[10.5px] text-[#7a7872] truncate">
+                    Asset ID: {assetIdDisplay}
+                  </div>
+
+                  <div className="text-[11.5px] text-[#5d5b56] truncate">
+                    {overdue ? (
+                      <span className="text-[#c92a2a] font-bold">
+                        {borrowerName} · Due: {dateDisplay}
+                      </span>
+                    ) : (
+                      <span>
+                        {borrowerName} · Due: {dateDisplay}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             );

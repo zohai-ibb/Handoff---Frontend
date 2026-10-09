@@ -25,6 +25,13 @@ export default function App() {
   const [authView, setAuthView] = useState("login");
   const [activeTab, setActiveTab] = useState("Home");
   const [currentView, setCurrentView] = useState("home"); // 'home' | 'receive' | 'add-item' | 'profile' | 'instrument-detail'
+  
+  // Track previous screen location so Back returns to the originating screen
+  const [previousScreenState, setPreviousScreenState] = useState({
+    activeTab: "Home",
+    currentView: "home",
+  });
+
   const [selectedInstrument, setSelectedInstrument] = useState(null);
   const [toast, setToast] = useState(null);
 
@@ -84,9 +91,17 @@ export default function App() {
     setCurrentView("home");
   };
 
+  // Record current tab/view state before viewing details
   const handleSelectInstrumentFromInventory = (instrument) => {
+    setPreviousScreenState({ activeTab, currentView });
     setSelectedInstrument(instrument);
     setCurrentView("instrument-detail");
+  };
+
+  // Restore the screen state from where the detail view was opened
+  const handleBackFromDetail = () => {
+    setActiveTab(previousScreenState.activeTab);
+    setCurrentView(previousScreenState.currentView);
   };
 
   const handleUpdateUser = (updatedUserData) => {
@@ -153,16 +168,17 @@ export default function App() {
         {currentView === "instrument-detail" && (
           <InstrumentDetailScreen
             instrument={selectedInstrument}
-            onBack={() => {
-              setActiveTab("Items");
-              setCurrentView("home");
-            }}
+            onBack={handleBackFromDetail}
             onNavigate={handleActionClick}
           />
         )}
 
+        {/* Render Home Screen */}
         {currentView === "home" && activeTab === "Home" && (
-          <HomeScreen onNavigate={handleActionClick} />
+          <HomeScreen
+            onNavigate={handleActionClick}
+            onSelectInstrument={handleSelectInstrumentFromInventory}
+          />
         )}
 
         {currentView === "receive" && (
@@ -173,8 +189,7 @@ export default function App() {
           <AddInstrumentScreen
             onBack={(createdInstrument) => {
               if (createdInstrument && createdInstrument.id) {
-                setSelectedInstrument(createdInstrument);
-                setCurrentView("instrument-detail");
+                handleSelectInstrumentFromInventory(createdInstrument);
               } else {
                 handleBackToHome();
               }
