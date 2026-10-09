@@ -11,6 +11,7 @@ import PeopleScreen from "./pages/PeopleScreen";
 import ProfileScreen from "./pages/ProfileScreen";
 import LoginScreen from "./pages/LoginScreen";
 import RegisterScreen from "./pages/RegisterScreen";
+import InstrumentDetailScreen from "./pages/InstrumentDetailScreen";
 
 export default function App() {
   const [token, setToken] = useState(
@@ -23,7 +24,8 @@ export default function App() {
 
   const [authView, setAuthView] = useState("login");
   const [activeTab, setActiveTab] = useState("Home");
-  const [currentView, setCurrentView] = useState("home");
+  const [currentView, setCurrentView] = useState("home"); // 'home' | 'receive' | 'add-item' | 'profile' | 'instrument-detail'
+  const [selectedInstrument, setSelectedInstrument] = useState(null);
   const [toast, setToast] = useState(null);
 
   const showToast = (message) => {
@@ -83,11 +85,8 @@ export default function App() {
   };
 
   const handleSelectInstrumentFromInventory = (instrument) => {
-    showToast(
-      `Selected ${instrument.name} (${instrument.assetId || instrument.asset_id || ""})`,
-    );
-    setActiveTab("Issue");
-    setCurrentView("home");
+    setSelectedInstrument(instrument);
+    setCurrentView("instrument-detail");
   };
 
   const handleUpdateUser = (updatedUserData) => {
@@ -102,7 +101,6 @@ export default function App() {
     return (
       <div className="min-h-screen bg-[#f7f6f3] flex flex-col font-sans relative">
         <Header user={null} />
-        {/* Adjusted pt-[64px] to pt-3 to eliminate top gap */}
         <main className="flex-1 p-4 pt-3 max-w-md mx-auto w-full">
           {authView === "login" ? (
             <LoginScreen
@@ -140,7 +138,7 @@ export default function App() {
         onLogout={handleLogout}
       />
 
-      {/* Main Viewport Content Area (Adjusted pt-[64px] to pt-3) */}
+      {/* Main Viewport Content Area */}
       <main className="flex-1 p-4 pt-3 max-w-md mx-auto w-full">
         {currentView === "profile" && (
           <ProfileScreen
@@ -149,6 +147,17 @@ export default function App() {
             onLogout={handleLogout}
             onShowToast={showToast}
             onUpdateUser={handleUpdateUser}
+          />
+        )}
+
+        {currentView === "instrument-detail" && (
+          <InstrumentDetailScreen
+            instrument={selectedInstrument}
+            onBack={() => {
+              setActiveTab("Items");
+              setCurrentView("home");
+            }}
+            onNavigate={handleActionClick}
           />
         )}
 
@@ -162,7 +171,14 @@ export default function App() {
 
         {currentView === "add-item" && (
           <AddInstrumentScreen
-            onBack={handleBackToHome}
+            onBack={(createdInstrument) => {
+              if (createdInstrument && createdInstrument.id) {
+                setSelectedInstrument(createdInstrument);
+                setCurrentView("instrument-detail");
+              } else {
+                handleBackToHome();
+              }
+            }}
             onShowToast={showToast}
           />
         )}

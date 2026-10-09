@@ -14,12 +14,16 @@ export default function DueScreen({ onBack, onShowToast }) {
       setIsLoading(true);
       setError('');
       const data = await getActiveIssueRecords();
-      const openOnly = (data || []).filter(
-        (record) => record.state === 'OPEN' || record.state === 'ISSUED' || !record.state
-      );
-      setLoans(openOnly);
+      
+      // Filter ONLY open records that are strictly OVERDUE
+      const overdueOnly = (data || []).filter((record) => {
+        const isOpen = record.state === 'OPEN' || record.state === 'ISSUED' || !record.state;
+        return isOpen && isRecordOverdue(record);
+      });
+      
+      setLoans(overdueOnly);
     } catch (err) {
-      setError('Failed to fetch active loans list from server.');
+      setError('Failed to fetch overdue loans list from server.');
     } finally {
       setIsLoading(false);
     }
@@ -50,9 +54,6 @@ export default function DueScreen({ onBack, onShowToast }) {
     }
   };
 
-  const overdueCount = loans.filter((i) => isRecordOverdue(i)).length;
-  const activeCount = loans.length - overdueCount;
-
   return (
     <div className="h-full flex flex-col justify-between overflow-hidden font-sans text-[#1b1a18]">
       {/* Header Info & Back Button */}
@@ -66,24 +67,23 @@ export default function DueScreen({ onBack, onShowToast }) {
           >
             <ArrowLeft size={18} className="text-[#1b4d8f]" />
           </button>
-          <h2 className="text-base font-bold text-[#1b4d8f]">Due & Overdue Tracker</h2>
+          <h2 className="text-base font-bold text-[#1b4d8f]">Overdue Tracker</h2>
         </div>
 
         <p className="text-[12px] text-[#5d5b56] leading-relaxed">
           {isLoading ? (
-            'Loading active records...'
-          ) : overdueCount > 0 || activeCount > 0 ? (
+            'Loading overdue records...'
+          ) : loans.length > 0 ? (
             <>
-              <span className="font-bold text-[#c92a2a]">{overdueCount} overdue</span>, {activeCount} active loan(s).
-              Reminders go out automatically; tap below to trigger immediately.
+              <span className="font-bold text-[#c92a2a]">{loans.length} overdue item(s)</span> require immediate attention. Tap below to trigger reminder.
             </>
           ) : (
-            <>All issued items have been received back. Nothing overdue.</>
+            <>All issued items are within their return schedules. Nothing overdue.</>
           )}
         </p>
       </div>
 
-      {/* Due/Overdue Records List */}
+      {/* Overdue Records List Only */}
       <div className="flex-1 overflow-y-auto space-y-3 pr-1 custom-scrollbar">
         {error && (
           <div className="bg-[#fcf2f2] text-[#c92a2a] text-[11.5px] p-2.5 rounded-xl border border-[#f5c2c2]">
@@ -92,10 +92,9 @@ export default function DueScreen({ onBack, onShowToast }) {
         )}
 
         {isLoading ? (
-          <p className="text-xs text-gray-400 py-2">Loading active tracker...</p>
+          <p className="text-xs text-gray-400 py-2">Loading overdue tracker...</p>
         ) : (
           loans.map((item) => {
-            const overdue = isRecordOverdue(item);
             const dueDateDisplay = item.dueDate || item.due_date || 'N/A';
 
             const borrowerName =
@@ -108,28 +107,20 @@ export default function DueScreen({ onBack, onShowToast }) {
             return (
               <div
                 key={item.id || item._id}
-                className={`p-3.5 rounded-2xl border transition-all shadow-xs space-y-2.5 ${
-                  overdue ? 'bg-white border-[#f5c2c2]' : 'bg-white border-black/10'
-                }`}
+                className="p-3.5 rounded-2xl border transition-all shadow-xs space-y-2.5 bg-white border-[#f5c2c2]"
               >
                 <div className="flex items-start justify-between gap-2">
                   <h3 className="text-[13.5px] font-bold text-[#1b1a18] leading-snug">
                     {item.instrument?.name || 'Instrument'}
                   </h3>
-                  <span
-                    className={`shrink-0 text-[10.5px] font-semibold px-2.5 py-0.5 rounded-md ${
-                      overdue
-                        ? 'bg-[#fbe4e0] text-[#8f2318] border border-[#f5c2c2]'
-                        : 'bg-[#fbf0dc] text-[#8a5a12]'
-                    }`}
-                  >
-                    {overdue ? 'OVERDUE' : 'Issued'}
+                  <span className="shrink-0 text-[10.5px] font-semibold px-2.5 py-0.5 rounded-md bg-[#fbe4e0] text-[#8f2318] border border-[#f5c2c2]">
+                    OVERDUE
                   </span>
                 </div>
 
                 <p className="text-[11.5px] text-[#5d5b56] leading-tight">
                   {borrowerName} · Due:{' '}
-                  <span className={overdue ? 'font-bold text-[#c92a2a]' : 'font-semibold'}>
+                  <span className="font-bold text-[#c92a2a]">
                     {dueDateDisplay}
                   </span>
                 </p>
@@ -155,10 +146,10 @@ export default function DueScreen({ onBack, onShowToast }) {
         {!isLoading && loans.length === 0 && (
           <div className="bg-white p-6 rounded-2xl border border-black/10 text-center space-y-1">
             <h4 className="text-[13px] font-semibold text-[#12695a]">
-              No active loans or overdue items
+              No overdue items
             </h4>
             <p className="text-[11px] text-[#7a7872]">
-              All equipment is currently returned and available in lab inventory.
+              All issued equipment is within its allowed return date.
             </p>
           </div>
         )}

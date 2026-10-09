@@ -3,7 +3,7 @@ import { Search, Plus } from 'lucide-react';
 import { getInstruments, getActiveIssueRecords } from '../api/instrumentService';
 import { isRecordOverdue } from '../utils/dateUtils';
 
-export default function ItemsScreen({ onNavigate }) {
+export default function ItemsScreen({ onNavigate, onSelectInstrument }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('All');
   const [instruments, setInstruments] = useState([]);
@@ -155,7 +155,8 @@ export default function ItemsScreen({ onNavigate }) {
             return (
               <div
                 key={item.id || item._id}
-                className={`bg-white p-3.5 rounded-2xl border shadow-xs space-y-1 ${
+                onClick={() => onSelectInstrument && onSelectInstrument(item)}
+                className={`bg-white p-3.5 rounded-2xl border shadow-xs space-y-1 cursor-pointer hover:border-[#1b4d8f] active:scale-98 transition-all ${
                   isOverdueItem ? 'border-[#f5c2c2]' : 'border-black/10'
                 }`}
               >
@@ -215,7 +216,7 @@ export default function ItemsScreen({ onNavigate }) {
         )}
       </div>
 
-      {/* Floating Action Button (FAB) -> Navigates via App.jsx handler */}
+      {/* Floating Action Button (FAB) */}
       <button
         onClick={() => onNavigate && onNavigate('Add item')}
         aria-label="Add Instrument"

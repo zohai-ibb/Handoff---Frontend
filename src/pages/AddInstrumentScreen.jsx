@@ -1,23 +1,31 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { ArrowLeft, Camera, Upload, X, CheckCircle2, Loader2, IndianRupee } from 'lucide-react';
-import axiosClient from '../api/axiosClient';
+import React, { useState, useRef, useEffect } from "react";
+import {
+  ArrowLeft,
+  Camera,
+  Upload,
+  X,
+  CheckCircle2,
+  Loader2,
+  IndianRupee,
+} from "lucide-react";
+import axiosClient from "../api/axiosClient";
 
 export default function AddInstrumentScreen({ onBack, onShowToast }) {
   const [formData, setFormData] = useState({
-    assetId: '',
-    name: '',
-    make: '',
-    serialNo: '',
-    location: '',
-    calibrationValidity: '',
-    purchaseDate: '',
-    purchaseCost: '',
+    assetId: "",
+    name: "",
+    make: "",
+    serialNo: "",
+    location: "",
+    calibrationValidity: "",
+    purchaseDate: "",
+    purchaseCost: "",
   });
 
   const [selectedPhotoFile, setSelectedPhotoFile] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
+  const [errorMsg, setErrorMsg] = useState("");
 
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const videoRef = useRef(null);
@@ -41,7 +49,7 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
         setPhotoPreview(reader.result);
       };
       reader.readAsDataURL(file);
-      if (onShowToast) onShowToast('Instrument photo selected!');
+      if (onShowToast) onShowToast("Instrument photo selected!");
     }
   };
 
@@ -49,14 +57,14 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
     try {
       setIsCameraOpen(true);
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' },
+        video: { facingMode: "environment" },
       });
       mediaStreamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
       }
     } catch (err) {
-      if (onShowToast) onShowToast('Unable to access camera.');
+      if (onShowToast) onShowToast("Unable to access camera.");
       setIsCameraOpen(false);
     }
   };
@@ -71,24 +79,24 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
 
   const takePhoto = () => {
     if (!videoRef.current) return;
-    const canvas = document.createElement('canvas');
+    const canvas = document.createElement("canvas");
     canvas.width = videoRef.current.videoWidth || 640;
     canvas.height = videoRef.current.videoHeight || 480;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext("2d");
     ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
 
     canvas.toBlob((blob) => {
       if (blob) {
         const file = new File([blob], `instrument_${Date.now()}.jpg`, {
-          type: 'image/jpeg',
+          type: "image/jpeg",
         });
         setSelectedPhotoFile(file);
-        setPhotoPreview(canvas.toDataURL('image/jpeg'));
+        setPhotoPreview(canvas.toDataURL("image/jpeg"));
       }
-    }, 'image/jpeg');
+    }, "image/jpeg");
 
     stopCamera();
-    if (onShowToast) onShowToast('Instrument photo captured!');
+    if (onShowToast) onShowToast("Instrument photo captured!");
   };
 
   useEffect(() => {
@@ -97,11 +105,18 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setErrorMsg('');
+    setErrorMsg("");
 
-    if (!formData.assetId.trim() || !formData.name.trim() || !formData.make.trim() || !formData.location.trim()) {
+    if (
+      !formData.assetId.trim() ||
+      !formData.name.trim() ||
+      !formData.make.trim() ||
+      !formData.location.trim()
+    ) {
       if (onShowToast) {
-        onShowToast('Validation Error: Asset ID, Name, Make, and Location are required.');
+        onShowToast(
+          "Validation Error: Asset ID, Name, Make, and Location are required.",
+        );
       }
       return;
     }
@@ -110,43 +125,64 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
       setIsSubmitting(true);
 
       const multipartPayload = new FormData();
-      multipartPayload.append('asset_id', formData.assetId.trim());
-      multipartPayload.append('name', formData.name.trim());
-      multipartPayload.append('make', formData.make.trim());
-      if (formData.serialNo.trim()) multipartPayload.append('serial_no', formData.serialNo.trim());
-      multipartPayload.append('location', formData.location.trim());
-      if (formData.calibrationValidity) multipartPayload.append('calibration_valid_to', formData.calibrationValidity);
-      if (formData.purchaseDate) multipartPayload.append('purchase_date', formData.purchaseDate);
-      if (formData.purchaseCost) multipartPayload.append('purchase_cost', formData.purchaseCost);
-      multipartPayload.append('status', 'AVAILABLE');
-      multipartPayload.append('quantity', '1');
+      multipartPayload.append("asset_id", formData.assetId.trim());
+      multipartPayload.append("name", formData.name.trim());
+      multipartPayload.append("make", formData.make.trim());
+      if (formData.serialNo.trim())
+        multipartPayload.append("serial_no", formData.serialNo.trim());
+      multipartPayload.append("location", formData.location.trim());
+      if (formData.calibrationValidity)
+        multipartPayload.append(
+          "calibration_valid_to",
+          formData.calibrationValidity,
+        );
+      if (formData.purchaseDate)
+        multipartPayload.append("purchase_date", formData.purchaseDate);
+      if (formData.purchaseCost)
+        multipartPayload.append("purchase_cost", formData.purchaseCost);
+      multipartPayload.append("status", "AVAILABLE");
+      multipartPayload.append("quantity", "1");
 
       if (selectedPhotoFile) {
-        multipartPayload.append('photo', selectedPhotoFile);
+        multipartPayload.append("photo", selectedPhotoFile);
       }
 
-      const response = await axiosClient.post('/instruments', multipartPayload, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
+      const response = await axiosClient.post(
+        "/instruments",
+        multipartPayload,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
         },
-      });
+      );
 
       if (onShowToast) {
         onShowToast(
-          `Added ${response.data.name || formData.name} (${response.data.asset_id || formData.assetId}) to group register. Printable QR label generated.`
+          `Added ${response.data.name || formData.name} (${response.data.asset_id || formData.assetId}) to group register. Printable QR label generated.`,
         );
       }
 
+      // Redirect to Instrument Details with newly created object
       if (onBack) {
-        onBack();
+        onBack(response.data);
       }
     } catch (err) {
-      console.error('Failed to create instrument:', err);
-      const serverMessage = err.response?.data?.message || err.response?.data || 'Failed to connect to database server.';
-      setErrorMsg(typeof serverMessage === 'string' ? serverMessage : 'Failed to register instrument.');
-      
+      console.error("Failed to create instrument:", err);
+      const serverMessage =
+        err.response?.data?.message ||
+        err.response?.data ||
+        "Failed to connect to database server.";
+      setErrorMsg(
+        typeof serverMessage === "string"
+          ? serverMessage
+          : "Failed to register instrument.",
+      );
+
       if (onShowToast) {
-        onShowToast(`Error: ${typeof serverMessage === 'string' ? serverMessage : 'Failed to add instrument'}`);
+        onShowToast(
+          `Error: ${typeof serverMessage === "string" ? serverMessage : "Failed to add instrument"}`,
+        );
       }
     } finally {
       setIsSubmitting(false);
@@ -169,7 +205,8 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
       </div>
 
       <p className="text-[12.5px] leading-relaxed text-[#5d5b56]">
-        New entries are added to the group register and get a printable QR asset label.
+        New entries are added to the group register and get a printable QR asset
+        label.
       </p>
 
       {/* Error Banner */}
@@ -312,7 +349,10 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
               className="w-full bg-white text-[13px] p-3 pl-8 rounded-xl border border-black/15 focus:outline-none focus:border-[#1b4d8f] focus:ring-1 focus:ring-[#1b4d8f] transition-all"
               disabled={isSubmitting}
             />
-            <IndianRupee size={14} className="absolute left-3 text-gray-400 pointer-events-none" />
+            <IndianRupee
+              size={14}
+              className="absolute left-3 text-gray-400 pointer-events-none"
+            />
           </div>
         </div>
 
@@ -397,7 +437,7 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
                 <span>Saving to register...</span>
               </>
             ) : (
-              'Save to register'
+              "Save to register"
             )}
           </button>
         </div>
