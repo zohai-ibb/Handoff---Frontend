@@ -350,7 +350,7 @@ export default function InstrumentDetailScreen({ instrument: initialInstrument, 
             </div>
           )}
 
-          <div className="pt-2 space-y-2">
+        <div className="pt-2 space-y-2">
             {status === 'AVAILABLE' && (
               <button
                 onClick={() => onNavigate && onNavigate('Issue')}
@@ -360,8 +360,11 @@ export default function InstrumentDetailScreen({ instrument: initialInstrument, 
               </button>
             )}
 
+            {/* EDIT BUTTON: Disabled when instrument is ISSUED or OVERDUE */}
             <button
+              disabled={status === 'ISSUED' || status === 'OVERDUE' || isOverdue}
               onClick={() => {
+                if (status === 'ISSUED' || status === 'OVERDUE' || isOverdue) return;
                 setSelectedPhotoFile(null);
                 if (fileInputRef.current) fileInputRef.current.value = '';
                 setEditFormData({
@@ -377,10 +380,18 @@ export default function InstrumentDetailScreen({ instrument: initialInstrument, 
                 });
                 setIsEditing(true);
               }}
-              className="w-full bg-[#1b4d8f]/10 text-[#1b4d8f] border border-[#1b4d8f]/20 py-3 rounded-xl text-[13.5px] font-semibold active:scale-98 transition-all shadow-xs flex items-center justify-center gap-2"
+              className={`w-full py-3 rounded-xl text-[13.5px] font-semibold active:scale-98 transition-all shadow-xs flex items-center justify-center gap-2 ${
+                status === 'ISSUED' || status === 'OVERDUE' || isOverdue
+                  ? 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed opacity-60'
+                  : 'bg-[#1b4d8f]/10 text-[#1b4d8f] border border-[#1b4d8f]/20'
+              }`}
             >
               <Edit3 size={16} />
-              <span>Edit Instrument Details</span>
+              <span>
+                {status === 'ISSUED' || status === 'OVERDUE' || isOverdue
+                  ? 'Cannot Edit (Currently Issued / Due)'
+                  : 'Edit Instrument Details'}
+              </span>
             </button>
 
             <button
@@ -391,6 +402,7 @@ export default function InstrumentDetailScreen({ instrument: initialInstrument, 
               <span>Delete Instrument</span>
             </button>
           </div>
+
         </>
       ) : (
         <form onSubmit={handleSaveEdit} className="bg-white p-4 rounded-2xl border border-black/10 shadow-xs space-y-3">
