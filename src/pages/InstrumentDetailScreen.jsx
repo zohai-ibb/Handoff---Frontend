@@ -1,14 +1,29 @@
-import React, { useState, useRef } from 'react';
-import { 
-  ArrowLeft, Calendar, MapPin, Tag, ShieldCheck, 
-  IndianRupee, User, Clock, Trash2, Edit3, AlertTriangle, X, Camera, Upload, Loader2 
-} from 'lucide-react';
-import axiosClient from '../api/axiosClient';
+import React, { useState, useRef } from "react";
+import {
+  ArrowLeft,
+  Calendar,
+  MapPin,
+  Tag,
+  ShieldCheck,
+  IndianRupee,
+  User,
+  Clock,
+  Trash2,
+  Edit3,
+  AlertTriangle,
+  X,
+  Camera,
+  Upload,
+  Loader2,
+  QrCode,
+  Download,
+} from "lucide-react";
+import { QRCodeCanvas } from "qrcode.react";
+import axiosClient from "../api/axiosClient";
 
-// Helper utility: Convert Base64 Data URL (from camera) to binary Blob
 const dataURLtoBlob = (dataurl) => {
-  if (!dataurl || !dataurl.includes(',')) return null;
-  const arr = dataurl.split(',');
+  if (!dataurl || !dataurl.includes(",")) return null;
+  const arr = dataurl.split(",");
   const mime = arr[0].match(/:(.*?);/)[1];
   const bstr = atob(arr[1]);
   let n = bstr.length;
@@ -19,25 +34,64 @@ const dataURLtoBlob = (dataurl) => {
   return new Blob([u8arr], { type: mime });
 };
 
-export default function InstrumentDetailScreen({ instrument: initialInstrument, onBack, onNavigate, onShowToast }) {
+export default function InstrumentDetailScreen({
+  instrument: initialInstrument,
+  onBack,
+  onNavigate,
+  onShowToast,
+}) {
   const [instrument, setInstrument] = useState(initialInstrument);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showQrModal, setShowQrModal] = useState(false);
+
+  const qrCanvasRef = useRef(null);
 
   // Form State
   const [isEditing, setIsEditing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedPhotoFile, setSelectedPhotoFile] = useState(null);
 
+  const assetId = instrument?.assetId || instrument?.asset_id || "N/A";
+  const make = instrument?.make || "N/A";
+  const serialNo = instrument?.serialNo || instrument?.serial_no || "N/A";
+  const location = instrument?.location || "N/A";
+  const calibrationValidTo =
+    instrument?.calibrationValidTo || instrument?.calibration_valid_to || "N/A";
+  const purchaseDate = instrument?.purchaseDate || instrument?.purchase_date || "N/A";
+  const purchaseCost = instrument?.purchaseCost || instrument?.purchase_cost || null;
+
+  const scientistName =
+    instrument?.scientistName ||
+    instrument?.scientist ||
+    instrument?.borrowerScientist?.name ||
+    instrument?.borrower_scientist?.name ||
+    (typeof instrument?.holder === "string" ? instrument?.holder : instrument?.holder?.name) ||
+    instrument?.ownerScientist?.name ||
+    instrument?.owner_scientist?.name ||
+    "N/A";
+
+  const staffName =
+    instrument?.staffName ||
+    instrument?.staff_name ||
+    instrument?.staff ||
+    instrument?.issuedToStaff ||
+    instrument?.issuedBy ||
+    instrument?.staffMember ||
+    instrument?.issuedToStaffName ||
+    (typeof instrument?.issuedTo === "string" ? instrument?.issuedTo : instrument?.issuedTo?.name) ||
+    null;
+
   const [editFormData, setEditFormData] = useState({
-    name: initialInstrument?.name || '',
-    assetId: initialInstrument?.assetId || initialInstrument?.asset_id || '',
-    make: initialInstrument?.make || '',
-    serialNo: initialInstrument?.serialNo || initialInstrument?.serial_no || '',
-    location: initialInstrument?.location || '',
-    calibrationValidTo: initialInstrument?.calibrationValidTo || initialInstrument?.calibration_valid_to || '',
-    purchaseDate: initialInstrument?.purchaseDate || initialInstrument?.purchase_date || '',
-    purchaseCost: initialInstrument?.purchaseCost || initialInstrument?.purchase_cost || '',
+    name: initialInstrument?.name || "",
+    assetId: initialInstrument?.assetId || initialInstrument?.asset_id || "",
+    make: initialInstrument?.make || "",
+    serialNo: initialInstrument?.serialNo || initialInstrument?.serial_no || "",
+    location: initialInstrument?.location || "",
+    calibrationValidTo:
+      initialInstrument?.calibrationValidTo || initialInstrument?.calibration_valid_to || "",
+    purchaseDate: initialInstrument?.purchaseDate || initialInstrument?.purchase_date || "",
+    purchaseCost: initialInstrument?.purchaseCost || initialInstrument?.purchase_cost || "",
     photoPath: initialInstrument?.photoPath || initialInstrument?.photo_path || null,
   });
 
@@ -50,7 +104,10 @@ export default function InstrumentDetailScreen({ instrument: initialInstrument, 
     return (
       <div className="space-y-4 font-sans text-[#1b1a18]">
         <div className="flex items-center gap-2 mb-1">
-          <button onClick={onBack} className="p-1 rounded-lg hover:bg-black/5 active:scale-95 transition-all">
+          <button
+            onClick={onBack}
+            className="p-1 rounded-lg hover:bg-black/5 active:scale-95 transition-all"
+          >
             <ArrowLeft size={18} className="text-[#1b4d8f]" />
           </button>
           <h2 className="text-base font-bold text-[#1b4d8f]">Instrument details</h2>
@@ -60,26 +117,69 @@ export default function InstrumentDetailScreen({ instrument: initialInstrument, 
     );
   }
 
-  const status = instrument.status || 'AVAILABLE';
-  const isOverdue = status === 'OVERDUE' || instrument.isOverdue;
+  const status = instrument.status || "AVAILABLE";
+  const isOverdue = status === "OVERDUE" || instrument.isOverdue;
 
-  let statusBadgeClass = 'bg-[#eef7f2] text-[#12695a]';
+  let statusBadgeClass = "bg-[#eef7f2] text-[#12695a]";
   if (isOverdue) {
-    statusBadgeClass = 'bg-[#fbe4e0] text-[#8f2318] border border-[#f5c2c2]';
-  } else if (status === 'ISSUED') {
-    statusBadgeClass = 'bg-[#fbf0dc] text-[#8a5a12]';
-  } else if (status === 'MAINTENANCE') {
-    statusBadgeClass = 'bg-[#f3f0f8] text-[#5c4a86]';
+    statusBadgeClass = "bg-[#fbe4e0] text-[#8f2318] border border-[#f5c2c2]";
+  } else if (status === "ISSUED") {
+    statusBadgeClass = "bg-[#fbf0dc] text-[#8a5a12]";
+  } else if (status === "MAINTENANCE") {
+    statusBadgeClass = "bg-[#f3f0f8] text-[#5c4a86]";
   }
 
   const instrumentId = instrument.id || instrument._id;
 
+  // Photos
   const rawPhotoPath = instrument.photoPath || instrument.photo_path;
   const photoUrl = rawPhotoPath
-    ? (rawPhotoPath.startsWith('http') 
-        ? `${rawPhotoPath}?t=${Date.now()}` 
-        : `http://localhost:8080${rawPhotoPath}?t=${Date.now()}`)
+    ? rawPhotoPath.startsWith("http")
+      ? `${rawPhotoPath}?t=${Date.now()}`
+      : `http://localhost:8080${rawPhotoPath}?t=${Date.now()}`
     : null;
+
+  const rawQrPath = instrument.qrPhoto || instrument.qr_photo;
+  const qrUrl = rawQrPath
+    ? rawQrPath.startsWith("http")
+      ? rawQrPath
+      : `http://localhost:8080${rawQrPath}`
+    : null;
+
+  // Download Handler (Downloads image or captures dynamically rendered QR Canvas)
+  const handleDownloadQr = async () => {
+    try {
+      const cleanAssetId = assetId.replace(/[^a-zA-Z0-9]/g, "_");
+
+      if (qrUrl) {
+        const response = await fetch(qrUrl);
+        const blob = await response.blob();
+        const blobUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = blobUrl;
+        link.download = `QR_${cleanAssetId}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(blobUrl);
+      } else if (qrCanvasRef.current) {
+        const canvas = qrCanvasRef.current.querySelector("canvas");
+        if (canvas) {
+          const image = canvas.toDataURL("image/png");
+          const link = document.createElement("a");
+          link.href = image;
+          link.download = `QR_${cleanAssetId}.png`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        }
+      }
+
+      if (onShowToast) onShowToast(`Downloaded QR for ${assetId}`);
+    } catch (err) {
+      if (onShowToast) onShowToast("Failed to download QR code.");
+    }
+  };
 
   const handleEditChange = (e) => {
     const { name, value } = e.target;
@@ -91,24 +191,25 @@ export default function InstrumentDetailScreen({ instrument: initialInstrument, 
     if (file) {
       setSelectedPhotoFile(file);
       const reader = new FileReader();
-      reader.onloadend = () => {
+      reader.onloadend = () =>
         setEditFormData((prev) => ({ ...prev, photoPath: reader.result }));
-      };
       reader.readAsDataURL(file);
-      if (onShowToast) onShowToast('New photo selected!');
+      if (onShowToast) onShowToast("New photo selected!");
     }
   };
 
   const startCamera = async () => {
     try {
       setIsCameraOpen(true);
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" },
+      });
       mediaStreamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
       }
     } catch (err) {
-      if (onShowToast) onShowToast('Unable to access live camera.');
+      if (onShowToast) onShowToast("Unable to access live camera.");
       setIsCameraOpen(false);
     }
   };
@@ -123,22 +224,24 @@ export default function InstrumentDetailScreen({ instrument: initialInstrument, 
 
   const takePhoto = () => {
     if (!videoRef.current) return;
-    const canvas = document.createElement('canvas');
+    const canvas = document.createElement("canvas");
     canvas.width = videoRef.current.videoWidth || 640;
     canvas.height = videoRef.current.videoHeight || 480;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext("2d");
     ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
 
-    const dataUrl = canvas.toDataURL('image/jpeg');
+    const dataUrl = canvas.toDataURL("image/jpeg");
     const blob = dataURLtoBlob(dataUrl);
     if (blob) {
-      const file = new File([blob], `instrument_${Date.now()}.jpg`, { type: 'image/jpeg' });
+      const file = new File([blob], `instrument_${Date.now()}.jpg`, {
+        type: "image/jpeg",
+      });
       setSelectedPhotoFile(file);
       setEditFormData((prev) => ({ ...prev, photoPath: dataUrl }));
     }
 
     stopCamera();
-    if (onShowToast) onShowToast('Instrument photo captured!');
+    if (onShowToast) onShowToast("Instrument photo captured!");
   };
 
   const handleSaveEdit = async (e) => {
@@ -149,32 +252,28 @@ export default function InstrumentDetailScreen({ instrument: initialInstrument, 
       setIsSubmitting(true);
 
       const formData = new FormData();
-      formData.append('asset_id', editFormData.assetId);
-      formData.append('assetId', editFormData.assetId);
-      formData.append('name', editFormData.name);
-      formData.append('make', editFormData.make);
-      formData.append('serial_no', editFormData.serialNo);
-      formData.append('serialNo', editFormData.serialNo);
-      formData.append('location', editFormData.location);
-      formData.append('calibration_valid_to', editFormData.calibrationValidTo);
-      formData.append('calibrationValidTo', editFormData.calibrationValidTo);
-      formData.append('purchase_date', editFormData.purchaseDate);
-      formData.append('purchaseDate', editFormData.purchaseDate);
-      formData.append('purchase_cost', editFormData.purchaseCost);
-      formData.append('purchaseCost', editFormData.purchaseCost);
+      formData.append("asset_id", editFormData.assetId);
+      formData.append("assetId", editFormData.assetId);
+      formData.append("name", editFormData.name);
+      formData.append("make", editFormData.make);
+      formData.append("serial_no", editFormData.serialNo);
+      formData.append("serialNo", editFormData.serialNo);
+      formData.append("location", editFormData.location);
+      formData.append("calibration_valid_to", editFormData.calibrationValidTo);
+      formData.append("calibrationValidTo", editFormData.calibrationValidTo);
+      formData.append("purchase_date", editFormData.purchaseDate);
+      formData.append("purchaseDate", editFormData.purchaseDate);
+      formData.append("purchase_cost", editFormData.purchaseCost);
+      formData.append("purchaseCost", editFormData.purchaseCost);
 
-      // Only attach file if a NEW file was picked or captured
       if (selectedPhotoFile) {
-        // Keep the real filename/extension (e.g. .png or .webp).
-        formData.append('photo', selectedPhotoFile, selectedPhotoFile.name);
+        formData.append("photo", selectedPhotoFile, selectedPhotoFile.name);
       }
 
-      // This endpoint consumes multipart/form-data. Axios will add the
-      // required multipart boundary for the browser request.
       const response = await axiosClient.put(
         `/instruments/${instrumentId}`,
         formData,
-        { headers: { 'Content-Type': 'multipart/form-data' } }
+        { headers: { "Content-Type": "multipart/form-data" } }
       );
 
       const updatedInstrument = response.data || {
@@ -185,14 +284,16 @@ export default function InstrumentDetailScreen({ instrument: initialInstrument, 
       setInstrument(updatedInstrument);
       setIsEditing(false);
       setSelectedPhotoFile(null);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      if (fileInputRef.current) fileInputRef.current.value = "";
 
       if (onShowToast) {
-        onShowToast(`Updated "${updatedInstrument.name || 'Instrument'}" successfully!`);
+        onShowToast(`Updated "${updatedInstrument.name || "Instrument"}" successfully!`);
       }
     } catch (err) {
       if (onShowToast) {
-        onShowToast(err.response?.data?.message || err.response?.data || 'Failed to update instrument details.');
+        onShowToast(
+          err.response?.data?.message || err.response?.data || "Failed to update details."
+        );
       }
     } finally {
       setIsSubmitting(false);
@@ -207,14 +308,14 @@ export default function InstrumentDetailScreen({ instrument: initialInstrument, 
       await axiosClient.delete(`/instruments/${instrumentId}`);
 
       if (onShowToast) {
-        onShowToast(`Instrument "${instrument.name || 'Item'}" deleted successfully.`);
+        onShowToast(`Instrument "${instrument.name || "Item"}" deleted successfully.`);
       }
 
       setShowDeleteModal(false);
       if (onBack) onBack();
     } catch (err) {
       if (onShowToast) {
-        onShowToast(err.response?.data?.message || 'Failed to delete instrument.');
+        onShowToast(err.response?.data?.message || "Failed to delete instrument.");
       }
     } finally {
       setIsDeleting(false);
@@ -224,7 +325,10 @@ export default function InstrumentDetailScreen({ instrument: initialInstrument, 
   return (
     <div className="space-y-3.5 font-sans text-[#1b1a18]">
       <div className="flex items-center gap-2 mb-1">
-        <button onClick={onBack} className="p-1 rounded-lg hover:bg-black/5 active:scale-95 transition-all">
+        <button
+          onClick={onBack}
+          className="p-1 rounded-lg hover:bg-black/5 active:scale-95 transition-all"
+        >
           <ArrowLeft size={18} className="text-[#1b4d8f]" />
         </button>
         <h2 className="text-base font-bold text-[#1b4d8f]">Instrument details</h2>
@@ -234,17 +338,25 @@ export default function InstrumentDetailScreen({ instrument: initialInstrument, 
         <>
           {photoUrl ? (
             <div className="relative w-full h-48 bg-gray-100 rounded-2xl overflow-hidden border border-black/10 shadow-xs">
-              <img src={photoUrl} alt={instrument.name || 'Instrument'} className="w-full h-full object-cover" />
+              <img
+                src={photoUrl}
+                alt={instrument.name || "Instrument"}
+                className="w-full h-full object-cover"
+              />
               <div className="absolute top-3 right-3">
-                <span className={`text-[10.5px] font-bold px-2.5 py-1 rounded-full shadow-xs ${statusBadgeClass}`}>
-                  {isOverdue ? 'OVERDUE' : status}
+                <span
+                  className={`text-[10.5px] font-bold px-2.5 py-1 rounded-full shadow-xs ${statusBadgeClass}`}
+                >
+                  {isOverdue ? "OVERDUE" : status}
                 </span>
               </div>
             </div>
           ) : (
             <div className="w-full h-28 bg-[#f4f7fc] rounded-2xl border border-dashed border-[#1b4d8f]/30 flex flex-col items-center justify-center gap-1">
               <Tag size={20} className="text-[#1b4d8f]" />
-              <span className="text-[11.5px] font-medium text-[#1b4d8f]">No Photo Available</span>
+              <span className="text-[11.5px] font-medium text-[#1b4d8f]">
+                No Photo Available
+              </span>
             </div>
           )}
 
@@ -252,15 +364,17 @@ export default function InstrumentDetailScreen({ instrument: initialInstrument, 
             <div className="flex justify-between items-start gap-2">
               <div>
                 <h3 className="text-base font-bold text-[#1b1a18] leading-tight">
-                  {instrument.name || 'Unnamed Instrument'}
+                  {instrument.name || "Unnamed Instrument"}
                 </h3>
                 <p className="font-mono text-[11px] text-[#7a7872] mt-1">
-                  Asset ID: {instrument.assetId || instrument.asset_id || 'N/A'}
+                  Asset ID: {assetId}
                 </p>
               </div>
               {!photoUrl && (
-                <span className={`text-[10.5px] font-bold px-2.5 py-1 rounded-md shrink-0 ${statusBadgeClass}`}>
-                  {isOverdue ? 'OVERDUE' : status}
+                <span
+                  className={`text-[10.5px] font-bold px-2.5 py-1 rounded-md shrink-0 ${statusBadgeClass}`}
+                >
+                  {isOverdue ? "OVERDUE" : status}
                 </span>
               )}
             </div>
@@ -269,34 +383,42 @@ export default function InstrumentDetailScreen({ instrument: initialInstrument, 
 
             <div className="grid grid-cols-2 gap-3 text-[12px]">
               <div>
-                <span className="text-[10.5px] font-semibold text-[#7a7872] uppercase block">Make</span>
-                <span className="font-medium text-[#1b1a18]">{instrument.make || 'N/A'}</span>
+                <span className="text-[10.5px] font-semibold text-[#7a7872] uppercase block">
+                  Make
+                </span>
+                <span className="font-medium text-[#1b1a18]">{make}</span>
               </div>
 
               <div>
-                <span className="text-[10.5px] font-semibold text-[#7a7872] uppercase block">Serial No</span>
-                <span className="font-mono text-[#1b1a18]">{instrument.serialNo || instrument.serial_no || 'N/A'}</span>
+                <span className="text-[10.5px] font-semibold text-[#7a7872] uppercase block">
+                  Serial No
+                </span>
+                <span className="font-mono text-[#1b1a18]">{serialNo}</span>
               </div>
 
               <div>
-                <span className="text-[10.5px] font-semibold text-[#7a7872] uppercase block">Location</span>
+                <span className="text-[10.5px] font-semibold text-[#7a7872] uppercase block">
+                  Location
+                </span>
                 <span className="font-medium text-[#1b1a18] flex items-center gap-1 mt-0.5">
                   <MapPin size={12} className="text-[#1b4d8f]" />
-                  {instrument.location || 'N/A'}
+                  {location}
                 </span>
               </div>
 
               <div>
-                <span className="text-[10.5px] font-semibold text-[#7a7872] uppercase block">Calibration Valid To</span>
+                <span className="text-[10.5px] font-semibold text-[#7a7872] uppercase block">
+                  Calibration Valid To
+                </span>
                 <span className="font-medium text-[#1b1a18] flex items-center gap-1 mt-0.5">
                   <ShieldCheck size={12} className="text-[#12695a]" />
-                  {instrument.calibrationValidTo || instrument.calibration_valid_to || 'N/A'}
+                  {calibrationValidTo}
                 </span>
               </div>
             </div>
           </div>
 
-          {(instrument.purchaseDate || instrument.purchase_date || instrument.purchaseCost || instrument.purchase_cost) && (
+          {(purchaseDate !== "N/A" || purchaseCost !== null) && (
             <div className="bg-white p-4 rounded-2xl border border-black/10 shadow-xs space-y-2">
               <span className="text-[10.5px] font-bold uppercase tracking-wider text-[#5d5b56]">
                 Acquisition Details
@@ -304,45 +426,70 @@ export default function InstrumentDetailScreen({ instrument: initialInstrument, 
 
               <div className="grid grid-cols-2 gap-3 text-[12px] pt-1">
                 <div>
-                  <span className="text-[10.5px] font-semibold text-[#7a7872] uppercase block">Purchase Date</span>
+                  <span className="text-[10.5px] font-semibold text-[#7a7872] uppercase block">
+                    Purchase Date
+                  </span>
                   <span className="font-medium text-[#1b1a18] flex items-center gap-1 mt-0.5">
                     <Calendar size={12} className="text-[#1b4d8f]" />
-                    {instrument.purchaseDate || instrument.purchase_date || 'N/A'}
+                    {purchaseDate}
                   </span>
                 </div>
 
                 <div>
-                  <span className="text-[10.5px] font-semibold text-[#7a7872] uppercase block">Purchase Cost</span>
+                  <span className="text-[10.5px] font-semibold text-[#7a7872] uppercase block">
+                    Purchase Cost
+                  </span>
                   <span className="font-medium text-[#1b1a18] flex items-center gap-0.5 mt-0.5">
                     <IndianRupee size={12} className="text-[#12695a]" />
-                    {instrument.purchaseCost || instrument.purchase_cost 
-                      ? Number(instrument.purchaseCost || instrument.purchase_cost).toLocaleString('en-IN')
-                      : 'N/A'}
+                    {purchaseCost ? Number(purchaseCost).toLocaleString("en-IN") : "N/A"}
                   </span>
                 </div>
               </div>
             </div>
           )}
 
-          {(status === 'ISSUED' || isOverdue) && instrument.holder && (
+          {(status === "ISSUED" || isOverdue) && (
             <div className="bg-white p-4 rounded-2xl border border-black/10 shadow-xs space-y-2">
               <span className="text-[10.5px] font-bold uppercase tracking-wider text-[#5d5b56]">
                 Current Issue Context
               </span>
 
-              <div className="space-y-1.5 text-[12px] pt-0.5">
-                <div className="flex items-center gap-2">
-                  <User size={14} className="text-[#1b4d8f]" />
-                  <span className="font-medium text-[#1b1a18]">
-                    Holder: <span className="font-bold">{instrument.holder}</span>
-                  </span>
+              <div className="space-y-2 text-[12px] pt-0.5">
+                <div className="flex items-start gap-2">
+                  <User size={14} className="text-[#1b4d8f] mt-0.5 shrink-0" />
+                  <div>
+                    <span className="text-[10.5px] text-[#7a7872] uppercase font-semibold block">
+                      Scientist
+                    </span>
+                    <span className="font-bold text-[#1b1a18]">{scientistName}</span>
+                  </div>
                 </div>
 
-                {instrument.dueDate && (
-                  <div className="flex items-center gap-2">
-                    <Clock size={14} className={isOverdue ? 'text-[#8f2318]' : 'text-[#8a5a12]'} />
-                    <span className={`font-medium ${isOverdue ? 'text-[#8f2318]' : 'text-[#8a5a12]'}`}>
-                      Return Date: {instrument.dueDate} {isOverdue && '(OVERDUE)'}
+                {staffName && (
+                  <div className="flex items-start gap-2 pt-1 border-t border-black/5">
+                    <User size={14} className="text-[#12695a] mt-0.5 shrink-0" />
+                    <div>
+                      <span className="text-[10.5px] text-[#7a7872] uppercase font-semibold block">
+                        Intermediary Staff
+                      </span>
+                      <span className="font-bold text-[#1b1a18]">{staffName}</span>
+                    </div>
+                  </div>
+                )}
+
+                {(instrument.dueDate || instrument.due_date) && (
+                  <div className="flex items-center gap-2 pt-1 border-t border-black/5">
+                    <Clock
+                      size={14}
+                      className={isOverdue ? "text-[#8f2318]" : "text-[#8a5a12]"}
+                    />
+                    <span
+                      className={`font-medium ${
+                        isOverdue ? "text-[#8f2318]" : "text-[#8a5a12]"
+                      }`}
+                    >
+                      Return Date: {instrument.dueDate || instrument.due_date}{" "}
+                      {isOverdue && "(OVERDUE)"}
                     </span>
                   </div>
                 )}
@@ -350,47 +497,60 @@ export default function InstrumentDetailScreen({ instrument: initialInstrument, 
             </div>
           )}
 
-        <div className="pt-2 space-y-2">
-            {status === 'AVAILABLE' && (
+          <div className="pt-2 space-y-2">
+            {/* VIEW SAVED QR CODE BUTTON */}
+            <button
+              onClick={() => setShowQrModal(true)}
+              className="w-full bg-[#1b4d8f] text-white py-3 rounded-xl text-[13.5px] font-semibold active:scale-98 transition-all shadow-xs flex items-center justify-center gap-2"
+            >
+              <QrCode size={18} />
+              <span>View Saved Instrument QR</span>
+            </button>
+
+            {status === "AVAILABLE" && (
               <button
-                onClick={() => onNavigate && onNavigate('Issue')}
-                className="w-full bg-[#1b4d8f] text-white py-3 rounded-xl text-[13.5px] font-semibold active:scale-98 transition-all shadow-xs text-center"
+                onClick={() => onNavigate && onNavigate("Issue")}
+                className="w-full bg-[#12695a] text-white py-3 rounded-xl text-[13.5px] font-semibold active:scale-98 transition-all shadow-xs text-center"
               >
                 Issue this instrument
               </button>
             )}
 
-            {/* EDIT BUTTON: Disabled when instrument is ISSUED or OVERDUE */}
             <button
-              disabled={status === 'ISSUED' || status === 'OVERDUE' || isOverdue}
+              disabled={status === "ISSUED" || status === "OVERDUE" || isOverdue}
               onClick={() => {
-                if (status === 'ISSUED' || status === 'OVERDUE' || isOverdue) return;
+                if (status === "ISSUED" || status === "OVERDUE" || isOverdue) return;
                 setSelectedPhotoFile(null);
-                if (fileInputRef.current) fileInputRef.current.value = '';
+                if (fileInputRef.current) fileInputRef.current.value = "";
                 setEditFormData({
-                  name: instrument.name || '',
-                  assetId: instrument.assetId || instrument.asset_id || '',
-                  make: instrument.make || '',
-                  serialNo: instrument.serialNo || instrument.serial_no || '',
-                  location: instrument.location || '',
-                  calibrationValidTo: instrument.calibrationValidTo || instrument.calibration_valid_to || '',
-                  purchaseDate: instrument.purchaseDate || instrument.purchase_date || '',
-                  purchaseCost: instrument.purchaseCost || instrument.purchase_cost || '',
+                  name: instrument.name || "",
+                  assetId: instrument.assetId || instrument.asset_id || "",
+                  make: instrument.make || "",
+                  serialNo: instrument.serialNo || instrument.serial_no || "",
+                  location: instrument.location || "",
+                  calibrationValidTo:
+                    instrument.calibrationValidTo ||
+                    instrument.calibration_valid_to ||
+                    "",
+                  purchaseDate:
+                    instrument.purchaseDate || instrument.purchase_date || "",
+                  purchaseCost:
+                    instrument.purchaseCost || instrument.purchase_cost || "",
                   photoPath: instrument.photoPath || instrument.photo_path || null,
                 });
                 setIsEditing(true);
               }}
               className={`w-full py-3 rounded-xl text-[13.5px] font-semibold active:scale-98 transition-all shadow-xs flex items-center justify-center gap-2 ${
-                status === 'ISSUED' || status === 'OVERDUE' || isOverdue
-                  ? 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed opacity-60'
-                  : 'bg-[#1b4d8f]/10 text-[#1b4d8f] border border-[#1b4d8f]/20'
+                status === "ISSUED" || status === "OVERDUE" || isOverdue
+                  ? "bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed opacity-60"
+                  : "bg-[#1b4d8f]/10 text-[#1b4d8f] border border-[#1b4d8f]/20"
               }`}
             >
               <Edit3 size={16} />
               <span>
-                {status === 'ISSUED' || status === 'OVERDUE' || isOverdue
-                  ? 'Cannot Edit (Currently Issued / Due)'
-                  : 'Edit Instrument Details'}
+                {status === "ISSUED" || status === "OVERDUE" || isOverdue
+                  ? "Cannot Edit (Currently Issued / Due)"
+                  : "Edit Instrument Details"}
               </span>
             </button>
 
@@ -402,10 +562,12 @@ export default function InstrumentDetailScreen({ instrument: initialInstrument, 
               <span>Delete Instrument</span>
             </button>
           </div>
-
         </>
       ) : (
-        <form onSubmit={handleSaveEdit} className="bg-white p-4 rounded-2xl border border-black/10 shadow-xs space-y-3">
+        <form
+          onSubmit={handleSaveEdit}
+          className="bg-white p-4 rounded-2xl border border-black/10 shadow-xs space-y-3"
+        >
           <h3 className="text-sm font-bold text-[#1b4d8f] uppercase tracking-wider border-b pb-2">
             Edit Instrument Details
           </h3>
@@ -419,9 +581,9 @@ export default function InstrumentDetailScreen({ instrument: initialInstrument, 
                 <div className="relative shrink-0">
                   <img
                     src={
-                      editFormData.photoPath.startsWith('data:')
+                      editFormData.photoPath.startsWith("data:")
                         ? editFormData.photoPath
-                        : editFormData.photoPath.startsWith('http')
+                        : editFormData.photoPath.startsWith("http")
                         ? editFormData.photoPath
                         : `http://localhost:8080${editFormData.photoPath}`
                     }
@@ -490,9 +652,7 @@ export default function InstrumentDetailScreen({ instrument: initialInstrument, 
           </div>
 
           <div className="space-y-1">
-            <label className="text-[11px] font-semibold text-[#5d5b56]">
-              Asset ID
-            </label>
+            <label className="text-[11px] font-semibold text-[#5d5b56]">Asset ID</label>
             <input
               type="text"
               name="assetId"
@@ -505,9 +665,7 @@ export default function InstrumentDetailScreen({ instrument: initialInstrument, 
 
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-[#5d5b56]">
-                Make
-              </label>
+              <label className="text-[11px] font-semibold text-[#5d5b56]">Make</label>
               <input
                 type="text"
                 name="make"
@@ -532,9 +690,7 @@ export default function InstrumentDetailScreen({ instrument: initialInstrument, 
           </div>
 
           <div className="space-y-1">
-            <label className="text-[11px] font-semibold text-[#5d5b56]">
-              Location
-            </label>
+            <label className="text-[11px] font-semibold text-[#5d5b56]">Location</label>
             <input
               type="text"
               name="location"
@@ -592,7 +748,7 @@ export default function InstrumentDetailScreen({ instrument: initialInstrument, 
               onClick={() => {
                 setIsEditing(false);
                 setSelectedPhotoFile(null);
-                if (fileInputRef.current) fileInputRef.current.value = '';
+                if (fileInputRef.current) fileInputRef.current.value = "";
               }}
               className="flex-1 py-2.5 rounded-xl text-xs font-medium border border-gray-300 text-gray-700 bg-white"
             >
@@ -603,12 +759,75 @@ export default function InstrumentDetailScreen({ instrument: initialInstrument, 
               disabled={isSubmitting}
               className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-[#1b4d8f] text-white flex items-center justify-center gap-1"
             >
-              {isSubmitting ? <Loader2 size={14} className="animate-spin" /> : <span>Save Changes</span>}
+              {isSubmitting ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <span>Save Changes</span>
+              )}
             </button>
           </div>
         </form>
       )}
 
+      {/* QR MODAL */}
+      {showQrModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-3xl p-5 w-full max-w-xs space-y-4 shadow-2xl border border-black/10 text-center">
+            <div className="flex items-center justify-between border-b pb-2">
+              <div className="flex items-center gap-2 text-[#1b4d8f]">
+                <QrCode size={18} />
+                <h3 className="text-sm font-bold text-[#1b1a18]">Instrument QR Code</h3>
+              </div>
+              <button
+                onClick={() => setShowQrModal(false)}
+                className="text-gray-400 hover:text-gray-600 p-1 rounded-lg"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-1">
+              <h4 className="text-xs font-bold text-[#1b1a18] line-clamp-1">
+                {instrument.name}
+              </h4>
+              <p className="font-mono text-[11px] text-[#7a7872]">{assetId}</p>
+            </div>
+
+            {/* Render Saved QR image from backend OR live fallback canvas */}
+            <div
+              ref={qrCanvasRef}
+              className="p-4 bg-[#f8fafc] border-2 border-dashed border-[#1b4d8f]/30 rounded-2xl flex items-center justify-center shadow-inner"
+            >
+              {qrUrl ? (
+                <img
+                  src={qrUrl}
+                  alt={`QR Code for ${assetId}`}
+                  className="w-44 h-44 object-contain"
+                />
+              ) : (
+                <QRCodeCanvas
+                  value={assetId}
+                  size={180}
+                  bgColor="#FFFFFF"
+                  fgColor="#1b4d8f"
+                  level="H"
+                  includeMargin={true}
+                />
+              )}
+            </div>
+
+            <button
+              onClick={handleDownloadQr}
+              className="w-full bg-[#1b4d8f] text-white py-2.5 rounded-xl text-xs font-bold active:scale-95 transition-all shadow-xs flex items-center justify-center gap-2"
+            >
+              <Download size={15} />
+              <span>Download QR Photo</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Modal */}
       {showDeleteModal && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
           <div className="bg-white rounded-2xl p-4.5 w-full max-w-sm space-y-3 shadow-2xl border border-black/10 animate-fade-in">
@@ -617,15 +836,18 @@ export default function InstrumentDetailScreen({ instrument: initialInstrument, 
                 <AlertTriangle size={18} />
                 <h3 className="text-sm font-bold text-[#1b1a18]">Confirm Delete</h3>
               </div>
-              <button onClick={() => setShowDeleteModal(false)} className="text-gray-400 hover:text-gray-600 p-1">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="text-gray-400 hover:text-gray-600 p-1"
+              >
                 <X size={18} />
               </button>
             </div>
 
             <p className="text-[12.5px] text-[#5d5b56] leading-relaxed">
-              Are you sure you want to permanently delete{' '}
-              <strong className="text-[#1b1a18]">{instrument.name}</strong> (Asset ID:{' '}
-              <span className="font-mono text-xs">{instrument.assetId || instrument.asset_id || 'N/A'}</span>)?
+              Are you sure you want to permanently delete{" "}
+              <strong className="text-[#1b1a18]">{instrument.name}</strong> (Asset ID:{" "}
+              <span className="font-mono text-xs">{assetId}</span>)?
             </p>
 
             <div className="flex items-center gap-2 pt-2">
@@ -642,13 +864,14 @@ export default function InstrumentDetailScreen({ instrument: initialInstrument, 
                 onClick={handleDeleteInstrument}
                 className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-[#c92a2a] hover:bg-[#b02525] text-white disabled:opacity-50 transition-all"
               >
-                {isDeleting ? 'Deleting...' : 'Delete Permanently'}
+                {isDeleting ? "Deleting..." : "Delete Permanently"}
               </button>
             </div>
           </div>
         </div>
       )}
 
+      {/* Camera modal */}
       {isCameraOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in">
           <div className="w-full max-w-sm h-[70vh] bg-black rounded-3xl overflow-hidden flex flex-col justify-between p-3.5 shadow-2xl border border-white/20">

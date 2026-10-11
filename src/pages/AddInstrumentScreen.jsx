@@ -8,6 +8,7 @@ import {
   Loader2,
   IndianRupee,
 } from "lucide-react";
+import { QRCodeCanvas } from "qrcode.react";
 import axiosClient from "../api/axiosClient";
 
 export default function AddInstrumentScreen({ onBack, onShowToast }) {
@@ -31,6 +32,9 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
   const videoRef = useRef(null);
   const mediaStreamRef = useRef(null);
   const fileInputRef = useRef(null);
+
+  // Off-screen canvas ref for capturing generated QR image
+  const qrCanvasRef = useRef(null);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -103,6 +107,25 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
     return () => stopCamera();
   }, []);
 
+  // Converts off-screen QR canvas element into a binary PNG File
+  const generateQrFile = () => {
+    return new Promise((resolve) => {
+      if (!qrCanvasRef.current) return resolve(null);
+      const canvas = qrCanvasRef.current.querySelector("canvas");
+      if (!canvas) return resolve(null);
+
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const cleanAssetId = formData.assetId.trim().replace(/[^a-zA-Z0-9]/g, "_");
+          const file = new File([blob], `qr_${cleanAssetId}.png`, { type: "image/png" });
+          resolve(file);
+        } else {
+          resolve(null);
+        }
+      }, "image/png");
+    });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMsg("");
@@ -114,15 +137,16 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
       !formData.location.trim()
     ) {
       if (onShowToast) {
-        onShowToast(
-          "Validation Error: Asset ID, Name, Make, and Location are required.",
-        );
+        onShowToast("Validation Error: Asset ID, Name, Make, and Location are required.");
       }
       return;
     }
 
     try {
       setIsSubmitting(true);
+
+      // Generate binary QR Code file from offscreen canvas
+      const qrImageFile = await generateQrFile();
 
       const multipartPayload = new FormData();
       multipartPayload.append("asset_id", formData.assetId.trim());
@@ -132,10 +156,7 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
         multipartPayload.append("serial_no", formData.serialNo.trim());
       multipartPayload.append("location", formData.location.trim());
       if (formData.calibrationValidity)
-        multipartPayload.append(
-          "calibration_valid_to",
-          formData.calibrationValidity,
-        );
+        multipartPayload.append("calibration_valid_to", formData.calibrationValidity);
       if (formData.purchaseDate)
         multipartPayload.append("purchase_date", formData.purchaseDate);
       if (formData.purchaseCost)
@@ -147,42 +168,34 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
         multipartPayload.append("photo", selectedPhotoFile);
       }
 
-      const response = await axiosClient.post(
-        "/instruments",
-        multipartPayload,
-        {
-          headers: {
-            "Content-Type": "multipart/form-data",
-          },
+      // Pass generated QR image to backend
+      if (qrImageFile) {
+        multipartPayload.append("qrPhoto", qrImageFile);
+      }
+
+      const response = await axiosClient.post("/instruments", multipartPayload, {
+        headers: {
+          "Content-Type": "multipart/form-data",
         },
-      );
+      });
 
       if (onShowToast) {
         onShowToast(
-          `Added ${response.data.name || formData.name} (${response.data.asset_id || formData.assetId}) to group register. Printable QR label generated.`,
+          `Added ${response.data.name || formData.name} (${response.data.asset_id || response.data.assetId || formData.assetId}) to group register.`
         );
       }
 
-      // Redirect to Instrument Details with newly created object
       if (onBack) {
         onBack(response.data);
       }
     } catch (err) {
       console.error("Failed to create instrument:", err);
       const serverMessage =
-        err.response?.data?.message ||
-        err.response?.data ||
-        "Failed to connect to database server.";
-      setErrorMsg(
-        typeof serverMessage === "string"
-          ? serverMessage
-          : "Failed to register instrument.",
-      );
+        err.response?.data?.message || err.response?.data || "Failed to connect to server.";
+      setErrorMsg(typeof serverMessage === "string" ? serverMessage : "Failed to register instrument.");
 
       if (onShowToast) {
-        onShowToast(
-          `Error: ${typeof serverMessage === "string" ? serverMessage : "Failed to add instrument"}`,
-        );
+        onShowToast(`Error: ${typeof serverMessage === "string" ? serverMessage : "Failed to add instrument"}`);
       }
     } finally {
       setIsSubmitting(false);
@@ -191,6 +204,20 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
 
   return (
     <div className="space-y-3.5 font-sans text-[#1b1a18]">
+      {/* Mounted Off-screen QR Generator Canvas */}
+      <div style={{ position: "absolute", left: "-9999px", top: "-9999px" }} ref={qrCanvasRef}>
+        {formData.assetId.trim() && (
+          <QRCodeCanvas
+            value={formData.assetId.trim()}
+            size={300}
+            bgColor="#FFFFFF"
+            fgColor="#1b4d8f"
+            level="H"
+            includeMargin={true}
+          />
+        )}
+      </div>
+
       {/* Header */}
       <div className="flex items-center gap-2 mb-1">
         <button
@@ -205,20 +232,17 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
       </div>
 
       <p className="text-[12.5px] leading-relaxed text-[#5d5b56]">
-        New entries are added to the group register and get a printable QR asset
-        label.
+        New entries are added to the group register and get a printable QR asset label.
       </p>
 
-      {/* Error Banner */}
       {errorMsg && (
         <div className="bg-[#fcf2f2] text-[#c92a2a] text-[12px] p-3 rounded-xl border border-[#f5c2c2] font-medium">
           {errorMsg}
         </div>
       )}
 
-      {/* Form Section */}
+      {/* Form */}
       <form onSubmit={handleSubmit} className="space-y-3 pt-1">
-        {/* Field 1: Asset / CBRI ID */}
         <div className="space-y-1">
           <label className="text-[11.5px] font-semibold text-[#5d5b56]">
             Asset / CBRI ID <span className="text-red-500">*</span>
@@ -235,7 +259,6 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
           />
         </div>
 
-        {/* Field 2: Instrument name & model */}
         <div className="space-y-1">
           <label className="text-[11.5px] font-semibold text-[#5d5b56]">
             Instrument name & model <span className="text-red-500">*</span>
@@ -252,7 +275,6 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
           />
         </div>
 
-        {/* Field 3: Make */}
         <div className="space-y-1">
           <label className="text-[11.5px] font-semibold text-[#5d5b56]">
             Make <span className="text-red-500">*</span>
@@ -269,11 +291,8 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
           />
         </div>
 
-        {/* Field 4: Serial number */}
         <div className="space-y-1">
-          <label className="text-[11.5px] font-semibold text-[#5d5b56]">
-            Serial number
-          </label>
+          <label className="text-[11.5px] font-semibold text-[#5d5b56]">Serial number</label>
           <input
             type="text"
             name="serialNo"
@@ -285,7 +304,6 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
           />
         </div>
 
-        {/* Field 5: Location / lab */}
         <div className="space-y-1">
           <label className="text-[11.5px] font-semibold text-[#5d5b56]">
             Location / lab <span className="text-red-500">*</span>
@@ -302,11 +320,8 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
           />
         </div>
 
-        {/* Field 6: Calibration validity */}
         <div className="space-y-1">
-          <label className="text-[11.5px] font-semibold text-[#5d5b56]">
-            Calibration valid until
-          </label>
+          <label className="text-[11.5px] font-semibold text-[#5d5b56]">Calibration valid until</label>
           <input
             type="date"
             name="calibrationValidity"
@@ -317,11 +332,8 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
           />
         </div>
 
-        {/* Field 7: Purchase Date */}
         <div className="space-y-1">
-          <label className="text-[11.5px] font-semibold text-[#5d5b56]">
-            Purchase Date
-          </label>
+          <label className="text-[11.5px] font-semibold text-[#5d5b56]">Purchase Date</label>
           <input
             type="date"
             name="purchaseDate"
@@ -332,11 +344,8 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
           />
         </div>
 
-        {/* Field 8: Purchase Cost */}
         <div className="space-y-1">
-          <label className="text-[11.5px] font-semibold text-[#5d5b56]">
-            Purchase Cost (₹)
-          </label>
+          <label className="text-[11.5px] font-semibold text-[#5d5b56]">Purchase Cost (₹)</label>
           <div className="relative flex items-center">
             <input
               type="number"
@@ -349,19 +358,12 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
               className="w-full bg-white text-[13px] p-3 pl-8 rounded-xl border border-black/15 focus:outline-none focus:border-[#1b4d8f] focus:ring-1 focus:ring-[#1b4d8f] transition-all"
               disabled={isSubmitting}
             />
-            <IndianRupee
-              size={14}
-              className="absolute left-3 text-gray-400 pointer-events-none"
-            />
+            <IndianRupee size={14} className="absolute left-3 text-gray-400 pointer-events-none" />
           </div>
         </div>
 
-        {/* Photo Upload Section */}
         <div className="space-y-1 pt-1">
-          <label className="text-[11.5px] font-semibold text-[#5d5b56]">
-            Instrument Photo (Optional)
-          </label>
-
+          <label className="text-[11.5px] font-semibold text-[#5d5b56]">Instrument Photo (Optional)</label>
           <input
             type="file"
             ref={fileInputRef}
@@ -404,9 +406,7 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
                   <span className="text-[11px] font-semibold text-[#12695a] flex items-center gap-1">
                     <CheckCircle2 size={12} /> Photo Attached
                   </span>
-                  <p className="text-[10px] text-gray-500 truncate">
-                    Ready to save with instrument record
-                  </p>
+                  <p className="text-[10px] text-gray-500 truncate">Ready to save with instrument record</p>
                 </div>
               </div>
               <button
@@ -424,7 +424,6 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
           )}
         </div>
 
-        {/* Action Submit Button */}
         <div className="pt-2">
           <button
             type="submit"
@@ -443,7 +442,7 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
         </div>
       </form>
 
-      {/* Live Camera Viewfinder */}
+      {/* Camera overlay */}
       {isCameraOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in">
           <div className="w-full max-w-sm h-[70vh] bg-black rounded-3xl overflow-hidden flex flex-col justify-between p-3.5 shadow-2xl border border-white/20">
@@ -462,13 +461,7 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
             </div>
 
             <div className="relative flex-1 bg-black rounded-2xl overflow-hidden flex items-center justify-center my-2">
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                className="w-full h-full object-cover"
-              />
-              <div className="absolute inset-0 border-2 border-white/20 rounded-2xl pointer-events-none" />
+              <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
             </div>
 
             <div className="pt-1 pb-1 flex items-center justify-center gap-4">
