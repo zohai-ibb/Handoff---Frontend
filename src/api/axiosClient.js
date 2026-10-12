@@ -13,7 +13,7 @@ const axiosClient = axios.create({
 // Interceptor: Attach JWT Bearer Token to outgoing requests
 axiosClient.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('token'); // or sessionStorage
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }

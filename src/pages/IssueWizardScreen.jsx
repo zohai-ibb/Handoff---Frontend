@@ -1,5 +1,11 @@
 import React, { useState, useRef, useEffect } from "react";
-import { ArrowLeft, Camera, X, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Camera, X, CheckCircle2, Loader2 } from "lucide-react";
+import {
+  getMyInstruments,
+  getMyScientists,
+  scanInstrumentByAssetId,
+  issueInstrumentApi,
+} from "../api/issueWizardService";
 
 export default function IssueWizardScreen({
   onBack,
@@ -8,6 +14,12 @@ export default function IssueWizardScreen({
 }) {
   // Wizard active step tracker (1: Instrument, 2: Person & Staff, 3: Dates, 4: Confirm)
   const [currentStep, setCurrentStep] = useState(1);
+
+  // Dynamic Data States from Backend
+  const [availableInstruments, setAvailableInstruments] = useState([]);
+  const [scientists, setScientists] = useState([]);
+  const [loadingData, setLoadingData] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Form State across all wizard steps
   const [selectedInstrument, setSelectedInstrument] = useState(null);
@@ -18,12 +30,10 @@ export default function IssueWizardScreen({
   const [staffEmail, setStaffEmail] = useState("");
 
   // Step 3 State: Dates, Purpose, Condition & Photo Record
-  const [issueDate, setIssueDate] = useState("09-09-2026");
-  const [expectedReturn, setExpectedReturn] = useState("23-09-2026");
+  const [issueDate, setIssueDate] = useState("2026-09-09");
+  const [expectedReturn, setExpectedReturn] = useState("2026-09-23");
   const [purpose, setPurpose] = useState("");
-  const [conditionOut, setConditionOut] = useState(
-    "Complete with case and accessories"
-  );
+  const [conditionOut, setConditionOut] = useState("Complete with case and accessories");
 
   // Camera & Photo Capture State
   const [isCameraOpen, setIsCameraOpen] = useState(false);
@@ -31,56 +41,35 @@ export default function IssueWizardScreen({
   const videoRef = useRef(null);
   const mediaStreamRef = useRef(null);
 
-  // Expanded list of instruments
-  const availableInstruments = [
-    { id: "inst_1", name: "Testo 872 Thermal Imager", assetId: "CBRI/APEEG/0143" },
-    { id: "inst_2", name: "HOBO MX1101 Temp/RH Loggers (set of 12)", assetId: "CBRI/APEEG/0210" },
-    { id: "inst_3", name: "Lutron SL-4023SD Sound Level Meter", assetId: "CBRI/APEEG/0201" },
-    { id: "inst_4", name: "Kipp & Zonen CMP6 Pyranometer", assetId: "CBRI/APEEG/0099" },
-    { id: "inst_5", name: "Fluke 1736 Three-Phase Power Logger", assetId: "CBRI/APEEG/0121" },
-    { id: "inst_6", name: "Kimo DBM 610 Air Flow Meter", assetId: "CBRI/APEEG/0177" },
-    { id: "inst_7", name: "Testo 440 IAQ Kit", assetId: "CBRI/APEEG/0121" },
-    { id: "inst_8", name: "FLIR E8-XT Thermal Camera", assetId: "CBRI/APEEG/0122" },
-  ];
+  // --- Initial Data Fetching from Backend ---
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoadingData(true);
+        const [instRes, sciRes] = await Promise.all([
+          getMyInstruments(),
+          getMyScientists(),
+        ]);
+        // Filter instruments to only show AVAILABLE ones
+        const availableOnly = (Array.isArray(instRes) ? instRes : []).filter(
+          (item) => item.status === "AVAILABLE" || item.status === "Available"
+        );
+        setAvailableInstruments(availableOnly);
+        setScientists(Array.isArray(sciRes) ? sciRes : []);
+      } catch (err) {
+        if (onShowToast) {
+          onShowToast(
+            "Failed to load inventory/scientists: " +
+              (err.response?.data || err.message)
+          );
+        }
+      } finally {
+        setLoadingData(false);
+      }
+    };
 
-  // Expanded list of scientists
-  const scientists = [
-    {
-      id: "sc_1",
-      name: "Dr. Ankit Rawat",
-      initials: "AR",
-      department: "APEEG",
-      email: "ankit.rawat@cbri.res.in",
-    },
-    {
-      id: "sc_2",
-      name: "Dr. Priya Nautiyal",
-      initials: "PN",
-      department: "APEEG",
-      email: "priya.nautiyal@cbri.res.in",
-    },
-    {
-      id: "sc_3",
-      name: "Dr. Saurabh Joshi",
-      initials: "SJ",
-      department: "APEEG",
-      email: "saurabh.joshi@cbri.res.in",
-    },
-    {
-      id: "sc_4",
-      name: "Dr. Neha Bisht",
-      initials: "NB",
-      department: "APEEG",
-      email: "neha.bisht@cbri.res.in",
-    },
-    {
-      id: "sc_5",
-      name: "Dr. Vikram Singh",
-      initials: "VS",
-      department: "APEEG",
-      email: "vikram.singh@cbri.res.in",
-    },
-  ];
+    fetchData();
+  }, []);
 
   // Camera Stream Handlers
   const startCamera = async () => {
@@ -124,16 +113,28 @@ export default function IssueWizardScreen({
     return () => stopCamera();
   }, []);
 
-  // Handle QR Scan Simulation
-  const handleSimulateScan = () => {
-    const scanned = availableInstruments[0];
-    setSelectedInstrument(scanned);
-    if (onShowToast) {
-      onShowToast(`Scanned asset tag: ${scanned.assetId} (${scanned.name})`);
+  // --- Backend QR Scan Integration ---
+  const handleSimulateScan = async () => {
+    try {
+      const sampleAssetId =
+        availableInstruments[0]?.asset_id || "CBRI/APEEG/0143";
+      const scannedInstrument = await scanInstrumentByAssetId(sampleAssetId);
+      if (scannedInstrument) {
+        setSelectedInstrument(scannedInstrument);
+        if (onShowToast) {
+          onShowToast(
+            `Scanned asset tag: ${scannedInstrument.asset_id || scannedInstrument.assetId} (${scannedInstrument.name})`
+          );
+        }
+      }
+    } catch (err) {
+      if (onShowToast) {
+        onShowToast("QR lookup failed: Instrument not found in backend.");
+      }
     }
   };
 
-  // Step Validation Handlers
+  // --- Step Validation Handlers ---
   const handleContinueStep1 = () => {
     if (!selectedInstrument) {
       if (onShowToast)
@@ -161,17 +162,51 @@ export default function IssueWizardScreen({
     setCurrentStep(4);
   };
 
-  const handleConfirmIssue = () => {
-    const staffText = staffName.trim() ? `, ${staffName} (${staffEmail})` : "";
-    if (onShowToast) {
-      onShowToast(
-        `Issued. Confirmation mail sent to ${selectedScientist.name}${staffText}, and Group Head.`
-      );
-    }
-    if (onIssueComplete) {
-      onIssueComplete();
+  // --- Backend Submit Handler ---
+  const handleConfirmIssue = async () => {
+    try {
+      setIsSubmitting(true);
+      const targetScientistId = selectedScientist.id || selectedScientist._id;
+
+      const payload = {
+        instrumentId: selectedInstrument.id || selectedInstrument._id,
+        scientistListId: targetScientistId,
+        staffName: staffName.trim() || null,
+        staffEmail: staffEmail.trim() || null,
+        dueDate: expectedReturn,
+        purpose: purpose.trim() || null,
+        conditionOut: conditionOut.trim() || "Complete with case and accessories",
+      };
+
+      await issueInstrumentApi(payload, capturedPhoto);
+
+      const staffText = staffName.trim() ? `, ${staffName} (${staffEmail})` : "";
+      if (onShowToast) {
+        onShowToast(
+          `Issued successfully. Confirmation mail sent to ${selectedScientist.name}${staffText}.`
+        );
+      }
+
+      if (onIssueComplete) {
+        onIssueComplete();
+      }
+    } catch (err) {
+      if (onShowToast) {
+        onShowToast("Checkout Error: " + (err.response?.data || err.message));
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
+
+  if (loadingData) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center space-y-2">
+        <Loader2 className="animate-spin text-[#1b4d8f]" size={28} />
+        <p className="text-xs text-gray-500 font-medium">Loading inventory & directory...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="relative h-full flex flex-col justify-between overflow-hidden font-sans text-[#1b1a18]">
@@ -231,23 +266,30 @@ export default function IssueWizardScreen({
             </div>
 
             <div className="space-y-2">
-              {availableInstruments.map((item) => {
-                const isSelected = selectedInstrument?.id === item.id;
-                return (
-                  <div
-                    key={item.id}
-                    onClick={() => setSelectedInstrument(item)}
-                    className={`bg-white p-3 rounded-2xl border transition-all cursor-pointer active:scale-99 shadow-xs ${
-                      isSelected
-                        ? "border-[#1b4d8f] ring-1 ring-[#1b4d8f] bg-[#f4f7fc]"
-                        : "border-black/10 hover:border-gray-300"
-                    }`}
-                  >
-                    <h4 className="text-[13px] font-semibold text-[#1b1a18]">{item.name}</h4>
-                    <p className="font-mono text-[10.5px] text-[#7a7872] mt-0.5">{item.assetId}</p>
-                  </div>
-                );
-              })}
+              {availableInstruments.length === 0 ? (
+                <p className="text-xs text-gray-500 text-center py-4">No available instruments found in inventory.</p>
+              ) : (
+                availableInstruments.map((item) => {
+                  const instId = item.id || item._id;
+                  const isSelected = selectedInstrument?.id === instId || selectedInstrument?._id === instId;
+                  return (
+                    <div
+                      key={instId}
+                      onClick={() => setSelectedInstrument(item)}
+                      className={`bg-white p-3 rounded-2xl border transition-all cursor-pointer active:scale-99 shadow-xs ${
+                        isSelected
+                          ? "border-[#1b4d8f] ring-1 ring-[#1b4d8f] bg-[#f4f7fc]"
+                          : "border-black/10 hover:border-gray-300"
+                      }`}
+                    >
+                      <h4 className="text-[13px] font-semibold text-[#1b1a18]">{item.name}</h4>
+                      <p className="font-mono text-[10.5px] text-[#7a7872] mt-0.5">
+                        {item.asset_id || item.assetId}
+                      </p>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
         )}
@@ -268,30 +310,39 @@ export default function IssueWizardScreen({
               </span>
 
               <div className="space-y-2">
-                {scientists.map((sc) => {
-                  const isSelected = selectedScientist?.id === sc.id;
-                  return (
-                    <div
-                      key={sc.id}
-                      onClick={() => setSelectedScientist(sc)}
-                      className={`bg-white p-2.5 rounded-2xl border flex items-center gap-2.5 transition-all cursor-pointer active:scale-99 shadow-xs ${
-                        isSelected
-                          ? "border-[#1b4d8f] ring-1 ring-[#1b4d8f] bg-[#f4f7fc]"
-                          : "border-black/10 hover:border-gray-300"
-                      }`}
-                    >
-                      <div className="w-8 h-8 rounded-full bg-[#eef3fa] text-[#1b4d8f] font-bold text-[11px] flex items-center justify-center shrink-0">
-                        {sc.initials}
+                {scientists.length === 0 ? (
+                  <p className="text-xs text-gray-500 text-center py-4">No scientist contacts found.</p>
+                ) : (
+                  scientists.map((sc) => {
+                    const scId = sc.id || sc._id;
+                    const isSelected = selectedScientist?.id === scId || selectedScientist?._id === scId;
+                    const initials = sc.name
+                      ? sc.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
+                      : 'SC';
+
+                    return (
+                      <div
+                        key={scId}
+                        onClick={() => setSelectedScientist(sc)}
+                        className={`bg-white p-2.5 rounded-2xl border flex items-center gap-2.5 transition-all cursor-pointer active:scale-99 shadow-xs ${
+                          isSelected
+                            ? "border-[#1b4d8f] ring-1 ring-[#1b4d8f] bg-[#f4f7fc]"
+                            : "border-black/10 hover:border-gray-300"
+                        }`}
+                      >
+                        <div className="w-8 h-8 rounded-full bg-[#eef3fa] text-[#1b4d8f] font-bold text-[11px] flex items-center justify-center shrink-0">
+                          {initials}
+                        </div>
+                        <div>
+                          <h4 className="text-[13px] font-semibold text-[#1b1a18] leading-tight">
+                            {sc.name}
+                          </h4>
+                          <p className="text-[10.5px] text-[#5d5b56] mt-0.5 font-mono">{sc.email}</p>
+                        </div>
                       </div>
-                      <div>
-                        <h4 className="text-[13px] font-semibold text-[#1b1a18] leading-tight">
-                          {sc.name}
-                        </h4>
-                        <p className="text-[10.5px] text-[#5d5b56] mt-0.5 font-mono">{sc.email}</p>
-                      </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                )}
               </div>
             </div>
 
@@ -329,7 +380,7 @@ export default function IssueWizardScreen({
             <div className="space-y-1">
               <label className="text-[11px] font-semibold text-[#5d5b56]">Issue date</label>
               <input
-                type="text"
+                type="date"
                 value={issueDate}
                 onChange={(e) => setIssueDate(e.target.value)}
                 className="w-full bg-white text-[12.5px] p-2.5 rounded-xl border border-black/15 focus:outline-none focus:border-[#1b4d8f]"
@@ -339,7 +390,7 @@ export default function IssueWizardScreen({
             <div className="space-y-1">
               <label className="text-[11px] font-semibold text-[#5d5b56]">Expected return</label>
               <input
-                type="text"
+                type="date"
                 value={expectedReturn}
                 onChange={(e) => setExpectedReturn(e.target.value)}
                 className="w-full bg-white text-[12.5px] p-2.5 rounded-xl border border-black/15 focus:outline-none focus:border-[#1b4d8f]"
@@ -424,7 +475,7 @@ export default function IssueWizardScreen({
               </div>
               <div className="flex justify-between">
                 <span className="text-[#7a7872]">Asset ID</span>
-                <span className="font-mono font-medium text-[#1b1a18]">{selectedInstrument?.assetId}</span>
+                <span className="font-mono font-medium text-[#1b1a18]">{selectedInstrument?.asset_id || selectedInstrument?.assetId}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-[#7a7872]">Borrower Scientist</span>
@@ -438,7 +489,7 @@ export default function IssueWizardScreen({
               </div>
               <div className="flex justify-between">
                 <span className="text-[#7a7872]">Period</span>
-                <span className="font-semibold text-[#1b1a18]">09 Sept 2026 → 23 Sept 2026</span>
+                <span className="font-semibold text-[#1b1a18]">{issueDate} → {expectedReturn}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-[#7a7872]">Purpose</span>
@@ -478,19 +529,18 @@ export default function IssueWizardScreen({
               )}
 
               <div className="border-t border-[#1b4d8f]/15 pt-1.5 text-[11px] leading-relaxed text-[#3f4d63]">
-                {selectedInstrument?.name} ({selectedInstrument?.assetId}) is issued to{" "}
-                {selectedScientist?.name} from 09 Sept 2026 to 23 Sept 2026.
+                {selectedInstrument?.name} ({selectedInstrument?.asset_id || selectedInstrument?.assetId}) is issued to{" "}
+                {selectedScientist?.name} from {issueDate} to {expectedReturn}.
               </div>
             </div>
           </div>
         )}
       </div>
 
-      {/* Live Camera Modal Overlay (Covers 70% of screen height) */}
+      {/* Live Camera Modal Overlay */}
       {isCameraOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in">
           <div className="w-full max-w-sm h-[70vh] bg-black rounded-3xl overflow-hidden flex flex-col justify-between p-3.5 shadow-2xl border border-white/20">
-            {/* Header */}
             <div className="flex items-center justify-between text-white pb-1">
               <h3 className="text-xs font-bold flex items-center gap-1.5">
                 <Camera size={14} className="text-[#1b4d8f]" />
@@ -505,7 +555,6 @@ export default function IssueWizardScreen({
               </button>
             </div>
 
-            {/* Video Stream Container */}
             <div className="relative flex-1 bg-black rounded-2xl overflow-hidden flex items-center justify-center my-2">
               <video
                 ref={videoRef}
@@ -516,7 +565,6 @@ export default function IssueWizardScreen({
               <div className="absolute inset-0 border-2 border-white/20 rounded-2xl pointer-events-none" />
             </div>
 
-            {/* Bottom Capture Action Row */}
             <div className="pt-1 pb-1 flex items-center justify-center gap-4">
               <button
                 type="button"
@@ -586,19 +634,28 @@ export default function IssueWizardScreen({
           <div className="flex items-center gap-2">
             <button
               onClick={() => setCurrentStep(3)}
-              className="bg-white text-[#1b1a18] border border-gray-300 py-2.5 px-4 rounded-xl text-[12.5px] font-medium active:scale-98 transition-all"
+              disabled={isSubmitting}
+              className="bg-white text-[#1b1a18] border border-gray-300 py-2.5 px-4 rounded-xl text-[12.5px] font-medium active:scale-98 transition-all disabled:opacity-50"
             >
               Back
             </button>
             <button
               onClick={handleConfirmIssue}
-              className="flex-1 bg-[#12695a] text-white py-2.5 rounded-xl text-[13px] font-bold active:scale-98 transition-all shadow-xs text-center"
+              disabled={isSubmitting}
+              className="flex-1 bg-[#12695a] text-white py-2.5 rounded-xl text-[13px] font-bold active:scale-98 transition-all shadow-xs text-center flex items-center justify-center gap-2 disabled:opacity-50"
             >
-              Confirm & send mail
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="animate-spin" size={16} />
+                  <span>Issuing...</span>
+                </>
+              ) : (
+                "Confirm & send mail"
+              )}
             </button>
           </div>
         )}
       </div>
     </div>
   );
-}
+} 
