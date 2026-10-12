@@ -1,11 +1,20 @@
 import React, { useState, useRef, useEffect } from "react";
-import { ArrowLeft, Camera, X, CheckCircle2, Loader2 } from "lucide-react";
+import {
+  ArrowLeft,
+  Camera,
+  X,
+  CheckCircle2,
+  Loader2,
+  Search,
+  UserCheck,
+} from "lucide-react";
 import {
   getMyInstruments,
   getMyScientists,
   scanInstrumentByAssetId,
   issueInstrumentApi,
 } from "../api/issueWizardService";
+import axiosClient from "../api/axiosClient";
 
 export default function IssueWizardScreen({
   onBack,
@@ -18,6 +27,14 @@ export default function IssueWizardScreen({
   // Dynamic Data States from Backend
   const [availableInstruments, setAvailableInstruments] = useState([]);
   const [scientists, setScientists] = useState([]);
+  const [savedStaffList, setSavedStaffList] = useState([]);
+  const [selectedStaffId, setSelectedStaffId] = useState("");
+
+  // Search Query States
+  const [scientistSearchQuery, setScientistSearchQuery] = useState("");
+  const [staffSearchQuery, setStaffSearchQuery] = useState("");
+  const [isStaffDropdownOpen, setIsStaffDropdownOpen] = useState(false);
+
   const [loadingData, setLoadingData] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -33,7 +50,9 @@ export default function IssueWizardScreen({
   const [issueDate, setIssueDate] = useState("2026-09-09");
   const [expectedReturn, setExpectedReturn] = useState("2026-09-23");
   const [purpose, setPurpose] = useState("");
-  const [conditionOut, setConditionOut] = useState("Complete with case and accessories");
+  const [conditionOut, setConditionOut] = useState(
+    "Complete with case and accessories"
+  );
 
   // Camera & Photo Capture State
   const [isCameraOpen, setIsCameraOpen] = useState(false);
@@ -46,16 +65,19 @@ export default function IssueWizardScreen({
     const fetchData = async () => {
       try {
         setLoadingData(true);
-        const [instRes, sciRes] = await Promise.all([
+        const [instRes, sciRes, staffRes] = await Promise.all([
           getMyInstruments(),
           getMyScientists(),
+          axiosClient.get("/staff-members").catch(() => ({ data: [] })),
         ]);
-        // Filter instruments to only show AVAILABLE ones
+
+        // Filter instruments to show AVAILABLE ones
         const availableOnly = (Array.isArray(instRes) ? instRes : []).filter(
           (item) => item.status === "AVAILABLE" || item.status === "Available"
         );
         setAvailableInstruments(availableOnly);
         setScientists(Array.isArray(sciRes) ? sciRes : []);
+        setSavedStaffList(Array.isArray(staffRes.data) ? staffRes.data : []);
       } catch (err) {
         if (onShowToast) {
           onShowToast(
@@ -70,6 +92,44 @@ export default function IssueWizardScreen({
 
     fetchData();
   }, []);
+
+  // Filter Scientists in real-time based on search input
+  const filteredScientists = scientists.filter((sc) => {
+    const q = scientistSearchQuery.toLowerCase().trim();
+    if (!q) return true;
+    return (
+      (sc.name && sc.name.toLowerCase().includes(q)) ||
+      (sc.email && sc.email.toLowerCase().includes(q)) ||
+      (sc.department && sc.department.toLowerCase().includes(q))
+    );
+  });
+
+  // Filter Staff List in real-time based on search input
+  const filteredStaffList = savedStaffList.filter((st) => {
+    const q = staffSearchQuery.toLowerCase().trim();
+    if (!q) return true;
+    return (
+      (st.name && st.name.toLowerCase().includes(q)) ||
+      (st.email && st.email.toLowerCase().includes(q))
+    );
+  });
+
+  // Handle Saved Staff Selection
+  const handleSelectStaff = (staff) => {
+    if (!staff) {
+      setSelectedStaffId("NEW");
+      setStaffName("");
+      setStaffEmail("");
+      setStaffSearchQuery("");
+    } else {
+      const stId = staff.id || staff._id;
+      setSelectedStaffId(stId);
+      setStaffName(staff.name || "");
+      setStaffEmail(staff.email || "");
+      setStaffSearchQuery(staff.name || "");
+    }
+    setIsStaffDropdownOpen(false);
+  };
 
   // Camera Stream Handlers
   const startCamera = async () => {
@@ -123,7 +183,9 @@ export default function IssueWizardScreen({
         setSelectedInstrument(scannedInstrument);
         if (onShowToast) {
           onShowToast(
-            `Scanned asset tag: ${scannedInstrument.asset_id || scannedInstrument.assetId} (${scannedInstrument.name})`
+            `Scanned asset tag: ${
+              scannedInstrument.asset_id || scannedInstrument.assetId
+            } (${scannedInstrument.name})`
           );
         }
       }
@@ -138,7 +200,9 @@ export default function IssueWizardScreen({
   const handleContinueStep1 = () => {
     if (!selectedInstrument) {
       if (onShowToast)
-        onShowToast("Validation Error: Please select or scan an instrument first.");
+        onShowToast(
+          "Validation Error: Please select or scan an instrument first."
+        );
       return;
     }
     setCurrentStep(2);
@@ -156,7 +220,9 @@ export default function IssueWizardScreen({
   const handleContinueStep3 = () => {
     if (!issueDate || !expectedReturn) {
       if (onShowToast)
-        onShowToast("Validation Error: Issue date and expected return date are required.");
+        onShowToast(
+          "Validation Error: Issue date and expected return date are required."
+        );
       return;
     }
     setCurrentStep(4);
@@ -175,12 +241,15 @@ export default function IssueWizardScreen({
         staffEmail: staffEmail.trim() || null,
         dueDate: expectedReturn,
         purpose: purpose.trim() || null,
-        conditionOut: conditionOut.trim() || "Complete with case and accessories",
+        conditionOut:
+          conditionOut.trim() || "Complete with case and accessories",
       };
 
       await issueInstrumentApi(payload, capturedPhoto);
 
-      const staffText = staffName.trim() ? `, ${staffName} (${staffEmail})` : "";
+      const staffText = staffName.trim()
+        ? `, ${staffName} (${staffEmail})`
+        : "";
       if (onShowToast) {
         onShowToast(
           `Issued successfully. Confirmation mail sent to ${selectedScientist.name}${staffText}.`
@@ -203,7 +272,9 @@ export default function IssueWizardScreen({
     return (
       <div className="h-full flex flex-col items-center justify-center space-y-2">
         <Loader2 className="animate-spin text-[#1b4d8f]" size={28} />
-        <p className="text-xs text-gray-500 font-medium">Loading inventory & directory...</p>
+        <p className="text-xs text-gray-500 font-medium">
+          Loading inventory & directory...
+        </p>
       </div>
     );
   }
@@ -220,21 +291,55 @@ export default function IssueWizardScreen({
           >
             <ArrowLeft size={18} className="text-[#1b4d8f]" />
           </button>
-          <h2 className="text-base font-bold text-[#1b4d8f]">Issue instrument</h2>
+          <h2 className="text-base font-bold text-[#1b4d8f]">
+            Issue instrument
+          </h2>
         </div>
 
         <div className="space-y-1.5">
           <div className="grid grid-cols-4 gap-1.5">
-            <div className={`h-1 rounded-full ${currentStep >= 1 ? "bg-[#1b4d8f]" : "bg-gray-300"}`} />
-            <div className={`h-1 rounded-full ${currentStep >= 2 ? "bg-[#1b4d8f]" : "bg-gray-300"}`} />
-            <div className={`h-1 rounded-full ${currentStep >= 3 ? "bg-[#1b4d8f]" : "bg-gray-300"}`} />
-            <div className={`h-1 rounded-full ${currentStep >= 4 ? "bg-[#12695a]" : "bg-gray-300"}`} />
+            <div
+              className={`h-1 rounded-full ${
+                currentStep >= 1 ? "bg-[#1b4d8f]" : "bg-gray-300"
+              }`}
+            />
+            <div
+              className={`h-1 rounded-full ${
+                currentStep >= 2 ? "bg-[#1b4d8f]" : "bg-gray-300"
+              }`}
+            />
+            <div
+              className={`h-1 rounded-full ${
+                currentStep >= 3 ? "bg-[#1b4d8f]" : "bg-gray-300"
+              }`}
+            />
+            <div
+              className={`h-1 rounded-full ${
+                currentStep >= 4 ? "bg-[#12695a]" : "bg-gray-300"
+              }`}
+            />
           </div>
           <div className="grid grid-cols-4 text-[10.5px] font-medium text-gray-500 text-center">
-            <span className={currentStep === 1 ? "font-bold text-[#1b4d8f]" : ""}>Instrument</span>
-            <span className={currentStep === 2 ? "font-bold text-[#1b4d8f]" : ""}>Person</span>
-            <span className={currentStep === 3 ? "font-bold text-[#1b4d8f]" : ""}>Dates</span>
-            <span className={currentStep === 4 ? "font-bold text-[#12695a]" : ""}>Confirm</span>
+            <span
+              className={currentStep === 1 ? "font-bold text-[#1b4d8f]" : ""}
+            >
+              Instrument
+            </span>
+            <span
+              className={currentStep === 2 ? "font-bold text-[#1b4d8f]" : ""}
+            >
+              Person
+            </span>
+            <span
+              className={currentStep === 3 ? "font-bold text-[#1b4d8f]" : ""}
+            >
+              Dates
+            </span>
+            <span
+              className={currentStep === 4 ? "font-bold text-[#12695a]" : ""}
+            >
+              Confirm
+            </span>
           </div>
         </div>
       </div>
@@ -246,11 +351,16 @@ export default function IssueWizardScreen({
           <div className="space-y-2.5 animate-fade-in">
             <div className="bg-[#eef3fa] border-2 border-dashed border-[#1b4d8f]/40 rounded-2xl p-4 text-center space-y-1.5">
               <div className="w-12 h-12 rounded-xl bg-white border-2 border-[#1b4d8f] mx-auto flex items-center justify-center shadow-xs">
-                <span className="font-mono font-bold text-xs text-[#1b4d8f]">QR</span>
+                <span className="font-mono font-bold text-xs text-[#1b4d8f]">
+                  QR
+                </span>
               </div>
-              <h3 className="text-xs font-bold text-[#1b4d8f]">Scan the asset label</h3>
+              <h3 className="text-xs font-bold text-[#1b4d8f]">
+                Scan the asset label
+              </h3>
               <p className="text-[10.5px] text-[#5d5b56] max-w-[220px] mx-auto leading-tight">
-                Each instrument carries a printed CBRI/APEEG QR sticker. Scanning fills the entry below.
+                Each instrument carries a printed CBRI/APEEG QR sticker.
+                Scanning fills the entry below.
               </p>
               <button
                 type="button"
@@ -262,16 +372,22 @@ export default function IssueWizardScreen({
             </div>
 
             <div className="text-center">
-              <span className="text-[11px] text-[#7a7872]">or choose manually</span>
+              <span className="text-[11px] text-[#7a7872]">
+                or choose manually
+              </span>
             </div>
 
             <div className="space-y-2">
               {availableInstruments.length === 0 ? (
-                <p className="text-xs text-gray-500 text-center py-4">No available instruments found in inventory.</p>
+                <p className="text-xs text-gray-500 text-center py-4">
+                  No available instruments found in inventory.
+                </p>
               ) : (
                 availableInstruments.map((item) => {
                   const instId = item.id || item._id;
-                  const isSelected = selectedInstrument?.id === instId || selectedInstrument?._id === instId;
+                  const isSelected =
+                    selectedInstrument?.id === instId ||
+                    selectedInstrument?._id === instId;
                   return (
                     <div
                       key={instId}
@@ -282,7 +398,9 @@ export default function IssueWizardScreen({
                           : "border-black/10 hover:border-gray-300"
                       }`}
                     >
-                      <h4 className="text-[13px] font-semibold text-[#1b1a18]">{item.name}</h4>
+                      <h4 className="text-[13px] font-semibold text-[#1b1a18]">
+                        {item.name}
+                      </h4>
                       <p className="font-mono text-[10.5px] text-[#7a7872] mt-0.5">
                         {item.asset_id || item.assetId}
                       </p>
@@ -296,76 +414,255 @@ export default function IssueWizardScreen({
 
         {/* ==================== STEP 2: SELECT BORROWER SCIENTIST & STAFF ==================== */}
         {currentStep === 2 && (
-          <div className="space-y-2.5 animate-fade-in">
+          <div className="space-y-2.5 animate-fade-in pb-4">
+            {/* Selected Instrument Summary Card */}
             <div className="bg-white p-2.5 rounded-xl border border-black/10 space-y-0.5 shadow-xs">
               <span className="text-[9.5px] font-bold tracking-wider text-[#7a7872] uppercase">
                 INSTRUMENT
               </span>
-              <h3 className="text-[13px] font-bold text-[#1b1a18]">{selectedInstrument?.name}</h3>
+              <h3 className="text-[13px] font-bold text-[#1b1a18] truncate">
+                {selectedInstrument?.name}
+              </h3>
             </div>
 
+            {/* Borrower Scientist Section */}
             <div className="space-y-1.5">
               <span className="text-[10.5px] font-bold tracking-wider text-[#5d5b56] uppercase">
                 ISSUE TO BORROWER SCIENTIST *
               </span>
 
-              <div className="space-y-2">
-                {scientists.length === 0 ? (
-                  <p className="text-xs text-gray-500 text-center py-4">No scientist contacts found.</p>
-                ) : (
-                  scientists.map((sc) => {
-                    const scId = sc.id || sc._id;
-                    const isSelected = selectedScientist?.id === scId || selectedScientist?._id === scId;
-                    const initials = sc.name
-                      ? sc.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
-                      : 'SC';
+              {/* CASE 1: SCIENTIST IS SELECTED -> SHOW SELECTED CARD ONLY */}
+              {selectedScientist ? (
+                <div className="bg-[#f4f7fc] p-3 rounded-2xl border border-[#1b4d8f] flex items-center justify-between gap-3 shadow-xs">
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    <div className="w-9 h-9 rounded-full bg-[#1b4d8f] text-white font-bold text-[12px] flex items-center justify-center shrink-0 shadow-2xs">
+                      {selectedScientist.name
+                        ? selectedScientist.name
+                            .replace(/^(Dr\.|Er\.|Prof\.)\s+/i, "")
+                            .split(" ")
+                            .map((n) => n[0])
+                            .join("")
+                            .substring(0, 2)
+                            .toUpperCase()
+                        : "SC"}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h4 className="text-[13px] font-bold text-[#1b1a18] leading-snug truncate">
+                        {selectedScientist.name}
+                      </h4>
+                      <p className="text-[10.5px] text-[#5d5b56] font-mono leading-tight truncate">
+                        {selectedScientist.email}
+                      </p>
+                    </div>
+                  </div>
 
-                    return (
-                      <div
-                        key={scId}
-                        onClick={() => setSelectedScientist(sc)}
-                        className={`bg-white p-2.5 rounded-2xl border flex items-center gap-2.5 transition-all cursor-pointer active:scale-99 shadow-xs ${
-                          isSelected
-                            ? "border-[#1b4d8f] ring-1 ring-[#1b4d8f] bg-[#f4f7fc]"
-                            : "border-black/10 hover:border-gray-300"
-                        }`}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedScientist(null)}
+                    className="text-[11px] font-semibold text-[#1b4d8f] bg-white border border-[#1b4d8f]/30 px-2.5 py-1 rounded-xl hover:bg-[#1b4d8f] hover:text-white transition-all shrink-0 active:scale-95"
+                  >
+                    Change
+                  </button>
+                </div>
+              ) : (
+                /* CASE 2: NO SCIENTIST SELECTED -> SHOW SEARCH AND SELECTION LIST */
+                <div className="space-y-1.5">
+                  {/* Scientist Search Input */}
+                  <div className="relative">
+                    <Search
+                      className="absolute left-2.5 top-2.5 text-gray-400"
+                      size={14}
+                    />
+                    <input
+                      type="text"
+                      value={scientistSearchQuery}
+                      onChange={(e) => setScientistSearchQuery(e.target.value)}
+                      placeholder="Search scientist by name or email..."
+                      className="w-full bg-white text-[11.5px] py-1.5 pl-8 pr-8 rounded-xl border border-black/15 focus:outline-none focus:border-[#1b4d8f]"
+                    />
+                    {scientistSearchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setScientistSearchQuery("")}
+                        className="absolute right-2.5 top-2 text-gray-400 hover:text-gray-600"
                       >
-                        <div className="w-8 h-8 rounded-full bg-[#eef3fa] text-[#1b4d8f] font-bold text-[11px] flex items-center justify-center shrink-0">
-                          {initials}
-                        </div>
-                        <div>
-                          <h4 className="text-[13px] font-semibold text-[#1b1a18] leading-tight">
-                            {sc.name}
-                          </h4>
-                          <p className="text-[10.5px] text-[#5d5b56] mt-0.5 font-mono">{sc.email}</p>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Scrollable Scientist Directory List */}
+                  <div className="max-h-[160px] overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                    {filteredScientists.length === 0 ? (
+                      <p className="text-xs text-gray-500 text-center py-4">
+                        {scientistSearchQuery
+                          ? "No matching scientist found."
+                          : "No scientist contacts found."}
+                      </p>
+                    ) : (
+                      filteredScientists.map((sc) => {
+                        const scId = sc.id || sc._id;
+                        const initials = sc.name
+                          ? sc.name
+                              .replace(/^(Dr\.|Er\.|Prof\.)\s+/i, "")
+                              .split(" ")
+                              .map((n) => n[0])
+                              .join("")
+                              .substring(0, 2)
+                              .toUpperCase()
+                          : "SC";
+
+                        return (
+                          <div
+                            key={scId}
+                            onClick={() => {
+                              setSelectedScientist(sc);
+                              setScientistSearchQuery("");
+                            }}
+                            className="bg-white p-2.5 rounded-2xl border border-black/10 hover:border-[#1b4d8f] flex items-center justify-between gap-3 transition-all cursor-pointer active:scale-99 shadow-xs"
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                              <div className="w-8 h-8 rounded-full bg-[#eef3fa] text-[#1b4d8f] font-bold text-[11px] flex items-center justify-center shrink-0">
+                                {initials}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <h4 className="text-[13px] font-semibold text-[#1b1a18] leading-snug truncate">
+                                  {sc.name}
+                                </h4>
+                                <p className="text-[10.5px] text-[#5d5b56] font-mono leading-tight truncate">
+                                  {sc.email}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
+            {/* Intermediary Staff Details Section */}
             <div className="pt-2 space-y-2 border-t border-gray-200">
               <div className="flex items-center justify-between">
                 <span className="text-[10.5px] font-bold tracking-wider text-[#5d5b56] uppercase">
                   INTERMEDIARY STAFF DETAILS
                 </span>
-                <span className="text-[9.5px] text-gray-400 uppercase font-medium">Optional</span>
+                <span className="text-[9.5px] text-gray-400 uppercase font-medium">
+                  Optional
+                </span>
               </div>
 
+              {/* Searchable Staff Combobox/Dropdown */}
+              {savedStaffList.length > 0 && (
+                <div className="space-y-1">
+                  <div className="relative">
+                    <Search
+                      className="absolute left-2.5 top-2.5 text-gray-400"
+                      size={14}
+                    />
+                    <input
+                      type="text"
+                      value={staffSearchQuery}
+                      onFocus={() => setIsStaffDropdownOpen(true)}
+                      onChange={(e) => {
+                        setStaffSearchQuery(e.target.value);
+                        setStaffName(e.target.value);
+                        setSelectedStaffId("NEW");
+                        setIsStaffDropdownOpen(true);
+                      }}
+                      placeholder="Search or pick saved staff..."
+                      className="w-full bg-white text-[11.5px] py-1.5 pl-8 pr-8 rounded-xl border border-black/15 focus:outline-none focus:border-[#1b4d8f]"
+                    />
+                    {staffSearchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setStaffSearchQuery("");
+                          setStaffName("");
+                          setStaffEmail("");
+                          setSelectedStaffId("NEW");
+                          setIsStaffDropdownOpen(true);
+                        }}
+                        className="absolute right-2.5 top-2 text-gray-400 hover:text-gray-600"
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Inline Expandable Staff List Box */}
+                  {isStaffDropdownOpen && (
+                    <div className="w-full bg-white border border-gray-200 rounded-xl shadow-xs overflow-hidden p-1 flex flex-col">
+                      <div className="max-h-[120px] overflow-y-auto space-y-0.5 custom-scrollbar">
+                        {filteredStaffList.length === 0 ? (
+                          <div className="p-2 text-[11px] text-gray-400 text-center">
+                            No matching staff found. Enter details below.
+                          </div>
+                        ) : (
+                          filteredStaffList.map((st) => {
+                            const stId = st.id || st._id;
+                            const isSelected = selectedStaffId === stId;
+                            return (
+                              <div
+                                key={stId}
+                                onClick={() => handleSelectStaff(st)}
+                                className={`p-2 rounded-lg text-[11.5px] flex items-center justify-between cursor-pointer transition-colors ${
+                                  isSelected
+                                    ? "bg-[#eef3fa] text-[#1b4d8f] font-semibold"
+                                    : "hover:bg-gray-50 text-[#1b1a18]"
+                                }`}
+                              >
+                                <div className="truncate min-w-0 pr-2">
+                                  <span>{st.name}</span>
+                                  <span className="text-[10px] text-gray-500 font-mono ml-1.5">
+                                    ({st.email})
+                                  </span>
+                                </div>
+                                {isSelected && (
+                                  <UserCheck
+                                    size={14}
+                                    className="text-[#1b4d8f] shrink-0"
+                                  />
+                                )}
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+
+                      <div
+                        onClick={() => handleSelectStaff(null)}
+                        className="p-1.5 border-t border-gray-100 text-[11px] text-[#1b4d8f] font-semibold hover:bg-gray-50 cursor-pointer rounded-lg text-center mt-1 shrink-0"
+                      >
+                        + Clear & enter new staff manually
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Manual Input Fields */}
               <div className="grid grid-cols-2 gap-2">
                 <input
                   type="text"
                   value={staffName}
-                  onChange={(e) => setStaffName(e.target.value)}
+                  onChange={(e) => {
+                    setStaffName(e.target.value);
+                    setStaffSearchQuery(e.target.value);
+                    setSelectedStaffId("NEW");
+                  }}
                   placeholder="Staff Name"
                   className="w-full bg-white text-[12px] p-2 rounded-xl border border-black/15 focus:outline-none focus:border-[#1b4d8f]"
                 />
                 <input
                   type="email"
                   value={staffEmail}
-                  onChange={(e) => setStaffEmail(e.target.value)}
+                  onChange={(e) => {
+                    setStaffEmail(e.target.value);
+                    setSelectedStaffId("NEW");
+                  }}
                   placeholder="Staff Email"
                   className="w-full bg-white text-[12px] p-2 rounded-xl border border-black/15 focus:outline-none focus:border-[#1b4d8f]"
                 />
@@ -378,7 +675,9 @@ export default function IssueWizardScreen({
         {currentStep === 3 && (
           <div className="space-y-2.5 pt-1 animate-fade-in">
             <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-[#5d5b56]">Issue date</label>
+              <label className="text-[11px] font-semibold text-[#5d5b56]">
+                Issue date
+              </label>
               <input
                 type="date"
                 value={issueDate}
@@ -388,7 +687,9 @@ export default function IssueWizardScreen({
             </div>
 
             <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-[#5d5b56]">Expected return</label>
+              <label className="text-[11px] font-semibold text-[#5d5b56]">
+                Expected return
+              </label>
               <input
                 type="date"
                 value={expectedReturn}
@@ -396,12 +697,15 @@ export default function IssueWizardScreen({
                 className="w-full bg-white text-[12.5px] p-2.5 rounded-xl border border-black/15 focus:outline-none focus:border-[#1b4d8f]"
               />
               <p className="text-[10px] text-[#7a7872] leading-tight pt-0.5">
-                Default loan period is 14 days. Daily reminders sent when overdue.
+                Default loan period is 14 days. Daily reminders sent when
+                overdue.
               </p>
             </div>
 
             <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-[#5d5b56]">Purpose / project</label>
+              <label className="text-[11px] font-semibold text-[#5d5b56]">
+                Purpose / project
+              </label>
               <input
                 type="text"
                 value={purpose}
@@ -471,15 +775,22 @@ export default function IssueWizardScreen({
             <div className="bg-white p-3 rounded-2xl border border-black/10 space-y-1.5 text-[12px] shadow-xs">
               <div className="flex justify-between">
                 <span className="text-[#7a7872]">Instrument</span>
-                <span className="font-semibold text-[#1b1a18] text-right">{selectedInstrument?.name}</span>
+                <span className="font-semibold text-[#1b1a18] text-right">
+                  {selectedInstrument?.name}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-[#7a7872]">Asset ID</span>
-                <span className="font-mono font-medium text-[#1b1a18]">{selectedInstrument?.asset_id || selectedInstrument?.assetId}</span>
+                <span className="font-mono font-medium text-[#1b1a18]">
+                  {selectedInstrument?.asset_id ||
+                    selectedInstrument?.assetId}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-[#7a7872]">Borrower Scientist</span>
-                <span className="font-semibold text-[#1b1a18]">{selectedScientist?.name}</span>
+                <span className="font-semibold text-[#1b1a18]">
+                  {selectedScientist?.name}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-[#7a7872]">Intermediary Staff</span>
@@ -489,11 +800,15 @@ export default function IssueWizardScreen({
               </div>
               <div className="flex justify-between">
                 <span className="text-[#7a7872]">Period</span>
-                <span className="font-semibold text-[#1b1a18]">{issueDate} → {expectedReturn}</span>
+                <span className="font-semibold text-[#1b1a18]">
+                  {issueDate} → {expectedReturn}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-[#7a7872]">Purpose</span>
-                <span className="font-semibold text-[#1b1a18]">{purpose.trim() ? purpose : "Not stated"}</span>
+                <span className="font-semibold text-[#1b1a18]">
+                  {purpose.trim() ? purpose : "Not stated"}
+                </span>
               </div>
             </div>
 
@@ -506,11 +821,17 @@ export default function IssueWizardScreen({
                 <div className="flex items-start gap-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-[#1b4d8f] mt-1.5 shrink-0" />
                   <div>
-                    <h4 className="text-[12px] font-bold text-[#1b1a18]">{selectedScientist?.name}</h4>
-                    <p className="font-mono text-[10px] text-[#5d5b56]">{selectedScientist?.email}</p>
+                    <h4 className="text-[12px] font-bold text-[#1b1a18]">
+                      {selectedScientist?.name}
+                    </h4>
+                    <p className="font-mono text-[10px] text-[#5d5b56]">
+                      {selectedScientist?.email}
+                    </p>
                   </div>
                 </div>
-                <span className="text-[10px] text-[#5d5b56]">Borrower Scientist</span>
+                <span className="text-[10px] text-[#5d5b56]">
+                  Borrower Scientist
+                </span>
               </div>
 
               {staffEmail.trim() && (
@@ -521,16 +842,22 @@ export default function IssueWizardScreen({
                       <h4 className="text-[12px] font-bold text-[#1b1a18]">
                         {staffName.trim() ? staffName : "Intermediary Staff"}
                       </h4>
-                      <p className="font-mono text-[10px] text-[#5d5b56]">{staffEmail}</p>
+                      <p className="font-mono text-[10px] text-[#5d5b56]">
+                        {staffEmail}
+                      </p>
                     </div>
                   </div>
-                  <span className="text-[10px] text-[#5d5b56]">Intermediary Staff</span>
+                  <span className="text-[10px] text-[#5d5b56]">
+                    Intermediary Staff
+                  </span>
                 </div>
               )}
 
               <div className="border-t border-[#1b4d8f]/15 pt-1.5 text-[11px] leading-relaxed text-[#3f4d63]">
-                {selectedInstrument?.name} ({selectedInstrument?.asset_id || selectedInstrument?.assetId}) is issued to{" "}
-                {selectedScientist?.name} from {issueDate} to {expectedReturn}.
+                {selectedInstrument?.name} (
+                {selectedInstrument?.asset_id || selectedInstrument?.assetId})
+                is issued to {selectedScientist?.name} from {issueDate} to{" "}
+                {expectedReturn}.
               </div>
             </div>
           </div>
@@ -658,4 +985,4 @@ export default function IssueWizardScreen({
       </div>
     </div>
   );
-} 
+}
