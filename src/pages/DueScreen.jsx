@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { ArrowLeft, Image as ImageIcon } from "lucide-react";
+import React, { useState, useEffect, useMemo } from "react";
+import { ArrowLeft, Search, Image as ImageIcon } from "lucide-react";
 import axiosClient from "../api/axiosClient";
 import { getActiveIssueRecords } from "../api/instrumentService";
 import { isRecordOverdue } from "../utils/dateUtils";
@@ -8,6 +8,7 @@ const PAGE_SIZE = 10;
 
 export default function DueScreen({ onBack, onShowToast }) {
   const [loans, setLoans] = useState([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -33,28 +34,54 @@ export default function DueScreen({ onBack, onShowToast }) {
     }
   };
 
+  useEffect(() => {
+    fetchActiveLoans();
+  }, []);
+
+  // Filter loans based on search input (Name, Asset ID, Borrower Name, Make)
+  const filteredLoans = useMemo(() => {
+    const query = searchQuery.toLowerCase().trim();
+    if (!query) return loans;
+
+    return loans.filter((item) => {
+      const instrumentName = item.instrument?.name?.toLowerCase() || "";
+      const assetId = (
+        item.instrument?.assetId ||
+        item.instrument?.asset_id ||
+        ""
+      ).toLowerCase();
+      const make = item.instrument?.make?.toLowerCase() || "";
+      const borrowerName = (
+        item.borrowerScientist?.name ||
+        item.borrower_scientist?.name ||
+        item.staffName ||
+        item.staff_name ||
+        ""
+      ).toLowerCase();
+
+      return (
+        instrumentName.includes(query) ||
+        assetId.includes(query) ||
+        make.includes(query) ||
+        borrowerName.includes(query)
+      );
+    });
+  }, [loans, searchQuery]);
+
+  // Reset page if filtered result count changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
+
   // Scroll smoothly to top whenever pagination page changes
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
 
-    // Reset scroll on any internal main container if applicable
     const mainContainer = document.querySelector("main");
     if (mainContainer) {
       mainContainer.scrollTop = 0;
     }
   }, [currentPage]);
-
-  useEffect(() => {
-    fetchActiveLoans();
-  }, []);
-
-  // Reset page if total records shrink below active page offset
-  useEffect(() => {
-    const totalPages = Math.ceil(loans.length / PAGE_SIZE) || 1;
-    if (currentPage > totalPages) {
-      setCurrentPage(1);
-    }
-  }, [loans.length, currentPage]);
 
   const handleSendReminder = async (item) => {
     try {
@@ -69,7 +96,7 @@ export default function DueScreen({ onBack, onShowToast }) {
         onShowToast(
           `Reminder email dispatched to ${borrowerName} for ${
             item.instrument?.name || "Instrument"
-          }.`,
+          }.`
         );
       }
     } catch (err) {
@@ -78,19 +105,19 @@ export default function DueScreen({ onBack, onShowToast }) {
   };
 
   // Pagination Math
-  const totalPages = Math.ceil(loans.length / PAGE_SIZE) || 1;
+  const totalPages = Math.ceil(filteredLoans.length / PAGE_SIZE) || 1;
   const startIndex = (currentPage - 1) * PAGE_SIZE;
-  const slicedLoans = loans.slice(startIndex, startIndex + PAGE_SIZE);
+  const slicedLoans = filteredLoans.slice(startIndex, startIndex + PAGE_SIZE);
 
   return (
     <div className="h-full flex flex-col justify-between overflow-hidden font-sans text-[#1b1a18]">
-      {/* Header Info & Back Button */}
-      <div className="shrink-0 pb-2 space-y-1">
+      {/* Header Info & Search Input */}
+      <div className="shrink-0 pb-2 space-y-2">
         <div className="flex items-center gap-2 mb-1">
           <button
             type="button"
             onClick={onBack}
-            className="p-1 rounded-lg hover:bg-black/5 active:scale-95 transition-all focus:outline-none"
+            className="p-1 rounded-lg hover:bg-black/5 active:scale-95 transition-all focus:outline-none cursor-pointer"
             aria-label="Back to Home"
           >
             <ArrowLeft size={18} className="text-[#1b4d8f]" />
@@ -112,14 +139,28 @@ export default function DueScreen({ onBack, onShowToast }) {
             </>
           ) : (
             <>
-              All issued items are within their return schedules. Nothing
-              overdue.
+              All issued items are within their return schedules. Nothing overdue.
             </>
           )}
         </p>
+
+        {/* Search Bar Input */}
+        <div className="relative pt-1">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search name, asset ID, borrower or make"
+            className="w-full bg-white text-[13px] py-2 pl-3 pr-9 rounded-xl border border-black/15 focus:outline-none focus:border-[#1b4d8f] shadow-xs"
+          />
+          <Search
+            size={16}
+            className="absolute right-3 top-3.5 text-gray-400 pointer-events-none"
+          />
+        </div>
       </div>
 
-      {/* Overdue Records List Only */}
+      {/* Overdue Records List */}
       <div className="flex-1 overflow-y-auto space-y-3 pr-1 no-scrollbar">
         {error && (
           <div className="bg-[#fcf2f2] text-[#c92a2a] text-[11.5px] p-2.5 rounded-xl border border-[#f5c2c2]">
@@ -131,13 +172,15 @@ export default function DueScreen({ onBack, onShowToast }) {
           <p className="text-xs text-gray-400 py-2">
             Loading overdue tracker...
           </p>
-        ) : loans.length === 0 ? (
+        ) : filteredLoans.length === 0 ? (
           <div className="bg-[#ffffff] p-6 rounded-2xl border border-black/10 text-center space-y-1">
             <h4 className="text-[13px] font-semibold text-[#12695a]">
-              No overdue items
+              {loans.length === 0 ? "No overdue items" : "No matching records"}
             </h4>
             <p className="text-[11px] text-[#7a7872]">
-              All issued equipment is within its allowed return date.
+              {loans.length === 0
+                ? "All issued equipment is within its allowed return date."
+                : "Try adjusting your search criteria."}
             </p>
           </div>
         ) : (
@@ -181,7 +224,7 @@ export default function DueScreen({ onBack, onShowToast }) {
                         )}
                       </div>
 
-                      {/* Right Side: Card Header & Details */}
+                      {/* Right Side: Card Details */}
                       <div className="flex-1 min-w-0 space-y-1">
                         <div className="flex items-start justify-between gap-1.5">
                           <h3 className="text-[13.5px] font-bold text-[#1b1a18] leading-snug truncate">
@@ -229,7 +272,6 @@ export default function DueScreen({ onBack, onShowToast }) {
                   disabled={currentPage === 1}
                   onClick={() => {
                     setCurrentPage((prev) => Math.max(1, prev - 1));
-                    window.scrollTo({ top: 0, behavior: "smooth" });
                   }}
                   className="px-3 py-1.5 bg-white border border-gray-300 rounded-xl font-medium shadow-xs disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 transition-all cursor-pointer"
                 >
@@ -242,7 +284,6 @@ export default function DueScreen({ onBack, onShowToast }) {
                   disabled={currentPage === totalPages}
                   onClick={() => {
                     setCurrentPage((prev) => Math.min(totalPages, prev + 1));
-                    window.scrollTo({ top: 0, behavior: "smooth" });
                   }}
                   className="px-3 py-1.5 bg-white border border-gray-300 rounded-xl font-medium shadow-xs disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 transition-all cursor-pointer"
                 >

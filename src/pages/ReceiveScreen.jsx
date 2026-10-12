@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   ArrowLeft,
   CheckCircle2,
   Camera,
   X,
+  Search,
   Image as ImageIcon,
 } from "lucide-react";
 import axiosClient from "../api/axiosClient";
@@ -14,13 +15,14 @@ const PAGE_SIZE = 5;
 
 export default function ReceiveScreen({ onBack, onShowToast }) {
   const [issuedRecords, setIssuedRecords] = useState([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
 
   // Selected item state for the condition modal
   const [selectedRecord, setSelectedRecord] = useState(null);
-  const [conditionIn, setConditionIn] = useState("GOOD"); // 'GOOD' or 'BAD'
+  const [conditionIn, setConditionIn] = useState("GOOD");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Live Camera Capture State
@@ -50,7 +52,7 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
       // Only keep records that are active OPEN loans
       const openOnly = (data || []).filter(
         (record) =>
-          record.state === "OPEN" || record.state === "ISSUED" || !record.state,
+          record.state === "OPEN" || record.state === "ISSUED" || !record.state
       );
       setIssuedRecords(openOnly);
     } catch (err) {
@@ -59,27 +61,55 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchOpenLoans();
+  }, []);
+
+  // Filter checkout records based on search input (Name, Asset ID, Borrower Name, Make)
+  const filteredRecords = useMemo(() => {
+    const query = searchQuery.toLowerCase().trim();
+    if (!query) return issuedRecords;
+
+    return issuedRecords.filter((item) => {
+      const instrumentName = item.instrument?.name?.toLowerCase() || "";
+      const assetId = (
+        item.instrument?.assetId ||
+        item.instrument?.asset_id ||
+        ""
+      ).toLowerCase();
+      const make = item.instrument?.make?.toLowerCase() || "";
+      const borrowerName = (
+        item.borrowerScientist?.name ||
+        item.borrower_scientist?.name ||
+        item.staffName ||
+        item.staff_name ||
+        ""
+      ).toLowerCase();
+
+      return (
+        instrumentName.includes(query) ||
+        assetId.includes(query) ||
+        make.includes(query) ||
+        borrowerName.includes(query)
+      );
+    });
+  }, [issuedRecords, searchQuery]);
+
+  // Reset page when search input changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
+
   // Scroll smoothly to top whenever pagination page changes
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
 
-    // Reset scroll on any internal main container if applicable
     const mainContainer = document.querySelector("main");
     if (mainContainer) {
       mainContainer.scrollTop = 0;
     }
   }, [currentPage]);
-  useEffect(() => {
-    fetchOpenLoans();
-  }, []);
-
-  // Reset page if total records shrink below active page offset
-  useEffect(() => {
-    const totalPages = Math.ceil(issuedRecords.length / PAGE_SIZE) || 1;
-    if (currentPage > totalPages) {
-      setCurrentPage(1);
-    }
-  }, [issuedRecords.length, currentPage]);
 
   // Camera Controls
   const startCamera = async () => {
@@ -132,15 +162,12 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
       setIsSubmitting(true);
 
       if (capturedPhoto) {
-        // MULTIPART FORM-DATA SUBMISSION (WITH PHOTO)
         const formData = new FormData();
         formData.append("condition_in", conditionIn);
 
-        // Convert base64 data URL to Blob and attach file under key "photo"
         const photoBlob = dataURLtoBlob(capturedPhoto);
         formData.append("photo", photoBlob, "return_condition.jpg");
 
-        // Call the multipart endpoint
         await axiosClient.put(
           `/issue-records/${recordId}/return/photo`,
           formData,
@@ -148,25 +175,23 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
             headers: {
               "Content-Type": "multipart/form-data",
             },
-          },
+          }
         );
       } else {
-        // PLAIN JSON SUBMISSION (WITHOUT PHOTO)
         await axiosClient.put(`/issue-records/${recordId}/return`, {
           condition_in: conditionIn,
         });
       }
 
-      // Remove returned record from active list
       setIssuedRecords((prev) =>
-        prev.filter((item) => (item.id || item._id) !== recordId),
+        prev.filter((item) => (item.id || item._id) !== recordId)
       );
 
       if (onShowToast) {
         onShowToast(
           `Received back. Instrument status set to ${
             conditionIn === "GOOD" ? "AVAILABLE" : "MAINTENANCE"
-          }.`,
+          }.`
         );
       }
 
@@ -177,7 +202,7 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
       if (onShowToast) {
         onShowToast(
           err.response?.data?.message ||
-            "Failed to record return in backend database.",
+            "Failed to record return in backend database."
         );
       }
     } finally {
@@ -186,29 +211,49 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
   };
 
   // Pagination Math
-  const totalPages = Math.ceil(issuedRecords.length / PAGE_SIZE) || 1;
+  const totalPages = Math.ceil(filteredRecords.length / PAGE_SIZE) || 1;
   const startIndex = (currentPage - 1) * PAGE_SIZE;
-  const slicedRecords = issuedRecords.slice(startIndex, startIndex + PAGE_SIZE);
+  const slicedRecords = filteredRecords.slice(
+    startIndex,
+    startIndex + PAGE_SIZE
+  );
 
   return (
-    <div className="space-y-3.5 font-sans text-[#1b1a18]">
-      {/* Intro Subheader */}
-      <div className="flex items-center gap-2 mb-1">
-        <button
-          onClick={onBack}
-          className="p-1 rounded-lg hover:bg-black/5 active:scale-95 transition-all cursor-pointer"
-        >
-          <ArrowLeft size={18} className="text-[#1b4d8f]" />
-        </button>
-        <h2 className="text-base font-bold text-[#1b4d8f]">
-          Receive instrument back
-        </h2>
-      </div>
+    <div className="space-y-3 font-sans text-[#1b1a18]">
+      {/* Intro Subheader & Search Input */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2 mb-1">
+          <button
+            onClick={onBack}
+            className="p-1 rounded-lg hover:bg-black/5 active:scale-95 transition-all cursor-pointer"
+          >
+            <ArrowLeft size={18} className="text-[#1b4d8f]" />
+          </button>
+          <h2 className="text-base font-bold text-[#1b4d8f]">
+            Receive instrument back
+          </h2>
+        </div>
 
-      <p className="text-[12.5px] leading-relaxed text-[#5d5b56]">
-        Receiving an instrument closes the issue, records the return condition,
-        and restores equipment availability in the backend ledger.
-      </p>
+        <p className="text-[12.5px] leading-relaxed text-[#5d5b56]">
+          Receiving an instrument closes the issue, records the return condition,
+          and restores equipment availability in the backend ledger.
+        </p>
+
+        {/* Search Bar Input */}
+        <div className="relative pt-1">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search name, asset ID, borrower or make"
+            className="w-full bg-white text-[13px] py-2 pl-3 pr-9 rounded-xl border border-black/15 focus:outline-none focus:border-[#1b4d8f] shadow-xs"
+          />
+          <Search
+            size={16}
+            className="absolute right-3 top-3.5 text-gray-400 pointer-events-none"
+          />
+        </div>
+      </div>
 
       {error && (
         <div className="bg-[#fcf2f2] text-[#c92a2a] text-[11.5px] p-2.5 rounded-xl border border-[#f5c2c2]">
@@ -222,15 +267,18 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
           <p className="text-xs text-gray-400 py-2">
             Loading active checkouts...
           </p>
-        ) : issuedRecords.length === 0 ? (
+        ) : filteredRecords.length === 0 ? (
           <div className="bg-white p-6 rounded-2xl border border-black/10 text-center space-y-2">
             <CheckCircle2 size={32} className="mx-auto text-emerald-600" />
             <h3 className="text-sm font-semibold text-gray-800">
-              No active checkouts
+              {issuedRecords.length === 0
+                ? "No active checkouts"
+                : "No matching items found"}
             </h3>
             <p className="text-xs text-gray-500">
-              All instruments are currently checked in and available in
-              inventory.
+              {issuedRecords.length === 0
+                ? "All instruments are currently checked in and available in inventory."
+                : "Try searching using a different name or ID."}
             </p>
           </div>
         ) : (
@@ -240,7 +288,6 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
                 const overdue = isRecordOverdue(item);
                 const dateDisplay = item.dueDate || item.due_date || "N/A";
 
-                // RESOLVES ACTUAL BORROWER SCIENTIST NAME
                 const borrowerName =
                   item.borrowerScientist?.name ||
                   item.borrower_scientist?.name ||
@@ -248,7 +295,6 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
                   item.staff_name ||
                   "Borrower";
 
-                // Resolve Photo URL
                 const photoPath =
                   item.instrument?.photoPath || item.instrument?.photo_path;
                 const photoUrl = photoPath
@@ -264,7 +310,6 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
                       overdue ? "border-[#f5c2c2]" : "border-black/10"
                     }`}
                   >
-                    {/* Header: Photo Thumbnail + Details Layout */}
                     <div className="flex items-center gap-3">
                       {/* Left Side: Photo Thumbnail */}
                       <div className="w-20 h-20 shrink-0 bg-gray-100 rounded-xl overflow-hidden border border-black/10 flex items-center justify-center">
@@ -312,7 +357,6 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
                       </div>
                     </div>
 
-                    {/* Action Buttons Row */}
                     <div className="flex items-center gap-2 pt-0.5">
                       <button
                         onClick={() => handleOpenReturnModal(item)}
@@ -333,7 +377,6 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
                   disabled={currentPage === 1}
                   onClick={() => {
                     setCurrentPage((prev) => Math.max(1, prev - 1));
-                    window.scrollTo({ top: 0, behavior: "smooth" });
                   }}
                   className="px-3 py-1.5 bg-white border border-gray-300 rounded-xl font-medium shadow-xs disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 transition-all cursor-pointer"
                 >
@@ -346,7 +389,6 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
                   disabled={currentPage === totalPages}
                   onClick={() => {
                     setCurrentPage((prev) => Math.min(totalPages, prev + 1));
-                    window.scrollTo({ top: 0, behavior: "smooth" });
                   }}
                   className="px-3 py-1.5 bg-white border border-gray-300 rounded-xl font-medium shadow-xs disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 transition-all cursor-pointer"
                 >
@@ -391,7 +433,6 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
               </p>
             </div>
 
-            {/* Binary Condition Selector (GOOD vs BAD) */}
             <div className="space-y-1.5">
               <label className="text-[11px] font-bold uppercase text-gray-500 tracking-wider">
                 Physical Condition at Return *
