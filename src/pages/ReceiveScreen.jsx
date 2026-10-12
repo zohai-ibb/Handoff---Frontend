@@ -1,13 +1,22 @@
 import React, { useState, useEffect, useRef } from "react";
-import { ArrowLeft, CheckCircle2, Camera, X, Image as ImageIcon } from "lucide-react";
+import {
+  ArrowLeft,
+  CheckCircle2,
+  Camera,
+  X,
+  Image as ImageIcon,
+} from "lucide-react";
 import axiosClient from "../api/axiosClient";
 import { getActiveIssueRecords } from "../api/instrumentService";
 import { isRecordOverdue } from "../utils/dateUtils";
+
+const PAGE_SIZE = 5;
 
 export default function ReceiveScreen({ onBack, onShowToast }) {
   const [issuedRecords, setIssuedRecords] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Selected item state for the condition modal
   const [selectedRecord, setSelectedRecord] = useState(null);
@@ -41,7 +50,7 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
       // Only keep records that are active OPEN loans
       const openOnly = (data || []).filter(
         (record) =>
-          record.state === "OPEN" || record.state === "ISSUED" || !record.state
+          record.state === "OPEN" || record.state === "ISSUED" || !record.state,
       );
       setIssuedRecords(openOnly);
     } catch (err) {
@@ -50,10 +59,27 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
       setIsLoading(false);
     }
   };
+  // Scroll smoothly to top whenever pagination page changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
 
+    // Reset scroll on any internal main container if applicable
+    const mainContainer = document.querySelector("main");
+    if (mainContainer) {
+      mainContainer.scrollTop = 0;
+    }
+  }, [currentPage]);
   useEffect(() => {
     fetchOpenLoans();
   }, []);
+
+  // Reset page if total records shrink below active page offset
+  useEffect(() => {
+    const totalPages = Math.ceil(issuedRecords.length / PAGE_SIZE) || 1;
+    if (currentPage > totalPages) {
+      setCurrentPage(1);
+    }
+  }, [issuedRecords.length, currentPage]);
 
   // Camera Controls
   const startCamera = async () => {
@@ -115,11 +141,15 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
         formData.append("photo", photoBlob, "return_condition.jpg");
 
         // Call the multipart endpoint
-        await axiosClient.put(`/issue-records/${recordId}/return/photo`, formData, {
-          headers: {
-            "Content-Type": "multipart/form-data",
+        await axiosClient.put(
+          `/issue-records/${recordId}/return/photo`,
+          formData,
+          {
+            headers: {
+              "Content-Type": "multipart/form-data",
+            },
           },
-        });
+        );
       } else {
         // PLAIN JSON SUBMISSION (WITHOUT PHOTO)
         await axiosClient.put(`/issue-records/${recordId}/return`, {
@@ -129,14 +159,14 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
 
       // Remove returned record from active list
       setIssuedRecords((prev) =>
-        prev.filter((item) => (item.id || item._id) !== recordId)
+        prev.filter((item) => (item.id || item._id) !== recordId),
       );
 
       if (onShowToast) {
         onShowToast(
           `Received back. Instrument status set to ${
             conditionIn === "GOOD" ? "AVAILABLE" : "MAINTENANCE"
-          }.`
+          }.`,
         );
       }
 
@@ -146,7 +176,8 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
     } catch (err) {
       if (onShowToast) {
         onShowToast(
-          err.response?.data?.message || "Failed to record return in backend database."
+          err.response?.data?.message ||
+            "Failed to record return in backend database.",
         );
       }
     } finally {
@@ -154,13 +185,18 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
     }
   };
 
+  // Pagination Math
+  const totalPages = Math.ceil(issuedRecords.length / PAGE_SIZE) || 1;
+  const startIndex = (currentPage - 1) * PAGE_SIZE;
+  const slicedRecords = issuedRecords.slice(startIndex, startIndex + PAGE_SIZE);
+
   return (
     <div className="space-y-3.5 font-sans text-[#1b1a18]">
       {/* Intro Subheader */}
       <div className="flex items-center gap-2 mb-1">
         <button
           onClick={onBack}
-          className="p-1 rounded-lg hover:bg-black/5 active:scale-95 transition-all"
+          className="p-1 rounded-lg hover:bg-black/5 active:scale-95 transition-all cursor-pointer"
         >
           <ArrowLeft size={18} className="text-[#1b4d8f]" />
         </button>
@@ -198,90 +234,127 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
             </p>
           </div>
         ) : (
-          issuedRecords.map((item) => {
-            const overdue = isRecordOverdue(item);
-            const dateDisplay = item.dueDate || item.due_date || "N/A";
+          <>
+            <div className="space-y-3">
+              {slicedRecords.map((item) => {
+                const overdue = isRecordOverdue(item);
+                const dateDisplay = item.dueDate || item.due_date || "N/A";
 
-            // RESOLVES ACTUAL BORROWER SCIENTIST NAME
-            const borrowerName =
-              item.borrowerScientist?.name ||
-              item.borrower_scientist?.name ||
-              item.staffName ||
-              item.staff_name ||
-              "Borrower";
+                // RESOLVES ACTUAL BORROWER SCIENTIST NAME
+                const borrowerName =
+                  item.borrowerScientist?.name ||
+                  item.borrower_scientist?.name ||
+                  item.staffName ||
+                  item.staff_name ||
+                  "Borrower";
 
-            // Resolve Photo URL
-            const photoPath = item.instrument?.photoPath || item.instrument?.photo_path;
-            const photoUrl = photoPath
-              ? photoPath.startsWith("http")
-                ? photoPath
-                : `http://localhost:8080${photoPath}`
-              : null;
+                // Resolve Photo URL
+                const photoPath =
+                  item.instrument?.photoPath || item.instrument?.photo_path;
+                const photoUrl = photoPath
+                  ? photoPath.startsWith("http")
+                    ? photoPath
+                    : `http://localhost:8080${photoPath}`
+                  : null;
 
-            return (
-              <div
-                key={item.id || item._id}
-                className={`bg-white p-3.5 rounded-2xl border shadow-xs space-y-3 ${
-                  overdue ? "border-[#f5c2c2]" : "border-black/10"
-                }`}
-              >
-                {/* Header: Photo Thumbnail + Details Layout */}
-                <div className="flex items-center gap-3">
-                  {/* Left Side: Photo Thumbnail */}
-                  <div className="w-20 h-20 shrink-0 bg-gray-100 rounded-xl overflow-hidden border border-black/10 flex items-center justify-center">
-                    {photoUrl ? (
-                      <img
-                        src={photoUrl}
-                        alt={item.instrument?.name || "Instrument"}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <ImageIcon size={22} className="text-gray-400" />
-                    )}
-                  </div>
-
-                  {/* Right Side: Title & Status Badge */}
-                  <div className="flex-1 min-w-0 space-y-1">
-                    <div className="flex items-start justify-between gap-1.5">
-                      <h3 className="text-[13.5px] font-semibold text-[#1b1a18] leading-snug truncate">
-                        {item.instrument?.name || "Instrument"}
-                      </h3>
-                      <span
-                        className={`shrink-0 text-[10px] font-medium px-2.5 py-1 rounded-md ${
-                          overdue
-                            ? "bg-[#fbe4e0] text-[#8f2318] border border-[#f5c2c2]"
-                            : "bg-[#fbf0dc] text-[#8a5a12]"
-                        }`}
-                      >
-                        {overdue ? "Overdue" : "Issued"}
-                      </span>
-                    </div>
-
-                    <p className="font-mono text-[10.5px] text-[#7a7872] truncate">
-                      Asset ID: {item.instrument?.assetId || item.instrument?.asset_id || "N/A"}
-                    </p>
-
-                    <div className="text-[12px] text-[#5d5b56] truncate">
-                      <span className="font-medium text-[#3f3d39]">
-                        {borrowerName}
-                      </span>{" "}
-                      · Due: {dateDisplay}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Action Buttons Row */}
-                <div className="flex items-center gap-2 pt-0.5">
-                  <button
-                    onClick={() => handleOpenReturnModal(item)}
-                    className="flex-1 bg-[#1b4d8f] text-white py-2 px-3 rounded-xl text-[13px] font-semibold active:scale-98 transition-all shadow-xs text-center"
+                return (
+                  <div
+                    key={item.id || item._id}
+                    className={`bg-white p-3.5 rounded-2xl border shadow-xs space-y-3 ${
+                      overdue ? "border-[#f5c2c2]" : "border-black/10"
+                    }`}
                   >
-                    Mark returned
-                  </button>
-                </div>
+                    {/* Header: Photo Thumbnail + Details Layout */}
+                    <div className="flex items-center gap-3">
+                      {/* Left Side: Photo Thumbnail */}
+                      <div className="w-20 h-20 shrink-0 bg-gray-100 rounded-xl overflow-hidden border border-black/10 flex items-center justify-center">
+                        {photoUrl ? (
+                          <img
+                            src={photoUrl}
+                            alt={item.instrument?.name || "Instrument"}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <ImageIcon size={22} className="text-gray-400" />
+                        )}
+                      </div>
+
+                      {/* Right Side: Title & Status Badge */}
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <div className="flex items-start justify-between gap-1.5">
+                          <h3 className="text-[13.5px] font-semibold text-[#1b1a18] leading-snug truncate">
+                            {item.instrument?.name || "Instrument"}
+                          </h3>
+                          <span
+                            className={`shrink-0 text-[10px] font-medium px-2.5 py-1 rounded-md ${
+                              overdue
+                                ? "bg-[#fbe4e0] text-[#8f2318] border border-[#f5c2c2]"
+                                : "bg-[#fbf0dc] text-[#8a5a12]"
+                            }`}
+                          >
+                            {overdue ? "Overdue" : "Issued"}
+                          </span>
+                        </div>
+
+                        <p className="font-mono text-[10.5px] text-[#7a7872] truncate">
+                          Asset ID:{" "}
+                          {item.instrument?.assetId ||
+                            item.instrument?.asset_id ||
+                            "N/A"}
+                        </p>
+
+                        <div className="text-[12px] text-[#5d5b56] truncate">
+                          <span className="font-medium text-[#3f3d39]">
+                            {borrowerName}
+                          </span>{" "}
+                          · Due: {dateDisplay}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Action Buttons Row */}
+                    <div className="flex items-center gap-2 pt-0.5">
+                      <button
+                        onClick={() => handleOpenReturnModal(item)}
+                        className="flex-1 bg-[#1b4d8f] text-white py-2 px-3 rounded-xl text-[13px] font-semibold active:scale-98 transition-all shadow-xs text-center cursor-pointer"
+                      >
+                        Mark returned
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between pt-2 text-[12px] text-[#5d5b56]">
+                <button
+                  disabled={currentPage === 1}
+                  onClick={() => {
+                    setCurrentPage((prev) => Math.max(1, prev - 1));
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }}
+                  className="px-3 py-1.5 bg-white border border-gray-300 rounded-xl font-medium shadow-xs disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 transition-all cursor-pointer"
+                >
+                  Prev
+                </button>
+                <span className="font-semibold">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <button
+                  disabled={currentPage === totalPages}
+                  onClick={() => {
+                    setCurrentPage((prev) => Math.min(totalPages, prev + 1));
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }}
+                  className="px-3 py-1.5 bg-white border border-gray-300 rounded-xl font-medium shadow-xs disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 transition-all cursor-pointer"
+                >
+                  Next
+                </button>
               </div>
-            );
-          })
+            )}
+          </>
         )}
       </div>
 
@@ -298,7 +371,7 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
                   setSelectedRecord(null);
                   stopCamera();
                 }}
-                className="text-gray-400 hover:text-gray-600 p-1"
+                className="text-gray-400 hover:text-gray-600 p-1 cursor-pointer"
               >
                 <X size={18} />
               </button>
@@ -327,7 +400,7 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
                 <button
                   type="button"
                   onClick={() => setConditionIn("GOOD")}
-                  className={`py-2 px-3 rounded-xl text-xs font-semibold border transition-all ${
+                  className={`py-2 px-3 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
                     conditionIn === "GOOD"
                       ? "bg-[#eef8f5] text-[#12695a] border-[#12695a] ring-1 ring-[#12695a]"
                       : "bg-white text-gray-600 border-gray-300"
@@ -339,7 +412,7 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
                 <button
                   type="button"
                   onClick={() => setConditionIn("BAD")}
-                  className={`py-2 px-3 rounded-xl text-xs font-semibold border transition-all ${
+                  className={`py-2 px-3 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
                     conditionIn === "BAD"
                       ? "bg-[#fcf2f2] text-[#c92a2a] border-[#c92a2a] ring-1 ring-[#c92a2a]"
                       : "bg-white text-gray-600 border-gray-300"
@@ -370,14 +443,14 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
                     <button
                       type="button"
                       onClick={capturePhoto}
-                      className="flex-1 bg-[#12695a] text-white py-1.5 rounded-xl text-xs font-semibold"
+                      className="flex-1 bg-[#12695a] text-white py-1.5 rounded-xl text-xs font-semibold cursor-pointer"
                     >
                       Capture Photo
                     </button>
                     <button
                       type="button"
                       onClick={stopCamera}
-                      className="bg-gray-200 text-gray-700 py-1.5 px-3 rounded-xl text-xs"
+                      className="bg-gray-200 text-gray-700 py-1.5 px-3 rounded-xl text-xs cursor-pointer"
                     >
                       Cancel
                     </button>
@@ -393,7 +466,7 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
                   <button
                     type="button"
                     onClick={() => setCapturedPhoto(null)}
-                    className="absolute top-1 right-1 bg-black/60 text-white p-1 rounded-full"
+                    className="absolute top-1 right-1 bg-black/60 text-white p-1 rounded-full cursor-pointer"
                   >
                     <X size={14} />
                   </button>
@@ -402,7 +475,7 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
                 <button
                   type="button"
                   onClick={startCamera}
-                  className="w-full bg-gray-50 border border-dashed border-gray-300 text-gray-600 py-2.5 rounded-xl text-xs font-medium flex items-center justify-center gap-2 hover:bg-gray-100"
+                  className="w-full bg-gray-50 border border-dashed border-gray-300 text-gray-600 py-2.5 rounded-xl text-xs font-medium flex items-center justify-center gap-2 hover:bg-gray-100 cursor-pointer"
                 >
                   <Camera size={16} />
                   <span>Take Live Photo</span>
@@ -418,7 +491,7 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
                   setSelectedRecord(null);
                   stopCamera();
                 }}
-                className="flex-1 py-2.5 rounded-xl text-xs font-medium border border-gray-300 text-gray-700"
+                className="flex-1 py-2.5 rounded-xl text-xs font-medium border border-gray-300 text-gray-700 cursor-pointer"
               >
                 Cancel
               </button>
@@ -426,7 +499,7 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
                 type="button"
                 disabled={isSubmitting}
                 onClick={handleConfirmReturn}
-                className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-[#1b4d8f] text-white disabled:opacity-50"
+                className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-[#1b4d8f] text-white disabled:opacity-50 cursor-pointer"
               >
                 {isSubmitting ? "Processing..." : "Confirm Return"}
               </button>

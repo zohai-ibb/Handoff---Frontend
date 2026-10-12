@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Header from "./components/Header";
 import Footer from "./components/Footer";
 import HomeScreen from "./pages/HomeScreen";
@@ -25,7 +25,7 @@ export default function App() {
   const [authView, setAuthView] = useState("login");
   const [activeTab, setActiveTab] = useState("Home");
   const [currentView, setCurrentView] = useState("home"); // 'home' | 'receive' | 'add-item' | 'profile' | 'instrument-detail'
-  
+
   // Track previous screen location so Back returns to the originating screen
   const [previousScreenState, setPreviousScreenState] = useState({
     activeTab: "Home",
@@ -34,6 +34,16 @@ export default function App() {
 
   const [selectedInstrument, setSelectedInstrument] = useState(null);
   const [toast, setToast] = useState(null);
+
+  // Auto-scroll to top whenever switching screens or tabs
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+
+    const mainElement = document.querySelector("main");
+    if (mainElement) {
+      mainElement.scrollTop = 0;
+    }
+  }, [activeTab, currentView, selectedInstrument]);
 
   const showToast = (message) => {
     setToast(message);

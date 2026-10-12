@@ -1,14 +1,31 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Plus, Image as ImageIcon } from 'lucide-react';
-import { getInstruments, getActiveIssueRecords } from '../api/instrumentService';
-import { isRecordOverdue } from '../utils/dateUtils';
+import React, { useState, useEffect, useMemo } from "react";
+import { Search, Plus, Image as ImageIcon } from "lucide-react";
+import {
+  getInstruments,
+  getActiveIssueRecords,
+} from "../api/instrumentService";
+import { isRecordOverdue } from "../utils/dateUtils";
+
+const PAGE_SIZE = 5;
 
 export default function ItemsScreen({ onNavigate, onSelectInstrument }) {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [activeFilter, setActiveFilter] = useState('All');
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeFilter, setActiveFilter] = useState("All");
   const [instruments, setInstruments] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // Scroll smoothly to top whenever pagination page changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+
+    // Reset scroll on any internal main container if applicable
+    const mainContainer = document.querySelector("main");
+    if (mainContainer) {
+      mainContainer.scrollTop = 0;
+    }
+  }, [currentPage]);
 
   useEffect(() => {
     const fetchInventoryAndLoans = async () => {
@@ -27,10 +44,14 @@ export default function ItemsScreen({ onNavigate, onSelectInstrument }) {
 
           const activeRecord = activeLoans.find((record) => {
             const recordInstId =
-              record.instrument?.id || record.instrument?._id || record.instrument;
+              record.instrument?.id ||
+              record.instrument?._id ||
+              record.instrument;
             return (
               recordInstId === itemId &&
-              (record.state === 'OPEN' || record.state === 'ISSUED' || !record.state)
+              (record.state === "OPEN" ||
+                record.state === "ISSUED" ||
+                !record.state)
             );
           });
 
@@ -42,11 +63,11 @@ export default function ItemsScreen({ onNavigate, onSelectInstrument }) {
               activeRecord.borrower_scientist?.name ||
               activeRecord.staffName ||
               activeRecord.staff_name ||
-              'Borrower';
+              "Borrower";
 
             return {
               ...item,
-              status: overdue ? 'OVERDUE' : 'ISSUED',
+              status: overdue ? "OVERDUE" : "ISSUED",
               isOverdue: overdue,
               dueDate: activeRecord.dueDate || activeRecord.due_date,
               holder: borrowerName,
@@ -58,7 +79,7 @@ export default function ItemsScreen({ onNavigate, onSelectInstrument }) {
 
         setInstruments(mappedInstruments);
       } catch (err) {
-        setError('Failed to load instrument inventory from server.');
+        setError("Failed to load instrument inventory from server.");
       } finally {
         setIsLoading(false);
       }
@@ -67,7 +88,7 @@ export default function ItemsScreen({ onNavigate, onSelectInstrument }) {
     fetchInventoryAndLoans();
   }, []);
 
-  const filterPills = ['All', 'Available', 'Issued', 'Overdue', 'Service'];
+  const filterPills = ["All", "Available", "Issued", "Overdue", "Service"];
 
   const filteredInstruments = useMemo(() => {
     return instruments.filter((item) => {
@@ -80,22 +101,43 @@ export default function ItemsScreen({ onNavigate, onSelectInstrument }) {
         item.make?.toLowerCase().includes(query) ||
         item.holder?.toLowerCase().includes(query);
 
-      const isOverdueItem = item.status === 'OVERDUE' || item.isOverdue;
+      const isOverdueItem = item.status === "OVERDUE" || item.isOverdue;
 
       let matchesFilter = true;
-      if (activeFilter === 'Available') {
-        matchesFilter = item.status === 'AVAILABLE';
-      } else if (activeFilter === 'Issued') {
-        matchesFilter = item.status === 'ISSUED' && !isOverdueItem;
-      } else if (activeFilter === 'Overdue') {
+      if (activeFilter === "Available") {
+        matchesFilter = item.status === "AVAILABLE";
+      } else if (activeFilter === "Issued") {
+        matchesFilter = item.status === "ISSUED" && !isOverdueItem;
+      } else if (activeFilter === "Overdue") {
         matchesFilter = isOverdueItem;
-      } else if (activeFilter === 'Service') {
-        matchesFilter = item.status === 'MAINTENANCE';
+      } else if (activeFilter === "Service") {
+        matchesFilter = item.status === "MAINTENANCE";
       }
 
       return matchesSearch && matchesFilter;
     });
   }, [searchQuery, activeFilter, instruments]);
+
+  // Reset to page 1 whenever filter or search query changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, activeFilter]);
+
+  // Reset page if total records shrink below active page offset
+  useEffect(() => {
+    const totalPages = Math.ceil(filteredInstruments.length / PAGE_SIZE) || 1;
+    if (currentPage > totalPages) {
+      setCurrentPage(1);
+    }
+  }, [filteredInstruments.length, currentPage]);
+
+  // Pagination Math
+  const totalPages = Math.ceil(filteredInstruments.length / PAGE_SIZE) || 1;
+  const startIndex = (currentPage - 1) * PAGE_SIZE;
+  const slicedInstruments = filteredInstruments.slice(
+    startIndex,
+    startIndex + PAGE_SIZE,
+  );
 
   return (
     <div className="h-full flex flex-col justify-between overflow-hidden font-sans text-[#1b1a18] relative">
@@ -109,7 +151,10 @@ export default function ItemsScreen({ onNavigate, onSelectInstrument }) {
             placeholder="Search name, asset ID or make"
             className="w-full bg-white text-[13px] py-2.5 pl-3.5 pr-9 rounded-xl border border-black/15 focus:outline-none focus:border-[#1b4d8f] shadow-xs"
           />
-          <Search size={16} className="absolute right-3 top-3 text-gray-400 pointer-events-none" />
+          <Search
+            size={16}
+            className="absolute right-3 top-3 text-gray-400 pointer-events-none"
+          />
         </div>
 
         {/* Category Filter Pills */}
@@ -122,8 +167,8 @@ export default function ItemsScreen({ onNavigate, onSelectInstrument }) {
                 onClick={() => setActiveFilter(pill)}
                 className={`text-[11.5px] font-medium px-3 py-1 rounded-full whitespace-nowrap transition-all cursor-pointer ${
                   isSelected
-                    ? 'bg-[#1b4d8f] text-white border border-[#1b4d8f]'
-                    : 'bg-white text-[#3f3d39] border border-black/15 hover:border-gray-400'
+                    ? "bg-[#1b4d8f] text-white border border-[#1b4d8f]"
+                    : "bg-white text-[#3f3d39] border border-black/15 hover:border-gray-400"
                 }`}
               >
                 {pill}
@@ -138,7 +183,7 @@ export default function ItemsScreen({ onNavigate, onSelectInstrument }) {
       </div>
 
       {/* Inventory Cards List */}
-      <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar pb-16">
+      <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 custom-scrollbar pb-16">
         {error && (
           <div className="bg-[#fcf2f2] text-[#c92a2a] text-[11.5px] p-2.5 rounded-xl border border-[#f5c2c2]">
             {error}
@@ -147,100 +192,134 @@ export default function ItemsScreen({ onNavigate, onSelectInstrument }) {
 
         {isLoading ? (
           <p className="text-xs text-gray-400 py-2">Loading inventory...</p>
-        ) : (
-          filteredInstruments.map((item) => {
-            const isOverdueItem = item.status === 'OVERDUE' || item.isOverdue;
-            const assetIdDisplay = item.assetId || item.asset_id || 'N/A';
-            const photoPath = item.photoPath || item.photo_path;
-            const photoUrl = photoPath
-              ? photoPath.startsWith('http')
-                ? photoPath
-                : `http://localhost:8080${photoPath}`
-              : null;
-
-            return (
-              <div
-                key={item.id || item._id}
-                onClick={() => onSelectInstrument && onSelectInstrument(item)}
-                className={`bg-white p-3 rounded-2xl border shadow-xs cursor-pointer hover:border-[#1b4d8f] active:scale-98 transition-all flex items-center gap-3 ${
-                  isOverdueItem ? 'border-[#f5c2c2]' : 'border-black/10'
-                }`}
-              >
-                {/* Left Side: Photo Thumbnail */}
-                <div className="w-20 h-20 shrink-0 bg-gray-100 rounded-xl overflow-hidden border border-black/10 flex items-center justify-center">
-                  {photoUrl ? (
-                    <img
-                      src={photoUrl}
-                      alt={item.name}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <ImageIcon size={22} className="text-gray-400" />
-                  )}
-                </div>
-
-                {/* Right Side: Card Details */}
-                <div className="flex-1 min-w-0 space-y-1">
-                  <div className="flex items-start justify-between gap-1.5">
-                    <h3 className="text-[13px] font-bold text-[#1b1a18] leading-snug truncate">
-                      {item.name}
-                    </h3>
-                    <span
-                      className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-md ${
-                        isOverdueItem
-                          ? 'bg-[#fbe4e0] text-[#8f2318] border border-[#f5c2c2]'
-                          : item.status === 'ISSUED'
-                          ? 'bg-[#fbf0dc] text-[#8a5a12]'
-                          : item.status === 'MAINTENANCE'
-                          ? 'bg-[#f3f0f8] text-[#5c4a86]'
-                          : 'bg-[#eef8f5] text-[#12695a]'
-                      }`}
-                    >
-                      {isOverdueItem
-                        ? 'OVERDUE'
-                        : item.status === 'ISSUED'
-                        ? 'Issued'
-                        : item.status === 'MAINTENANCE'
-                        ? 'Maintenance'
-                        : 'Available'}
-                    </span>
-                  </div>
-
-                  <div className="font-mono text-[10.5px] text-[#7a7872] truncate">
-                    Asset ID: {assetIdDisplay}
-                  </div>
-
-                  <div className="text-[11.5px] text-[#5d5b56] truncate">
-                    {isOverdueItem ? (
-                      <span className="text-[#c92a2a] font-bold">
-                        {item.holder} · Due: {item.dueDate}
-                      </span>
-                    ) : item.status === 'ISSUED' ? (
-                      <span>
-                        {item.holder} · Due: {item.dueDate}
-                      </span>
-                    ) : item.status === 'MAINTENANCE' ? (
-                      <span>Out for repair / calibration</span>
-                    ) : (
-                      <span>Location: {item.location || 'Storage'}</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })
-        )}
-
-        {!isLoading && filteredInstruments.length === 0 && (
+        ) : filteredInstruments.length === 0 ? (
           <div className="text-center py-8 text-gray-500 text-xs">
             No instruments found matching your query.
           </div>
+        ) : (
+          <>
+            <div className="space-y-2">
+              {slicedInstruments.map((item) => {
+                const isOverdueItem =
+                  item.status === "OVERDUE" || item.isOverdue;
+                const assetIdDisplay = item.assetId || item.asset_id || "N/A";
+                const photoPath = item.photoPath || item.photo_path;
+                const photoUrl = photoPath
+                  ? photoPath.startsWith("http")
+                    ? photoPath
+                    : `http://localhost:8080${photoPath}`
+                  : null;
+
+                return (
+                  <div
+                    key={item.id || item._id}
+                    onClick={() =>
+                      onSelectInstrument && onSelectInstrument(item)
+                    }
+                    className={`bg-white p-3 rounded-2xl border shadow-xs cursor-pointer hover:border-[#1b4d8f] active:scale-98 transition-all flex items-center gap-3 ${
+                      isOverdueItem ? "border-[#f5c2c2]" : "border-black/10"
+                    }`}
+                  >
+                    {/* Left Side: Photo Thumbnail */}
+                    <div className="w-20 h-20 shrink-0 bg-gray-100 rounded-xl overflow-hidden border border-black/10 flex items-center justify-center">
+                      {photoUrl ? (
+                        <img
+                          src={photoUrl}
+                          alt={item.name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <ImageIcon size={22} className="text-gray-400" />
+                      )}
+                    </div>
+
+                    {/* Right Side: Card Details */}
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <div className="flex items-start justify-between gap-1.5">
+                        <h3 className="text-[13px] font-bold text-[#1b1a18] leading-snug truncate">
+                          {item.name}
+                        </h3>
+                        <span
+                          className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-md ${
+                            isOverdueItem
+                              ? "bg-[#fbe4e0] text-[#8f2318] border border-[#f5c2c2]"
+                              : item.status === "ISSUED"
+                                ? "bg-[#fbf0dc] text-[#8a5a12]"
+                                : item.status === "MAINTENANCE"
+                                  ? "bg-[#f3f0f8] text-[#5c4a86]"
+                                  : "bg-[#eef8f5] text-[#12695a]"
+                          }`}
+                        >
+                          {isOverdueItem
+                            ? "OVERDUE"
+                            : item.status === "ISSUED"
+                              ? "Issued"
+                              : item.status === "MAINTENANCE"
+                                ? "Maintenance"
+                                : "Available"}
+                        </span>
+                      </div>
+
+                      <div className="font-mono text-[10.5px] text-[#7a7872] truncate">
+                        Asset ID: {assetIdDisplay}
+                      </div>
+
+                      <div className="text-[11.5px] text-[#5d5b56] truncate">
+                        {isOverdueItem ? (
+                          <span className="text-[#c92a2a] font-bold">
+                            {item.holder} · Due: {item.dueDate}
+                          </span>
+                        ) : item.status === "ISSUED" ? (
+                          <span>
+                            {item.holder} · Due: {item.dueDate}
+                          </span>
+                        ) : item.status === "MAINTENANCE" ? (
+                          <span>Out for repair / calibration</span>
+                        ) : (
+                          <span>Location: {item.location || "Storage"}</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between pt-2 text-[12px] text-[#5d5b56]">
+                <button
+                  disabled={currentPage === 1}
+                  onClick={() => {
+                    setCurrentPage((prev) => Math.max(1, prev - 1));
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }}
+                  className="px-3 py-1.5 bg-white border border-gray-300 rounded-xl font-medium shadow-xs disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 transition-all cursor-pointer"
+                >
+                  Prev
+                </button>
+                <span className="font-semibold">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <button
+                  disabled={currentPage === totalPages}
+                  onClick={() => {
+                    setCurrentPage((prev) => Math.min(totalPages, prev + 1));
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }}
+                  className="px-3 py-1.5 bg-white border border-gray-300 rounded-xl font-medium shadow-xs disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 transition-all cursor-pointer"
+                >
+                  Next
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
 
       {/* Floating Action Button (FAB) */}
       <button
-        onClick={() => onNavigate && onNavigate('Add item')}
+        onClick={() => onNavigate && onNavigate("Add item")}
         aria-label="Add Instrument"
         className="fixed bottom-20 right-5 z-40 bg-[#1b4d8f] hover:bg-[#143d73] text-white p-3.5 rounded-full shadow-lg active:scale-95 transition-all flex items-center justify-center cursor-pointer border border-white/20"
       >
