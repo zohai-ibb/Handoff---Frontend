@@ -105,7 +105,7 @@ export default function PeopleScreen({ onShowToast }) {
     return parts[0] ? parts[0].substring(0, 2).toUpperCase() : 'U';
   };
 
-  // --- Calculate Scientist Holdings ---
+  // --- Calculate Scientist Detailed Instrument Holdings ---
   const getScientistHoldings = (scientist) => {
     const scientistId = String(scientist.id || scientist._id || '');
     const scientistEmail = (scientist.email || '').toLowerCase().trim();
@@ -117,7 +117,7 @@ export default function PeopleScreen({ onShowToast }) {
       (scientistId && scientistId === currentUserId) ||
       (scientistEmail && scientistEmail === currentUserEmail);
 
-    const matchedRecords = issueRecords.filter((record) => {
+    return issueRecords.filter((record) => {
       const isStateOpen = record.state === 'OPEN' || record.state === 'ISSUED';
 
       const borrower = record.borrowerScientist || record.borrower_scientist || {};
@@ -127,36 +127,9 @@ export default function PeopleScreen({ onShowToast }) {
       return (
         isStateOpen &&
         ((scientistId && borrowerId === scientistId) ||
-          (scientistEmail && borrowerEmail === scientistEmail))
+          (scientistEmail && borrowerEmail === scientistEmail) ||
+          (isSelf && (borrowerId === currentUserId || borrowerEmail === currentUserEmail)))
       );
-    });
-
-    if (matchedRecords.length === 0) return [];
-
-    const staffGroupMap = {};
-
-    matchedRecords.forEach((record) => {
-      const staffName = record.staffName || record.staff_name;
-
-      if (staffName && staffName.trim().length > 0) {
-        staffGroupMap[staffName] = (staffGroupMap[staffName] || 0) + 1;
-      } else {
-        const key = isSelf ? 'Self (Directly Held)' : scientist.name;
-        staffGroupMap[key] = (staffGroupMap[key] || 0) + 1;
-      }
-    });
-
-    return Object.entries(staffGroupMap).map(([staffName, count]) => {
-      const isDirectOrSelf =
-        staffName.includes('Self (Directly Held)') ||
-        staffName === scientist.name ||
-        isSelf;
-
-      return {
-        staffName,
-        count: `${count} instrument(s) held`,
-        type: isDirectOrSelf ? 'self' : 'staff',
-      };
     });
   };
 
@@ -311,6 +284,7 @@ export default function PeopleScreen({ onShowToast }) {
           {error}
         </div>
       )}
+
       {/* Footer Area: Add Scientist / Add Staff Button */}
       <div className="shrink-0 pt-1">
         {activeTab === 'scientists' ? (
@@ -332,6 +306,7 @@ export default function PeopleScreen({ onShowToast }) {
         )}
       </div>
 
+
       {/* Main Content View */}
       {isLoading ? (
         <div className="flex-1 flex items-center justify-center py-10 text-gray-400 gap-2">
@@ -348,11 +323,11 @@ export default function PeopleScreen({ onShowToast }) {
           </div>
         ) : (
           <div className="flex-1 flex flex-col justify-between overflow-hidden">
-            {/* 3 Paginated Scientist Cards */}
+            {/* Paginated Scientist Cards */}
             <div className="flex-1 overflow-y-auto space-y-3 pr-0.5 custom-scrollbar">
               {paginatedScientists.map((scientist) => {
-                const holdings = getScientistHoldings(scientist);
-                const hasHoldings = holdings.length > 0;
+                const scientistRecords = getScientistHoldings(scientist);
+                const hasHoldings = scientistRecords.length > 0;
 
                 return (
                   <div
@@ -375,46 +350,50 @@ export default function PeopleScreen({ onShowToast }) {
                           {scientist.email}
                         </p>
                       </div>
+                      <span
+                        className={`text-[10.5px] font-bold px-2.5 py-1 rounded-lg shrink-0 ${
+                          hasHoldings
+                            ? 'bg-[#e8eff8] text-[#1b4d8f] border border-[#1b4d8f]/20'
+                            : 'bg-gray-100 text-gray-500'
+                        }`}
+                      >
+                        {scientistRecords.length} Item(s)
+                      </span>
                     </div>
 
-                    {/* Holdings Section */}
+                    {/* Instruments List Issued Under This Scientist */}
                     <div className="pt-2 border-t border-black/5 space-y-1.5">
                       {hasHoldings ? (
-                        holdings.map((item, idx) => {
-                          const isSelfHeld = item.type === 'self';
+                        scientistRecords.map((record, idx) => {
+                          const instrument = record.instrument || {};
+                          const staffName = record.staffName || record.staff_name || 'Directly Held / Self';
 
                           return (
                             <div
                               key={idx}
-                              className={`flex justify-between items-center text-[11.5px] px-2.5 py-1.5 rounded-xl border ${
-                                isSelfHeld
-                                  ? 'bg-[#e8eff8]/60 border-[#1b4d8f]/20'
-                                  : 'bg-gray-50/70 border-black/5'
-                              }`}
+                              className="bg-gray-50/80 p-2.5 rounded-xl border border-black/5 space-y-1 text-[11.5px]"
                             >
-                              <div className="flex items-center gap-1.5 min-w-0">
-                                {isSelfHeld ? (
-                                  <User size={13} className="text-[#1b4d8f] shrink-0" />
-                                ) : (
-                                  <UserCheck size={13} className="text-[#12695a] shrink-0" />
-                                )}
-                                <span
-                                  className={`font-medium truncate ${
-                                    isSelfHeld ? 'text-[#1b4d8f] font-semibold' : 'text-[#1b1a18]'
-                                  }`}
-                                >
-                                  {item.staffName}
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="font-bold text-[#1b1a18] truncate">
+                                  {instrument.name || 'Instrument'}
+                                </span>
+                                <span className="font-mono text-[10px] text-gray-500 shrink-0">
+                                  {instrument.assetId || instrument.asset_id || 'N/A'}
                                 </span>
                               </div>
-                              <span
-                                className={`text-[11px] font-semibold px-2 py-0.5 rounded-md shrink-0 ${
-                                  isSelfHeld
-                                    ? 'text-[#1b4d8f] bg-[#e8eff8]'
-                                    : 'text-[#8a5a12] bg-[#fef6e7]'
-                                }`}
-                              >
-                                {item.count}
-                              </span>
+
+                              <div className="flex items-center justify-between text-[10.5px] text-[#5d5b56]">
+                                <span className="flex items-center gap-1 truncate">
+                                  <UserCheck size={12} className="text-[#12695a]" />
+                                  Staff: <strong className="text-[#1b1a18]">{staffName}</strong>
+                                </span>
+                                {(record.dueDate || record.due_date) && (
+                                  <span className="flex items-center gap-1 font-mono text-gray-500 shrink-0">
+                                    <Clock size={11} />
+                                    Due: {record.dueDate || record.due_date}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           );
                         })
@@ -442,7 +421,7 @@ export default function PeopleScreen({ onShowToast }) {
                   type="button"
                   disabled={scientistPage === 1}
                   onClick={() => setScientistPage((p) => Math.max(p - 1, 1))}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-[11.5px] font-medium bg-white border border-gray-200 text-[#1b1a18] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 active:scale-95 transition-all"
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-[11.5px] font-medium bg-white border border-gray-200 text-[#1b1a18] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 active:scale-95 transition-all cursor-pointer"
                 >
                   <ChevronLeft size={14} />
                   <span>Prev</span>
@@ -456,7 +435,7 @@ export default function PeopleScreen({ onShowToast }) {
                   type="button"
                   disabled={scientistPage === totalScientistPages}
                   onClick={() => setScientistPage((p) => Math.min(p + 1, totalScientistPages))}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-[11.5px] font-medium bg-white border border-gray-200 text-[#1b1a18] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 active:scale-95 transition-all"
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-[11.5px] font-medium bg-white border border-gray-200 text-[#1b1a18] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 active:scale-95 transition-all cursor-pointer"
                 >
                   <span>Next</span>
                   <ChevronRight size={14} />
@@ -477,7 +456,7 @@ export default function PeopleScreen({ onShowToast }) {
           </div>
         ) : (
           <div className="flex-1 flex flex-col justify-between overflow-hidden">
-            {/* 3 Paginated Staff Cards */}
+            {/* Paginated Staff Cards */}
             <div className="flex-1 overflow-y-auto space-y-3 pr-0.5 custom-scrollbar">
               {paginatedStaff.map((staff) => {
                 const staffRecords = getStaffHoldings(staff);
@@ -530,7 +509,7 @@ export default function PeopleScreen({ onShowToast }) {
                                   {instrument.name || 'Instrument'}
                                 </span>
                                 <span className="font-mono text-[10px] text-gray-500 shrink-0">
-                                  {instrument.assetId || instrument.asset_id}
+                                  {instrument.assetId || instrument.asset_id || 'N/A'}
                                 </span>
                               </div>
 
@@ -539,10 +518,10 @@ export default function PeopleScreen({ onShowToast }) {
                                   <User size={11} className="text-[#1b4d8f]" />
                                   Borrower: <strong className="text-[#1b1a18]">{borrower.name || 'Scientist'}</strong>
                                 </span>
-                                {record.dueDate && (
+                                {(record.dueDate || record.due_date) && (
                                   <span className="flex items-center gap-1 font-mono text-gray-500 shrink-0">
                                     <Clock size={11} />
-                                    Due: {record.dueDate}
+                                    Due: {record.dueDate || record.due_date}
                                   </span>
                                 )}
                               </div>
@@ -573,7 +552,7 @@ export default function PeopleScreen({ onShowToast }) {
                   type="button"
                   disabled={staffPage === 1}
                   onClick={() => setStaffPage((p) => Math.max(p - 1, 1))}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-[11.5px] font-medium bg-white border border-gray-200 text-[#1b1a18] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 active:scale-95 transition-all"
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-[11.5px] font-medium bg-white border border-gray-200 text-[#1b1a18] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 active:scale-95 transition-all cursor-pointer"
                 >
                   <ChevronLeft size={14} />
                   <span>Prev</span>
@@ -587,7 +566,7 @@ export default function PeopleScreen({ onShowToast }) {
                   type="button"
                   disabled={staffPage === totalStaffPages}
                   onClick={() => setStaffPage((p) => Math.min(p + 1, totalStaffPages))}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-[11.5px] font-medium bg-white border border-gray-200 text-[#1b1a18] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 active:scale-95 transition-all"
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-[11.5px] font-medium bg-white border border-gray-200 text-[#1b1a18] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 active:scale-95 transition-all cursor-pointer"
                 >
                   <span>Next</span>
                   <ChevronRight size={14} />
@@ -599,7 +578,6 @@ export default function PeopleScreen({ onShowToast }) {
       )}
 
       
-
       {/* Add Scientist Form Modal */}
       {isScientistModalOpen && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
