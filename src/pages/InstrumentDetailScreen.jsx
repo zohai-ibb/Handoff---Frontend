@@ -18,6 +18,8 @@ import {
   QrCode,
   Download,
   Wrench,
+  Lock,
+  Send,
 } from "lucide-react";
 import { QRCodeCanvas } from "qrcode.react";
 import axiosClient from "../api/axiosClient";
@@ -125,6 +127,7 @@ export default function InstrumentDetailScreen({
 
   const status = instrument.status || "AVAILABLE";
   const isOverdue = status === "OVERDUE" || instrument.isOverdue;
+  const isCurrentlyIssued = status === "ISSUED" || status === "OVERDUE" || isOverdue;
 
   let statusBadgeClass = "bg-[#eef7f2] text-[#12695a]";
   if (isOverdue) {
@@ -249,7 +252,6 @@ export default function InstrumentDetailScreen({
     if (onShowToast) onShowToast("Instrument photo captured!");
   };
 
-  // Pre-submit handler: Intercepts status changes to show confirmation modal
   const handleFormSubmitAttempt = (e) => {
     e.preventDefault();
     if (!instrumentId) return;
@@ -257,7 +259,6 @@ export default function InstrumentDetailScreen({
     const currentStatus = instrument.status || "AVAILABLE";
     const targetStatus = editFormData.status;
 
-    // Trigger two-step popup if status is being changed between AVAILABLE <-> MAINTENANCE
     if (currentStatus !== targetStatus) {
       setPendingStatusChange({ from: currentStatus, to: targetStatus });
       setShowStatusConfirmModal(true);
@@ -266,7 +267,6 @@ export default function InstrumentDetailScreen({
     }
   };
 
-  // Core API Submission execution handler
   const executeSaveEdit = async () => {
     setShowStatusConfirmModal(false);
     try {
@@ -325,6 +325,14 @@ export default function InstrumentDetailScreen({
 
   const handleDeleteInstrument = async () => {
     if (!instrumentId) return;
+
+    if (isCurrentlyIssued) {
+      if (onShowToast) {
+        onShowToast("Cannot delete instrument while it is issued or overdue.");
+      }
+      setShowDeleteModal(false);
+      return;
+    }
 
     try {
       setIsDeleting(true);
@@ -471,7 +479,7 @@ export default function InstrumentDetailScreen({
             </div>
           )}
 
-          {(status === "ISSUED" || isOverdue) && (
+          {isCurrentlyIssued && (
             <div className="bg-white p-4 rounded-2xl border border-black/10 shadow-xs space-y-2">
               <span className="text-[10.5px] font-bold uppercase tracking-wider text-[#5d5b56]">
                 Current Issue Context
@@ -520,70 +528,112 @@ export default function InstrumentDetailScreen({
             </div>
           )}
 
-          <div className="pt-2 space-y-2">
-            <button
-              onClick={() => setShowQrModal(true)}
-              className="w-full bg-[#1b4d8f] text-white py-3 rounded-xl text-[13.5px] font-semibold active:scale-98 transition-all shadow-xs flex items-center justify-center gap-2"
-            >
-              <QrCode size={18} />
-              <span>View Saved Instrument QR</span>
-            </button>
-
-            {status === "AVAILABLE" && (
+          {/* COMPACT 2x2 ACTION BUTTON GRID */}
+          <div className="pt-1.5 space-y-2">
+            <div className="grid grid-cols-2 gap-2">
+              {/* 1. QR CODE BUTTON */}
               <button
-                onClick={() => onNavigate && onNavigate("Issue")}
-                className="w-full bg-[#12695a] text-white py-3 rounded-xl text-[13.5px] font-semibold active:scale-98 transition-all shadow-xs text-center"
+                onClick={() => setShowQrModal(true)}
+                className="flex items-center gap-2 p-2.5 bg-[#f4f7fc] hover:bg-[#e8f0fa] border border-[#1b4d8f]/20 rounded-xl active:scale-95 transition-all cursor-pointer text-[#1b4d8f]"
               >
-                Issue this instrument
+                <div className="w-7 h-7 rounded-lg bg-[#1b4d8f]/10 flex items-center justify-center shrink-0">
+                  <QrCode size={15} />
+                </div>
+                <span className="text-[11px] font-bold truncate">View QR</span>
               </button>
+
+              {/* 2. ISSUE BUTTON */}
+              <button
+                disabled={status !== "AVAILABLE"}
+                onClick={() => onNavigate && onNavigate("Issue")}
+                className={`flex items-center gap-2 p-2.5 rounded-xl transition-all ${
+                  status === "AVAILABLE"
+                    ? "bg-[#12695a] hover:bg-[#0e5246] text-white active:scale-95 cursor-pointer shadow-xs"
+                    : "bg-gray-100 border border-gray-200 text-gray-400 cursor-not-allowed opacity-60"
+                }`}
+              >
+                <div
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+                    status === "AVAILABLE" ? "bg-white/20" : "bg-gray-200"
+                  }`}
+                >
+                  <Send size={15} />
+                </div>
+                <span className="text-[11px] font-bold truncate">Issue Item</span>
+              </button>
+
+              {/* 3. EDIT BUTTON */}
+              <button
+                disabled={isCurrentlyIssued}
+                onClick={() => {
+                  if (isCurrentlyIssued) return;
+                  setSelectedPhotoFile(null);
+                  if (fileInputRef.current) fileInputRef.current.value = "";
+                  setEditFormData({
+                    name: instrument.name || "",
+                    assetId: instrument.assetId || instrument.asset_id || "",
+                    make: instrument.make || "",
+                    serialNo: instrument.serialNo || instrument.serial_no || "",
+                    location: instrument.location || "",
+                    calibrationValidTo:
+                      instrument.calibrationValidTo ||
+                      instrument.calibration_valid_to ||
+                      "",
+                    purchaseDate:
+                      instrument.purchaseDate || instrument.purchase_date || "",
+                    purchaseCost:
+                      instrument.purchaseCost || instrument.purchase_cost || "",
+                    status: instrument.status || "AVAILABLE",
+                    photoPath: instrument.photoPath || instrument.photo_path || null,
+                  });
+                  setIsEditing(true);
+                }}
+                className={`flex items-center gap-2 p-2.5 rounded-xl transition-all ${
+                  isCurrentlyIssued
+                    ? "bg-gray-100 border border-gray-200 text-gray-400 cursor-not-allowed opacity-60"
+                    : "bg-[#1b4d8f]/10 hover:bg-[#1b4d8f]/15 border border-[#1b4d8f]/20 text-[#1b4d8f] active:scale-95 cursor-pointer"
+                }`}
+              >
+                <div
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+                    isCurrentlyIssued ? "bg-gray-200" : "bg-[#1b4d8f]/10"
+                  }`}
+                >
+                  <Edit3 size={15} />
+                </div>
+                <span className="text-[11px] font-bold truncate">Edit Details</span>
+              </button>
+
+              {/* 4. DELETE BUTTON */}
+              <button
+                disabled={isCurrentlyIssued}
+                onClick={() => {
+                  if (isCurrentlyIssued) return;
+                  setShowDeleteModal(true);
+                }}
+                className={`flex items-center gap-2 p-2.5 rounded-xl transition-all ${
+                  isCurrentlyIssued
+                    ? "bg-gray-100 border border-gray-200 text-gray-400 cursor-not-allowed opacity-60"
+                    : "bg-[#fcf2f2] hover:bg-[#f8e5e5] border border-[#f5c2c2] text-[#c92a2a] active:scale-95 cursor-pointer"
+                }`}
+              >
+                <div
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+                    isCurrentlyIssued ? "bg-gray-200" : "bg-[#c92a2a]/10"
+                  }`}
+                >
+                  <Trash2 size={15} />
+                </div>
+                <span className="text-[11px] font-bold truncate">Delete Item</span>
+              </button>
+            </div>
+
+            {/* STATUS ALERT FOOTNOTE */}
+            {isCurrentlyIssued && (
+              <p className="text-[10px] text-center text-amber-700 bg-amber-50 border border-amber-200 py-1 px-2.5 rounded-lg font-medium">
+                Editing and deletion are locked while this instrument is issued or overdue.
+              </p>
             )}
-
-            <button
-              disabled={status === "ISSUED" || status === "OVERDUE" || isOverdue}
-              onClick={() => {
-                if (status === "ISSUED" || status === "OVERDUE" || isOverdue) return;
-                setSelectedPhotoFile(null);
-                if (fileInputRef.current) fileInputRef.current.value = "";
-                setEditFormData({
-                  name: instrument.name || "",
-                  assetId: instrument.assetId || instrument.asset_id || "",
-                  make: instrument.make || "",
-                  serialNo: instrument.serialNo || instrument.serial_no || "",
-                  location: instrument.location || "",
-                  calibrationValidTo:
-                    instrument.calibrationValidTo ||
-                    instrument.calibration_valid_to ||
-                    "",
-                  purchaseDate:
-                    instrument.purchaseDate || instrument.purchase_date || "",
-                  purchaseCost:
-                    instrument.purchaseCost || instrument.purchase_cost || "",
-                  status: instrument.status || "AVAILABLE",
-                  photoPath: instrument.photoPath || instrument.photo_path || null,
-                });
-                setIsEditing(true);
-              }}
-              className={`w-full py-3 rounded-xl text-[13.5px] font-semibold active:scale-98 transition-all shadow-xs flex items-center justify-center gap-2 ${
-                status === "ISSUED" || status === "OVERDUE" || isOverdue
-                  ? "bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed opacity-60"
-                  : "bg-[#1b4d8f]/10 text-[#1b4d8f] border border-[#1b4d8f]/20"
-              }`}
-            >
-              <Edit3 size={16} />
-              <span>
-                {status === "ISSUED" || status === "OVERDUE" || isOverdue
-                  ? "Cannot Edit (Currently Issued / Due)"
-                  : "Edit Instrument Details"}
-              </span>
-            </button>
-
-            <button
-              onClick={() => setShowDeleteModal(true)}
-              className="w-full bg-[#fcf2f2] text-[#c92a2a] border border-[#f5c2c2] py-3 rounded-xl text-[13.5px] font-semibold active:scale-98 transition-all shadow-xs flex items-center justify-center gap-2"
-            >
-              <Trash2 size={16} />
-              <span>Delete Instrument</span>
-            </button>
           </div>
         </>
       ) : (
@@ -660,7 +710,7 @@ export default function InstrumentDetailScreen({
             </div>
           </div>
 
-          {/* Instrument Operational Status Selector */}
+          {/* Operational Status */}
           <div className="space-y-1 bg-[#f4f7fc] p-2.5 rounded-xl border border-[#1b4d8f]/20">
             <label className="text-[11px] font-bold text-[#1b4d8f] uppercase tracking-wider flex items-center gap-1">
               <Wrench size={13} />
@@ -680,29 +730,39 @@ export default function InstrumentDetailScreen({
             </p>
           </div>
 
+          {/* LOCKED FIELD: Instrument Name */}
           <div className="space-y-1">
-            <label className="text-[11px] font-semibold text-[#5d5b56]">
-              Instrument Name
+            <label className="text-[11px] font-semibold text-[#5d5b56] flex items-center justify-between">
+              <span>Instrument Name</span>
+              <span className="text-[10px] text-gray-400 font-normal flex items-center gap-0.5">
+                <Lock size={10} /> Locked
+              </span>
             </label>
             <input
               type="text"
               name="name"
               value={editFormData.name}
-              onChange={handleEditChange}
-              required
-              className="w-full bg-white text-xs p-2.5 rounded-xl border border-black/15 focus:outline-none focus:border-[#1b4d8f]"
+              readOnly
+              disabled
+              className="w-full bg-gray-100 text-xs p-2.5 rounded-xl border border-black/10 text-gray-500 cursor-not-allowed select-none"
             />
           </div>
 
+          {/* LOCKED FIELD: Asset ID */}
           <div className="space-y-1">
-            <label className="text-[11px] font-semibold text-[#5d5b56]">Asset ID</label>
+            <label className="text-[11px] font-semibold text-[#5d5b56] flex items-center justify-between">
+              <span>Asset ID</span>
+              <span className="text-[10px] text-gray-400 font-normal flex items-center gap-0.5">
+                <Lock size={10} /> Locked
+              </span>
+            </label>
             <input
               type="text"
               name="assetId"
               value={editFormData.assetId}
-              onChange={handleEditChange}
-              required
-              className="w-full bg-white text-xs p-2.5 rounded-xl border border-black/15 focus:outline-none focus:border-[#1b4d8f]"
+              readOnly
+              disabled
+              className="w-full bg-gray-100 font-mono text-xs p-2.5 rounded-xl border border-black/10 text-gray-500 cursor-not-allowed select-none"
             />
           </div>
 
@@ -757,30 +817,40 @@ export default function InstrumentDetailScreen({
               />
             </div>
 
+            {/* LOCKED FIELD: Purchase Date */}
             <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-[#5d5b56]">
-                Purchase Date
+              <label className="text-[11px] font-semibold text-[#5d5b56] flex items-center justify-between">
+                <span>Purchase Date</span>
+                <span className="text-[10px] text-gray-400 font-normal flex items-center gap-0.5">
+                  <Lock size={10} /> Locked
+                </span>
               </label>
               <input
                 type="date"
                 name="purchaseDate"
                 value={editFormData.purchaseDate}
-                onChange={handleEditChange}
-                className="w-full bg-white text-xs p-2.5 rounded-xl border border-black/15 focus:outline-none focus:border-[#1b4d8f]"
+                readOnly
+                disabled
+                className="w-full bg-gray-100 text-xs p-2.5 rounded-xl border border-black/10 text-gray-500 cursor-not-allowed select-none"
               />
             </div>
           </div>
 
+          {/* LOCKED FIELD: Purchase Cost */}
           <div className="space-y-1">
-            <label className="text-[11px] font-semibold text-[#5d5b56]">
-              Purchase Cost (₹)
+            <label className="text-[11px] font-semibold text-[#5d5b56] flex items-center justify-between">
+              <span>Purchase Cost (₹)</span>
+              <span className="text-[10px] text-gray-400 font-normal flex items-center gap-0.5">
+                <Lock size={10} /> Locked
+              </span>
             </label>
             <input
               type="number"
               name="purchaseCost"
               value={editFormData.purchaseCost}
-              onChange={handleEditChange}
-              className="w-full bg-white text-xs p-2.5 rounded-xl border border-black/15 focus:outline-none focus:border-[#1b4d8f]"
+              readOnly
+              disabled
+              className="w-full bg-gray-100 text-xs p-2.5 rounded-xl border border-black/10 text-gray-500 cursor-not-allowed select-none"
             />
           </div>
 
@@ -938,7 +1008,7 @@ export default function InstrumentDetailScreen({
         </div>
       )}
 
-      {/* Delete Modal */}
+      {/* DELETE CONFIRMATION MODAL */}
       {showDeleteModal && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
           <div className="bg-white rounded-2xl p-4.5 w-full max-w-sm space-y-3 shadow-2xl border border-black/10 animate-fade-in">
@@ -973,7 +1043,7 @@ export default function InstrumentDetailScreen({
               </button>
               <button
                 type="button"
-                disabled={isDeleting}
+                disabled={isDeleting || isCurrentlyIssued}
                 onClick={handleDeleteInstrument}
                 className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-[#c92a2a] hover:bg-[#b02525] text-white disabled:opacity-50 transition-all cursor-pointer"
               >
@@ -984,7 +1054,7 @@ export default function InstrumentDetailScreen({
         </div>
       )}
 
-      {/* Camera modal */}
+      {/* CAMERA MODAL */}
       {isCameraOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in">
           <div className="w-full max-w-sm h-[70vh] bg-black rounded-3xl overflow-hidden flex flex-col justify-between p-3.5 shadow-2xl border border-white/20">

@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { ArrowLeft, Search, Image as ImageIcon, Calendar, RefreshCw, X } from "lucide-react";
+import { ArrowLeft, Search, Image as ImageIcon, Calendar, RefreshCw, X, Mail } from "lucide-react";
 import axiosClient from "../api/axiosClient";
 import { getActiveIssueRecords } from "../api/instrumentService";
 import { isRecordOverdue } from "../utils/dateUtils";
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 5;
 
 export default function DueScreen({ onBack, onShowToast }) {
   const [loans, setLoans] = useState([]);
@@ -17,6 +17,10 @@ export default function DueScreen({ onBack, onShowToast }) {
   const [reissueItem, setReissueItem] = useState(null);
   const [newDueDate, setNewDueDate] = useState("");
   const [isSubmittingReissue, setIsSubmittingReissue] = useState(false);
+
+  // Modal State for Sending Email Confirmation
+  const [confirmReminderItem, setConfirmReminderItem] = useState(null);
+  const [isSendingReminder, setIsSendingReminder] = useState(false);
 
   const fetchActiveLoans = async () => {
     try {
@@ -43,7 +47,7 @@ export default function DueScreen({ onBack, onShowToast }) {
     fetchActiveLoans();
   }, []);
 
-  // Filter loans based on search input (Name, Asset ID, Borrower Name, Make)
+  // Filter loans based on search input
   const filteredLoans = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
     if (!query) return loans;
@@ -73,12 +77,10 @@ export default function DueScreen({ onBack, onShowToast }) {
     });
   }, [loans, searchQuery]);
 
-  // Reset page if filtered result count changes
   useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery]);
 
-  // Scroll smoothly to top whenever pagination page changes
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
 
@@ -88,31 +90,49 @@ export default function DueScreen({ onBack, onShowToast }) {
     }
   }, [currentPage]);
 
-  const handleSendReminder = async (item) => {
+  // Open confirmation pop-up modal
+  const handlePromptSendReminder = (item) => {
+    setConfirmReminderItem(item);
+  };
+
+  // Execute reminder API call upon user confirmation
+  const handleConfirmSendReminder = async () => {
+    if (!confirmReminderItem) return;
+
     try {
+      setIsSendingReminder(true);
+      const recordId = confirmReminderItem.id || confirmReminderItem._id;
       const borrowerName =
-        item.borrowerScientist?.name ||
-        item.borrower_scientist?.name ||
-        item.staffName ||
-        item.staff_name ||
+        confirmReminderItem.borrowerScientist?.name ||
+        confirmReminderItem.borrower_scientist?.name ||
+        confirmReminderItem.staffName ||
+        confirmReminderItem.staff_name ||
         "Borrower";
+      const instrumentName = confirmReminderItem.instrument?.name || "Instrument";
+
+      // Dispatch request to backend
+      await axiosClient.post(`/issue-records/${recordId}/send-reminder`);
 
       if (onShowToast) {
         onShowToast(
-          `Reminder email dispatched to ${borrowerName} for ${
-            item.instrument?.name || "Instrument"
-          }.`
+          `Reminder email dispatched to ${borrowerName} for ${instrumentName}.`
         );
       }
+      setConfirmReminderItem(null);
     } catch (err) {
-      if (onShowToast) onShowToast("Failed to dispatch reminder email.");
+      if (onShowToast) {
+        onShowToast(
+          err.response?.data?.message || "Failed to dispatch reminder email."
+        );
+      }
+    } finally {
+      setIsSendingReminder(false);
     }
   };
 
-  // Handle Reissue (Extending the Due Date)
+  // Reissue handlers
   const handleOpenReissueModal = (item) => {
     setReissueItem(item);
-    // Set default new due date to 14 days from today
     const fourteenDaysLater = new Date();
     fourteenDaysLater.setDate(fourteenDaysLater.getDate() + 14);
     setNewDueDate(fourteenDaysLater.toISOString().split("T")[0]);
@@ -125,7 +145,6 @@ export default function DueScreen({ onBack, onShowToast }) {
       setIsSubmittingReissue(true);
       const recordId = reissueItem.id || reissueItem._id;
 
-      // API Call to update the issue record's due date
       await axiosClient.put(`/issue-records/${recordId}`, {
         due_date: newDueDate,
         dueDate: newDueDate,
@@ -146,7 +165,6 @@ export default function DueScreen({ onBack, onShowToast }) {
         );
       }
 
-      // Close Modal & Refresh List (reissued item with future date will auto-remove from overdue list)
       setReissueItem(null);
       fetchActiveLoans();
     } catch (err) {
@@ -158,7 +176,6 @@ export default function DueScreen({ onBack, onShowToast }) {
     }
   };
 
-  // Pagination Math
   const totalPages = Math.ceil(filteredLoans.length / PAGE_SIZE) || 1;
   const startIndex = (currentPage - 1) * PAGE_SIZE;
   const slicedLoans = filteredLoans.slice(startIndex, startIndex + PAGE_SIZE);
@@ -176,9 +193,7 @@ export default function DueScreen({ onBack, onShowToast }) {
           >
             <ArrowLeft size={18} className="text-[#1b4d8f]" />
           </button>
-          <h2 className="text-base font-bold text-[#1b4d8f]">
-            Overdue Tracker
-          </h2>
+          <h2 className="text-base font-bold text-[#1b4d8f]">Overdue Tracker</h2>
         </div>
 
         <p className="text-[12px] text-[#5d5b56] leading-relaxed">
@@ -192,13 +207,11 @@ export default function DueScreen({ onBack, onShowToast }) {
               require immediate attention. Send reminders or reissue with a new return date.
             </>
           ) : (
-            <>
-              All issued items are within their return schedules. Nothing overdue.
-            </>
+            <>All issued items are within their return schedules. Nothing overdue.</>
           )}
         </p>
 
-        {/* Search Bar Input */}
+        {/* Search Input */}
         <div className="relative pt-1">
           <input
             type="text"
@@ -214,7 +227,7 @@ export default function DueScreen({ onBack, onShowToast }) {
         </div>
       </div>
 
-      {/* Overdue Records List */}
+      {/* Overdue List */}
       <div className="flex-1 overflow-y-auto space-y-3 pr-1 no-scrollbar">
         {error && (
           <div className="bg-[#fcf2f2] text-[#c92a2a] text-[11.5px] p-2.5 rounded-xl border border-[#f5c2c2]">
@@ -223,9 +236,7 @@ export default function DueScreen({ onBack, onShowToast }) {
         )}
 
         {isLoading ? (
-          <p className="text-xs text-gray-400 py-2">
-            Loading overdue tracker...
-          </p>
+          <p className="text-xs text-gray-400 py-2">Loading overdue tracker...</p>
         ) : filteredLoans.length === 0 ? (
           <div className="bg-[#ffffff] p-6 rounded-2xl border border-black/10 text-center space-y-1">
             <h4 className="text-[13px] font-semibold text-[#12695a]">
@@ -242,7 +253,6 @@ export default function DueScreen({ onBack, onShowToast }) {
             <div className="space-y-3">
               {slicedLoans.map((item) => {
                 const dueDateDisplay = item.dueDate || item.due_date || "N/A";
-
                 const borrowerName =
                   item.borrowerScientist?.name ||
                   item.borrower_scientist?.name ||
@@ -250,7 +260,6 @@ export default function DueScreen({ onBack, onShowToast }) {
                   item.staff_name ||
                   "Borrower";
 
-                // Resolve Photo URL
                 const photoPath =
                   item.instrument?.photoPath || item.instrument?.photo_path;
                 const photoUrl = photoPath
@@ -265,7 +274,6 @@ export default function DueScreen({ onBack, onShowToast }) {
                     className="p-3.5 rounded-2xl border transition-all shadow-xs space-y-2.5 bg-white border-[#f5c2c2]"
                   >
                     <div className="flex items-center gap-3">
-                      {/* Left Side: Photo Thumbnail */}
                       <div className="w-20 h-20 shrink-0 bg-gray-100 rounded-xl overflow-hidden border border-black/10 flex items-center justify-center">
                         {photoUrl ? (
                           <img
@@ -278,7 +286,6 @@ export default function DueScreen({ onBack, onShowToast }) {
                         )}
                       </div>
 
-                      {/* Right Side: Card Details */}
                       <div className="flex-1 min-w-0 space-y-1">
                         <div className="flex items-start justify-between gap-1.5">
                           <h3 className="text-[13.5px] font-bold text-[#1b1a18] leading-snug truncate">
@@ -305,11 +312,10 @@ export default function DueScreen({ onBack, onShowToast }) {
                       </div>
                     </div>
 
-                    {/* Action Buttons: Send Reminder & Reissue */}
                     <div className="flex items-center gap-2 pt-1">
                       <button
                         type="button"
-                        onClick={() => handleSendReminder(item)}
+                        onClick={() => handlePromptSendReminder(item)}
                         className="flex-1 bg-[#8f2318] hover:bg-[#731c13] text-white py-2 rounded-xl text-[12px] font-semibold active:scale-98 transition-all shadow-xs text-center cursor-pointer"
                       >
                         Send reminder
@@ -334,9 +340,7 @@ export default function DueScreen({ onBack, onShowToast }) {
               <div className="flex items-center justify-between pt-2 text-[12px] text-[#5d5b56]">
                 <button
                   disabled={currentPage === 1}
-                  onClick={() => {
-                    setCurrentPage((prev) => Math.max(1, prev - 1));
-                  }}
+                  onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
                   className="px-3 py-1.5 bg-white border border-gray-300 rounded-xl font-medium shadow-xs disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 transition-all cursor-pointer"
                 >
                   Prev
@@ -346,9 +350,7 @@ export default function DueScreen({ onBack, onShowToast }) {
                 </span>
                 <button
                   disabled={currentPage === totalPages}
-                  onClick={() => {
-                    setCurrentPage((prev) => Math.min(totalPages, prev + 1));
-                  }}
+                  onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
                   className="px-3 py-1.5 bg-white border border-gray-300 rounded-xl font-medium shadow-xs disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 transition-all cursor-pointer"
                 >
                   Next
@@ -358,6 +360,66 @@ export default function DueScreen({ onBack, onShowToast }) {
           </>
         )}
       </div>
+
+      {/* Confirmation Modal for Sending Reminder Email */}
+      {confirmReminderItem && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-sm rounded-2xl p-4 shadow-xl border border-black/10 space-y-3">
+            <div className="flex items-center justify-between border-b pb-2">
+              <h3 className="text-sm font-bold text-[#8f2318] flex items-center gap-1.5">
+                <Mail size={16} />
+                Confirm Send Reminder
+              </h3>
+              <button
+                onClick={() => setConfirmReminderItem(null)}
+                className="p-1 rounded-lg hover:bg-gray-100 text-gray-500 cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="space-y-2 text-xs text-[#5d5b56] pt-1">
+              <p>Are you sure you want to send a return reminder email?</p>
+              <div className="bg-gray-50 p-2.5 rounded-xl border border-gray-200 space-y-1">
+                <p>
+                  <span className="font-semibold text-gray-800">Borrower Scientist:</span>{" "}
+                  <span className="font-bold text-[#1b4d8f]">
+                    {confirmReminderItem.borrowerScientist?.name ||
+                      confirmReminderItem.borrower_scientist?.name ||
+                      confirmReminderItem.staffName ||
+                      confirmReminderItem.staff_name ||
+                      "Borrower"}
+                  </span>
+                </p>
+                <p>
+                  <span className="font-semibold text-gray-800">Instrument:</span>{" "}
+                  <span className="font-bold text-[#1b1a18]">
+                    {confirmReminderItem.instrument?.name || "Instrument"}
+                  </span>
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setConfirmReminderItem(null)}
+                className="flex-1 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-xl transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isSendingReminder}
+                onClick={handleConfirmSendReminder}
+                className="flex-1 py-2 bg-[#8f2318] hover:bg-[#731c13] text-white text-xs font-semibold rounded-xl shadow-xs transition-all cursor-pointer disabled:opacity-50"
+              >
+                {isSendingReminder ? "Sending..." : "Yes, Send Email"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Reissue Modal */}
       {reissueItem && (
