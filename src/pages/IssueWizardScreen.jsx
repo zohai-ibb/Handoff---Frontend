@@ -10,7 +10,9 @@ import {
   ChevronLeft,
   ChevronRight,
   AlertCircle,
+  QrCode,
 } from "lucide-react";
+import { Html5QrcodeScanner } from "html5-qrcode";
 import {
   getMyInstruments,
   getMyScientists,
@@ -38,6 +40,11 @@ export default function IssueWizardScreen({
   const [scientistSearchQuery, setScientistSearchQuery] = useState("");
   const [staffSearchQuery, setStaffSearchQuery] = useState("");
   const [isStaffDropdownOpen, setIsStaffDropdownOpen] = useState(false);
+
+  // Live QR Scanner State
+  const [isQrScannerOpen, setIsQrScannerOpen] = useState(false);
+  const [isScanningApi, setIsScanningApi] = useState(false);
+  const qrScannerRef = useRef(null);
 
   // Pagination States (3 Items Per Page)
   const [instrumentPage, setInstrumentPage] = useState(1);
@@ -72,7 +79,7 @@ export default function IssueWizardScreen({
     "Complete with case and accessories"
   );
 
-  // Camera & Photo Capture State
+  // Camera & Photo Capture State (Step 3)
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [capturedPhoto, setCapturedPhoto] = useState(null);
   const videoRef = useRef(null);
@@ -111,6 +118,67 @@ export default function IssueWizardScreen({
     fetchData();
   }, []);
 
+  // --- Live QR Scanner Lifecycle Effect ---
+  useEffect(() => {
+    if (isQrScannerOpen) {
+      const scanner = new Html5QrcodeScanner(
+        "qr-reader-container",
+        {
+          fps: 10,
+          qrbox: { width: 220, height: 220 },
+          aspectRatio: 1.0,
+        },
+        /* verbose= */ false
+      );
+
+      qrScannerRef.current = scanner;
+
+      scanner.render(
+        async (decodedText) => {
+          // Pause/Clear scanner on successful read
+          scanner.clear().catch(() => {});
+          setIsQrScannerOpen(false);
+
+          try {
+            setIsScanningApi(true);
+            if (onShowToast) onShowToast(`Scanned Tag: ${decodedText}. Fetching details...`);
+
+            // Fetch instrument details via backend scan API
+            const scannedInstrument = await scanInstrumentByAssetId(decodedText.trim());
+
+            if (scannedInstrument) {
+              setSelectedInstrument(scannedInstrument);
+              if (onShowToast) {
+                onShowToast(
+                  `Instrument Matched: ${scannedInstrument.name} (${scannedInstrument.asset_id || scannedInstrument.assetId})`
+                );
+              }
+              // Automatically move to Step 2 (Person selection)
+              setCurrentStep(2);
+            } else {
+              if (onShowToast) onShowToast("Instrument not found for scanned QR tag.");
+            }
+          } catch (err) {
+            if (onShowToast) {
+              onShowToast("Backend scan failed: Instrument not found in inventory.");
+            }
+          } finally {
+            setIsScanningApi(false);
+          }
+        },
+        (errorMessage) => {
+          // Silent callback for non-detected frames
+        }
+      );
+
+      return () => {
+        if (qrScannerRef.current) {
+          qrScannerRef.current.clear().catch(() => {});
+        }
+      };
+    }
+  }, [isQrScannerOpen]);
+
   // Filter Instruments in real-time based on search input
   const filteredInstruments = availableInstruments.filter((inst) => {
     const q = instrumentSearchQuery.toLowerCase().trim();
@@ -144,7 +212,6 @@ export default function IssueWizardScreen({
   });
 
   // --- Pagination Slice Calculations ---
-  // Step 1: Instrument Pagination
   const totalInstrumentPages =
     Math.ceil(filteredInstruments.length / ITEMS_PER_PAGE) || 1;
   const paginatedInstruments = filteredInstruments.slice(
@@ -152,7 +219,6 @@ export default function IssueWizardScreen({
     instrumentPage * ITEMS_PER_PAGE
   );
 
-  // Step 2: Scientist Pagination
   const totalScientistPages =
     Math.ceil(filteredScientists.length / ITEMS_PER_PAGE) || 1;
   const paginatedScientists = filteredScientists.slice(
@@ -160,7 +226,6 @@ export default function IssueWizardScreen({
     scientistPage * ITEMS_PER_PAGE
   );
 
-  // Reset pagination pages when search queries change
   useEffect(() => {
     setInstrumentPage(1);
   }, [instrumentSearchQuery]);
@@ -186,7 +251,7 @@ export default function IssueWizardScreen({
     setIsStaffDropdownOpen(false);
   };
 
-  // Camera Stream Handlers
+  // Camera Stream Handlers for Step 3 Photo
   const startCamera = async () => {
     try {
       setIsCameraOpen(true);
@@ -228,29 +293,6 @@ export default function IssueWizardScreen({
     return () => stopCamera();
   }, []);
 
-  // --- Backend QR Scan Integration ---
-  const handleSimulateScan = async () => {
-    try {
-      const sampleAssetId =
-        availableInstruments[0]?.asset_id || "CBRI/APEEG/0143";
-      const scannedInstrument = await scanInstrumentByAssetId(sampleAssetId);
-      if (scannedInstrument) {
-        setSelectedInstrument(scannedInstrument);
-        if (onShowToast) {
-          onShowToast(
-            `Scanned asset tag: ${
-              scannedInstrument.asset_id || scannedInstrument.assetId
-            } (${scannedInstrument.name})`
-          );
-        }
-      }
-    } catch (err) {
-      if (onShowToast) {
-        onShowToast("QR lookup failed: Instrument not found in backend.");
-      }
-    }
-  };
-
   // --- Step Validation Handlers ---
   const handleContinueStep1 = () => {
     if (!selectedInstrument) {
@@ -280,7 +322,6 @@ export default function IssueWizardScreen({
         );
       return;
     }
-    // MANDATORY PHOTO CHECK
     if (!capturedPhoto) {
       if (onShowToast)
         onShowToast(
@@ -352,7 +393,7 @@ export default function IssueWizardScreen({
 
   return (
     <div className="relative h-full flex flex-col justify-between overflow-hidden font-sans text-[#1b1a18]">
-      {/* --- Top Fixed Header & Step Progress Bar --- */}
+      {/* Top Header & Step Progress Bar */}
       <div className="shrink-0 pb-2">
         <div className="flex items-center gap-2 mb-1">
           <button
@@ -415,27 +456,39 @@ export default function IssueWizardScreen({
         </div>
       </div>
 
-      {/* --- Middle Scrollable Area --- */}
+      {/* Middle Scrollable Area */}
       <div className="flex-1 overflow-y-auto py-1 pr-1 custom-scrollbar">
         {/* ==================== STEP 1: SELECT INSTRUMENT ==================== */}
         {currentStep === 1 && (
           <div className="space-y-2.5 animate-fade-in">
-            {/* Scan Area */}
+            {/* Live Camera QR Trigger Section */}
             <div className="bg-[#eef3fa] border-2 border-dashed border-[#1b4d8f]/40 rounded-2xl p-3 text-center space-y-1">
-              <div className="w-9 h-9 rounded-xl bg-white border-2 border-[#1b4d8f] mx-auto flex items-center justify-center shadow-xs">
-                <span className="font-mono font-bold text-xs text-[#1b4d8f]">
-                  QR
-                </span>
+              <div className="w-10 h-10 rounded-xl bg-white border-2 border-[#1b4d8f] mx-auto flex items-center justify-center shadow-xs">
+                <QrCode size={20} className="text-[#1b4d8f]" />
               </div>
               <h3 className="text-xs font-bold text-[#1b4d8f]">
-                Scan asset label
+                Scan physical QR label
               </h3>
+              <p className="text-[10.5px] text-[#5d5b56] max-w-[220px] mx-auto leading-tight">
+                Scan the QR code printed on the instrument to automatically fetch asset details.
+              </p>
               <button
                 type="button"
-                onClick={handleSimulateScan}
-                className="bg-[#1b4d8f] text-white text-[11px] font-semibold py-1 px-3 rounded-xl active:scale-95 transition-all shadow-xs cursor-pointer"
+                disabled={isScanningApi}
+                onClick={() => setIsQrScannerOpen(true)}
+                className="bg-[#1b4d8f] text-white text-[11px] font-semibold py-1.5 px-4 rounded-xl active:scale-95 transition-all shadow-xs cursor-pointer flex items-center justify-center gap-1.5 mx-auto"
               >
-                Simulate scan
+                {isScanningApi ? (
+                  <>
+                    <Loader2 size={13} className="animate-spin" />
+                    <span>Fetching asset...</span>
+                  </>
+                ) : (
+                  <>
+                    <Camera size={13} />
+                    <span>Open QR Camera</span>
+                  </>
+                )}
               </button>
             </div>
 
@@ -469,7 +522,7 @@ export default function IssueWizardScreen({
               )}
             </div>
 
-            {/* Instrument Cards Container (3 Items Visible) */}
+            {/* Instrument Cards List */}
             <div className="space-y-2">
               {filteredInstruments.length === 0 ? (
                 <p className="text-xs text-gray-500 text-center py-4">
@@ -546,7 +599,6 @@ export default function IssueWizardScreen({
         {/* ==================== STEP 2: SELECT BORROWER SCIENTIST & STAFF ==================== */}
         {currentStep === 2 && (
           <div className="space-y-2.5 animate-fade-in pb-4">
-            {/* Selected Instrument Summary Card */}
             <div className="bg-white p-2.5 rounded-xl border border-black/10 space-y-0.5 shadow-xs">
               <span className="text-[9.5px] font-bold tracking-wider text-[#7a7872] uppercase">
                 INSTRUMENT
@@ -556,13 +608,11 @@ export default function IssueWizardScreen({
               </h3>
             </div>
 
-            {/* Borrower Scientist Section */}
             <div className="space-y-1.5">
               <span className="text-[10.5px] font-bold tracking-wider text-[#5d5b56] uppercase">
                 ISSUE TO BORROWER SCIENTIST *
               </span>
 
-              {/* CASE 1: SCIENTIST IS SELECTED -> SHOW SELECTED CARD ONLY */}
               {selectedScientist ? (
                 <div className="bg-[#f4f7fc] p-3 rounded-2xl border border-[#1b4d8f] flex items-center justify-between gap-3 shadow-xs">
                   <div className="flex items-center gap-2.5 min-w-0 flex-1">
@@ -596,9 +646,7 @@ export default function IssueWizardScreen({
                   </button>
                 </div>
               ) : (
-                /* CASE 2: NO SCIENTIST SELECTED -> SHOW SEARCH AND SELECTION LIST */
                 <div className="space-y-2">
-                  {/* Scientist Search Input */}
                   <div className="relative">
                     <Search
                       className="absolute left-2.5 top-2.5 text-gray-400"
@@ -622,7 +670,6 @@ export default function IssueWizardScreen({
                     )}
                   </div>
 
-                  {/* Scientist Directory List (3 Items Visible) */}
                   <div className="space-y-2">
                     {filteredScientists.length === 0 ? (
                       <p className="text-xs text-gray-500 text-center py-4">
@@ -671,7 +718,6 @@ export default function IssueWizardScreen({
                     )}
                   </div>
 
-                  {/* Scientist Pagination Controls */}
                   {filteredScientists.length > ITEMS_PER_PAGE && (
                     <div className="flex items-center justify-between pt-1 border-t border-gray-100">
                       <button
@@ -703,7 +749,6 @@ export default function IssueWizardScreen({
               )}
             </div>
 
-            {/* Intermediary Staff Details Section */}
             <div className="pt-2 space-y-2 border-t border-gray-200">
               <div className="flex items-center justify-between">
                 <span className="text-[10.5px] font-bold tracking-wider text-[#5d5b56] uppercase">
@@ -714,7 +759,6 @@ export default function IssueWizardScreen({
                 </span>
               </div>
 
-              {/* Searchable Staff Combobox/Dropdown */}
               {savedStaffList.length > 0 && (
                 <div className="space-y-1">
                   <div className="relative">
@@ -752,7 +796,6 @@ export default function IssueWizardScreen({
                     )}
                   </div>
 
-                  {/* Inline Expandable Staff List Box */}
                   {isStaffDropdownOpen && (
                     <div className="w-full bg-white border border-gray-200 rounded-xl shadow-xs overflow-hidden p-1 flex flex-col">
                       <div className="max-h-[120px] overflow-y-auto space-y-0.5 custom-scrollbar">
@@ -803,7 +846,6 @@ export default function IssueWizardScreen({
                 </div>
               )}
 
-              {/* Manual Input Fields */}
               <div className="grid grid-cols-2 gap-2">
                 <input
                   type="text"
@@ -874,7 +916,6 @@ export default function IssueWizardScreen({
               />
             </div>
 
-            {/* Condition Field with Mandatory Camera Button */}
             <div className="space-y-1.5 pt-1">
               <div className="flex items-center justify-between">
                 <label className="text-[11px] font-bold uppercase text-[#c92a2a] tracking-wider flex items-center gap-1">
@@ -898,7 +939,6 @@ export default function IssueWizardScreen({
                 className="w-full bg-white text-[12.5px] p-2.5 rounded-xl border border-black/15 focus:outline-none focus:border-[#1b4d8f]"
               />
 
-              {/* Photo Preview / Mandatory Warning Badge */}
               {capturedPhoto ? (
                 <div className="mt-2 p-2 bg-white rounded-xl border border-emerald-500 ring-1 ring-emerald-500 flex items-center justify-between gap-2 shadow-2xs">
                   <div className="flex items-center gap-2 min-w-0">
@@ -1037,7 +1077,45 @@ export default function IssueWizardScreen({
         )}
       </div>
 
-      {/* Live Camera Modal Overlay */}
+      {/* Live QR Scanner Modal Overlay */}
+      {isQrScannerOpen && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in">
+          <div className="w-full max-w-sm bg-white rounded-3xl p-4 shadow-2xl border border-black/10 space-y-3">
+            <div className="flex items-center justify-between border-b pb-2">
+              <h3 className="text-xs font-bold text-[#1b4d8f] flex items-center gap-1.5">
+                <QrCode size={16} />
+                Scan Asset QR Sticker
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsQrScannerOpen(false)}
+                className="p-1 rounded-full hover:bg-gray-100 text-gray-500 cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Html5Qrcode Scanner Target Element */}
+            <div className="overflow-hidden rounded-2xl bg-black min-h-[220px]">
+              <div id="qr-reader-container" className="w-full" />
+            </div>
+
+            <p className="text-[10.5px] text-[#5d5b56] text-center">
+              Align the QR label on the instrument inside the box.
+            </p>
+
+            <button
+              type="button"
+              onClick={() => setIsQrScannerOpen(false)}
+              className="w-full py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-xl transition-all cursor-pointer"
+            >
+              Cancel Scanning
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Condition Photo Live Viewfinder Modal */}
       {isCameraOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in">
           <div className="w-full max-w-sm h-[70vh] bg-black rounded-3xl overflow-hidden flex flex-col justify-between p-3.5 shadow-2xl border border-white/20">
@@ -1085,7 +1163,7 @@ export default function IssueWizardScreen({
         </div>
       )}
 
-      {/* --- Bottom Fixed Action Footer --- */}
+      {/* Fixed Action Footer */}
       <div className="pt-2 border-t border-gray-100 shrink-0 bg-[#f7f6f3]">
         {currentStep === 1 && (
           <button
