@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { ArrowLeft, Search, Image as ImageIcon } from "lucide-react";
+import { ArrowLeft, Search, Image as ImageIcon, Calendar, RefreshCw, X } from "lucide-react";
 import axiosClient from "../api/axiosClient";
 import { getActiveIssueRecords } from "../api/instrumentService";
 import { isRecordOverdue } from "../utils/dateUtils";
@@ -12,6 +12,11 @@ export default function DueScreen({ onBack, onShowToast }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+
+  // Modal State for Reissuing
+  const [reissueItem, setReissueItem] = useState(null);
+  const [newDueDate, setNewDueDate] = useState("");
+  const [isSubmittingReissue, setIsSubmittingReissue] = useState(false);
 
   const fetchActiveLoans = async () => {
     try {
@@ -104,6 +109,55 @@ export default function DueScreen({ onBack, onShowToast }) {
     }
   };
 
+  // Handle Reissue (Extending the Due Date)
+  const handleOpenReissueModal = (item) => {
+    setReissueItem(item);
+    // Set default new due date to 14 days from today
+    const fourteenDaysLater = new Date();
+    fourteenDaysLater.setDate(fourteenDaysLater.getDate() + 14);
+    setNewDueDate(fourteenDaysLater.toISOString().split("T")[0]);
+  };
+
+  const handleConfirmReissue = async () => {
+    if (!reissueItem || !newDueDate) return;
+
+    try {
+      setIsSubmittingReissue(true);
+      const recordId = reissueItem.id || reissueItem._id;
+
+      // API Call to update the issue record's due date
+      await axiosClient.put(`/issue-records/${recordId}`, {
+        due_date: newDueDate,
+        dueDate: newDueDate,
+      });
+
+      const borrowerName =
+        reissueItem.borrowerScientist?.name ||
+        reissueItem.borrower_scientist?.name ||
+        reissueItem.staffName ||
+        reissueItem.staff_name ||
+        "Borrower";
+
+      if (onShowToast) {
+        onShowToast(
+          `Reissued ${
+            reissueItem.instrument?.name || "Instrument"
+          } to ${borrowerName} until ${newDueDate}.`
+        );
+      }
+
+      // Close Modal & Refresh List (reissued item with future date will auto-remove from overdue list)
+      setReissueItem(null);
+      fetchActiveLoans();
+    } catch (err) {
+      if (onShowToast) {
+        onShowToast("Failed to reissue instrument. Please try again.");
+      }
+    } finally {
+      setIsSubmittingReissue(false);
+    }
+  };
+
   // Pagination Math
   const totalPages = Math.ceil(filteredLoans.length / PAGE_SIZE) || 1;
   const startIndex = (currentPage - 1) * PAGE_SIZE;
@@ -135,7 +189,7 @@ export default function DueScreen({ onBack, onShowToast }) {
               <span className="font-bold text-[#c92a2a]">
                 {loans.length} overdue item(s)
               </span>{" "}
-              require immediate attention. Tap below to trigger reminder.
+              require immediate attention. Send reminders or reissue with a new return date.
             </>
           ) : (
             <>
@@ -251,13 +305,23 @@ export default function DueScreen({ onBack, onShowToast }) {
                       </div>
                     </div>
 
+                    {/* Action Buttons: Send Reminder & Reissue */}
                     <div className="flex items-center gap-2 pt-1">
                       <button
                         type="button"
                         onClick={() => handleSendReminder(item)}
-                        className="flex-1 bg-[#8f2318] text-white py-2 rounded-xl text-[12.5px] font-semibold active:scale-98 transition-all shadow-xs text-center cursor-pointer"
+                        className="flex-1 bg-[#8f2318] hover:bg-[#731c13] text-white py-2 rounded-xl text-[12px] font-semibold active:scale-98 transition-all shadow-xs text-center cursor-pointer"
                       >
-                        Send reminder now
+                        Send reminder
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleOpenReissueModal(item)}
+                        className="flex-1 bg-[#1b4d8f] hover:bg-[#153d73] text-white py-2 rounded-xl text-[12px] font-semibold active:scale-98 transition-all shadow-xs text-center cursor-pointer flex items-center justify-center gap-1.5"
+                      >
+                        <RefreshCw size={13} />
+                        Reissue
                       </button>
                     </div>
                   </div>
@@ -294,6 +358,72 @@ export default function DueScreen({ onBack, onShowToast }) {
           </>
         )}
       </div>
+
+      {/* Reissue Modal */}
+      {reissueItem && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-sm rounded-2xl p-4 shadow-xl border border-black/10 space-y-4">
+            <div className="flex items-center justify-between border-b pb-2">
+              <h3 className="text-sm font-bold text-[#1b4d8f] flex items-center gap-1.5">
+                <RefreshCw size={16} />
+                Reissue Instrument
+              </h3>
+              <button
+                onClick={() => setReissueItem(null)}
+                className="p-1 rounded-lg hover:bg-gray-100 text-gray-500"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="space-y-2 text-xs text-[#5d5b56]">
+              <p>
+                <span className="font-semibold text-gray-800">Instrument:</span>{" "}
+                {reissueItem.instrument?.name || "Instrument"}
+              </p>
+              <p>
+                <span className="font-semibold text-gray-800">Borrower:</span>{" "}
+                {reissueItem.borrowerScientist?.name ||
+                  reissueItem.borrower_scientist?.name ||
+                  reissueItem.staffName ||
+                  reissueItem.staff_name ||
+                  "Borrower"}
+              </p>
+
+              <div className="pt-2 space-y-1">
+                <label className="block text-[11px] font-semibold text-gray-700 flex items-center gap-1">
+                  <Calendar size={13} /> Select New Return Due Date:
+                </label>
+                <input
+                  type="date"
+                  value={newDueDate}
+                  min={new Date().toISOString().split("T")[0]}
+                  onChange={(e) => setNewDueDate(e.target.value)}
+                  className="w-full bg-gray-50 border border-gray-300 rounded-xl p-2 text-xs focus:outline-none focus:border-[#1b4d8f]"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setReissueItem(null)}
+                className="flex-1 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-xl transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isSubmittingReissue || !newDueDate}
+                onClick={handleConfirmReissue}
+                className="flex-1 py-2 bg-[#1b4d8f] hover:bg-[#153d73] text-white text-xs font-semibold rounded-xl shadow-xs transition-all cursor-pointer disabled:opacity-50"
+              >
+                {isSubmittingReissue ? "Updating..." : "Confirm Reissue"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
