@@ -6,6 +6,7 @@ import {
   X,
   Search,
   Image as ImageIcon,
+  AlertCircle,
 } from "lucide-react";
 import axiosClient from "../api/axiosClient";
 import { getActiveIssueRecords } from "../api/instrumentService";
@@ -156,32 +157,35 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
 
   const handleConfirmReturn = async () => {
     if (!selectedRecord) return;
+
+    // MANDATORY PHOTO GUARD: Do not allow return submission without capturing a photo
+    if (!capturedPhoto) {
+      if (onShowToast) {
+        onShowToast("Please capture a live photo of the instrument before proceeding.");
+      }
+      return;
+    }
+
     const recordId = selectedRecord.id || selectedRecord._id;
 
     try {
       setIsSubmitting(true);
 
-      if (capturedPhoto) {
-        const formData = new FormData();
-        formData.append("condition_in", conditionIn);
+      const formData = new FormData();
+      formData.append("condition_in", conditionIn);
 
-        const photoBlob = dataURLtoBlob(capturedPhoto);
-        formData.append("photo", photoBlob, "return_condition.jpg");
+      const photoBlob = dataURLtoBlob(capturedPhoto);
+      formData.append("photo", photoBlob, "return_condition.jpg");
 
-        await axiosClient.put(
-          `/issue-records/${recordId}/return/photo`,
-          formData,
-          {
-            headers: {
-              "Content-Type": "multipart/form-data",
-            },
-          }
-        );
-      } else {
-        await axiosClient.put(`/issue-records/${recordId}/return`, {
-          condition_in: conditionIn,
-        });
-      }
+      await axiosClient.put(
+        `/issue-records/${recordId}/return/photo`,
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        }
+      );
 
       setIssuedRecords((prev) =>
         prev.filter((item) => (item.id || item._id) !== recordId)
@@ -400,7 +404,7 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
         )}
       </div>
 
-      {/* Return Condition & Photo Modal */}
+      {/* Return Condition & Mandatory Photo Modal */}
       {selectedRecord && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
           <div className="bg-white rounded-2xl p-4 w-full max-w-sm space-y-3 shadow-2xl border border-black/10">
@@ -464,10 +468,15 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
               </div>
             </div>
 
-            {/* Photo Capture Section */}
+            {/* Mandatory Photo Capture Section */}
             <div className="space-y-1.5 pt-1">
-              <label className="text-[11px] font-bold uppercase text-gray-500 tracking-wider">
-                Instrument Condition Photo (Optional)
+              <label className="text-[11px] font-bold uppercase text-[#c92a2a] tracking-wider flex items-center justify-between">
+                <span>Instrument Photo (Required) *</span>
+                {!capturedPhoto && (
+                  <span className="text-[10px] lowercase font-normal text-red-500 flex items-center gap-0.5">
+                    <AlertCircle size={11} /> Photo required
+                  </span>
+                )}
               </label>
 
               {isCameraOpen ? (
@@ -498,7 +507,7 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
                   </div>
                 </div>
               ) : capturedPhoto ? (
-                <div className="relative rounded-xl overflow-hidden border border-gray-300">
+                <div className="relative rounded-xl overflow-hidden border border-emerald-500 ring-1 ring-emerald-500">
                   <img
                     src={capturedPhoto}
                     alt="Captured condition"
@@ -516,10 +525,10 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
                 <button
                   type="button"
                   onClick={startCamera}
-                  className="w-full bg-gray-50 border border-dashed border-gray-300 text-gray-600 py-2.5 rounded-xl text-xs font-medium flex items-center justify-center gap-2 hover:bg-gray-100 cursor-pointer"
+                  className="w-full bg-red-50/50 border border-dashed border-[#f5c2c2] text-[#8f2318] py-2.5 rounded-xl text-xs font-medium flex items-center justify-center gap-2 hover:bg-red-100/50 cursor-pointer"
                 >
                   <Camera size={16} />
-                  <span>Take Live Photo</span>
+                  <span>Take Live Photo (Mandatory)</span>
                 </button>
               )}
             </div>
@@ -538,9 +547,9 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
               </button>
               <button
                 type="button"
-                disabled={isSubmitting}
+                disabled={isSubmitting || !capturedPhoto}
                 onClick={handleConfirmReturn}
-                className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-[#1b4d8f] text-white disabled:opacity-50 cursor-pointer"
+                className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-[#1b4d8f] text-white disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
               >
                 {isSubmitting ? "Processing..." : "Confirm Return"}
               </button>

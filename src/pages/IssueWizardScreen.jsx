@@ -7,6 +7,9 @@ import {
   Loader2,
   Search,
   UserCheck,
+  ChevronLeft,
+  ChevronRight,
+  AlertCircle,
 } from "lucide-react";
 import {
   getMyInstruments,
@@ -31,9 +34,15 @@ export default function IssueWizardScreen({
   const [selectedStaffId, setSelectedStaffId] = useState("");
 
   // Search Query States
+  const [instrumentSearchQuery, setInstrumentSearchQuery] = useState("");
   const [scientistSearchQuery, setScientistSearchQuery] = useState("");
   const [staffSearchQuery, setStaffSearchQuery] = useState("");
   const [isStaffDropdownOpen, setIsStaffDropdownOpen] = useState(false);
+
+  // Pagination States (3 Items Per Page)
+  const [instrumentPage, setInstrumentPage] = useState(1);
+  const [scientistPage, setScientistPage] = useState(1);
+  const ITEMS_PER_PAGE = 3;
 
   const [loadingData, setLoadingData] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -46,9 +55,18 @@ export default function IssueWizardScreen({
   const [staffName, setStaffName] = useState("");
   const [staffEmail, setStaffEmail] = useState("");
 
-  // Step 3 State: Dates, Purpose, Condition & Photo Record
-  const [issueDate, setIssueDate] = useState("2026-09-09");
-  const [expectedReturn, setExpectedReturn] = useState("2026-09-23");
+  // Step 3 State: Dynamic Dates (Today & +14 Days), Purpose, Condition & Photo Record
+  const getTodayFormatted = () => new Date().toISOString().split("T")[0];
+  const getFourteenDaysLaterFormatted = () => {
+    const d = new Date();
+    d.setDate(d.getDate() + 14);
+    return d.toISOString().split("T")[0];
+  };
+
+  const [issueDate, setIssueDate] = useState(getTodayFormatted());
+  const [expectedReturn, setExpectedReturn] = useState(
+    getFourteenDaysLaterFormatted()
+  );
   const [purpose, setPurpose] = useState("");
   const [conditionOut, setConditionOut] = useState(
     "Complete with case and accessories"
@@ -93,6 +111,17 @@ export default function IssueWizardScreen({
     fetchData();
   }, []);
 
+  // Filter Instruments in real-time based on search input
+  const filteredInstruments = availableInstruments.filter((inst) => {
+    const q = instrumentSearchQuery.toLowerCase().trim();
+    if (!q) return true;
+    return (
+      (inst.name && inst.name.toLowerCase().includes(q)) ||
+      (inst.asset_id && inst.asset_id.toLowerCase().includes(q)) ||
+      (inst.assetId && inst.assetId.toLowerCase().includes(q))
+    );
+  });
+
   // Filter Scientists in real-time based on search input
   const filteredScientists = scientists.filter((sc) => {
     const q = scientistSearchQuery.toLowerCase().trim();
@@ -113,6 +142,32 @@ export default function IssueWizardScreen({
       (st.email && st.email.toLowerCase().includes(q))
     );
   });
+
+  // --- Pagination Slice Calculations ---
+  // Step 1: Instrument Pagination
+  const totalInstrumentPages =
+    Math.ceil(filteredInstruments.length / ITEMS_PER_PAGE) || 1;
+  const paginatedInstruments = filteredInstruments.slice(
+    (instrumentPage - 1) * ITEMS_PER_PAGE,
+    instrumentPage * ITEMS_PER_PAGE
+  );
+
+  // Step 2: Scientist Pagination
+  const totalScientistPages =
+    Math.ceil(filteredScientists.length / ITEMS_PER_PAGE) || 1;
+  const paginatedScientists = filteredScientists.slice(
+    (scientistPage - 1) * ITEMS_PER_PAGE,
+    scientistPage * ITEMS_PER_PAGE
+  );
+
+  // Reset pagination pages when search queries change
+  useEffect(() => {
+    setInstrumentPage(1);
+  }, [instrumentSearchQuery]);
+
+  useEffect(() => {
+    setScientistPage(1);
+  }, [scientistSearchQuery]);
 
   // Handle Saved Staff Selection
   const handleSelectStaff = (staff) => {
@@ -166,7 +221,7 @@ export default function IssueWizardScreen({
     const dataUrl = canvas.toDataURL("image/jpeg");
     setCapturedPhoto(dataUrl);
     stopCamera();
-    if (onShowToast) onShowToast("Photo saved to issue record!");
+    if (onShowToast) onShowToast("Mandatory instrument photo captured!");
   };
 
   useEffect(() => {
@@ -225,11 +280,27 @@ export default function IssueWizardScreen({
         );
       return;
     }
+    // MANDATORY PHOTO CHECK
+    if (!capturedPhoto) {
+      if (onShowToast)
+        onShowToast(
+          "Validation Error: Instrument photo is required before proceeding."
+        );
+      return;
+    }
     setCurrentStep(4);
   };
 
   // --- Backend Submit Handler ---
   const handleConfirmIssue = async () => {
+    if (!capturedPhoto) {
+      if (onShowToast)
+        onShowToast(
+          "Validation Error: Please capture an instrument photo before issuing."
+        );
+      return;
+    }
+
     try {
       setIsSubmitting(true);
       const targetScientistId = selectedScientist.id || selectedScientist._id;
@@ -286,7 +357,7 @@ export default function IssueWizardScreen({
         <div className="flex items-center gap-2 mb-1">
           <button
             onClick={onBack}
-            className="p-1 rounded-lg hover:bg-black/5 active:scale-95 transition-all"
+            className="p-1 rounded-lg hover:bg-black/5 active:scale-95 transition-all cursor-pointer"
             aria-label="Back"
           >
             <ArrowLeft size={18} className="text-[#1b4d8f]" />
@@ -349,23 +420,20 @@ export default function IssueWizardScreen({
         {/* ==================== STEP 1: SELECT INSTRUMENT ==================== */}
         {currentStep === 1 && (
           <div className="space-y-2.5 animate-fade-in">
-            <div className="bg-[#eef3fa] border-2 border-dashed border-[#1b4d8f]/40 rounded-2xl p-4 text-center space-y-1.5">
-              <div className="w-12 h-12 rounded-xl bg-white border-2 border-[#1b4d8f] mx-auto flex items-center justify-center shadow-xs">
+            {/* Scan Area */}
+            <div className="bg-[#eef3fa] border-2 border-dashed border-[#1b4d8f]/40 rounded-2xl p-3 text-center space-y-1">
+              <div className="w-9 h-9 rounded-xl bg-white border-2 border-[#1b4d8f] mx-auto flex items-center justify-center shadow-xs">
                 <span className="font-mono font-bold text-xs text-[#1b4d8f]">
                   QR
                 </span>
               </div>
               <h3 className="text-xs font-bold text-[#1b4d8f]">
-                Scan the asset label
+                Scan asset label
               </h3>
-              <p className="text-[10.5px] text-[#5d5b56] max-w-[220px] mx-auto leading-tight">
-                Each instrument carries a printed CBRI/APEEG QR sticker.
-                Scanning fills the entry below.
-              </p>
               <button
                 type="button"
                 onClick={handleSimulateScan}
-                className="mt-1 bg-[#1b4d8f] text-white text-[11px] font-semibold py-1.5 px-4 rounded-xl active:scale-95 transition-all shadow-xs"
+                className="bg-[#1b4d8f] text-white text-[11px] font-semibold py-1 px-3 rounded-xl active:scale-95 transition-all shadow-xs cursor-pointer"
               >
                 Simulate scan
               </button>
@@ -377,13 +445,40 @@ export default function IssueWizardScreen({
               </span>
             </div>
 
+            {/* Instrument Search Bar */}
+            <div className="relative">
+              <Search
+                className="absolute left-2.5 top-2.5 text-gray-400"
+                size={14}
+              />
+              <input
+                type="text"
+                value={instrumentSearchQuery}
+                onChange={(e) => setInstrumentSearchQuery(e.target.value)}
+                placeholder="Search instrument by name or asset ID..."
+                className="w-full bg-white text-[11.5px] py-1.5 pl-8 pr-8 rounded-xl border border-black/15 focus:outline-none focus:border-[#1b4d8f]"
+              />
+              {instrumentSearchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setInstrumentSearchQuery("")}
+                  className="absolute right-2.5 top-2 text-gray-400 hover:text-gray-600"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+
+            {/* Instrument Cards Container (3 Items Visible) */}
             <div className="space-y-2">
-              {availableInstruments.length === 0 ? (
+              {filteredInstruments.length === 0 ? (
                 <p className="text-xs text-gray-500 text-center py-4">
-                  No available instruments found in inventory.
+                  {instrumentSearchQuery
+                    ? "No matching instruments found."
+                    : "No available instruments found in inventory."}
                 </p>
               ) : (
-                availableInstruments.map((item) => {
+                paginatedInstruments.map((item) => {
                   const instId = item.id || item._id;
                   const isSelected =
                     selectedInstrument?.id === instId ||
@@ -392,23 +487,59 @@ export default function IssueWizardScreen({
                     <div
                       key={instId}
                       onClick={() => setSelectedInstrument(item)}
-                      className={`bg-white p-3 rounded-2xl border transition-all cursor-pointer active:scale-99 shadow-xs ${
+                      className={`bg-white p-2.5 rounded-2xl border transition-all cursor-pointer active:scale-99 shadow-xs flex items-center justify-between gap-2 ${
                         isSelected
                           ? "border-[#1b4d8f] ring-1 ring-[#1b4d8f] bg-[#f4f7fc]"
                           : "border-black/10 hover:border-gray-300"
                       }`}
                     >
-                      <h4 className="text-[13px] font-semibold text-[#1b1a18]">
-                        {item.name}
-                      </h4>
-                      <p className="font-mono text-[10.5px] text-[#7a7872] mt-0.5">
-                        {item.asset_id || item.assetId}
-                      </p>
+                      <div className="min-w-0 flex-1">
+                        <h4 className="text-[12.5px] font-semibold text-[#1b1a18] truncate">
+                          {item.name}
+                        </h4>
+                        <p className="font-mono text-[10px] text-[#7a7872] mt-0.5 truncate">
+                          Asset ID: {item.asset_id || item.assetId}
+                        </p>
+                      </div>
+                      {isSelected && (
+                        <span className="text-[10px] font-bold text-[#1b4d8f] bg-[#1b4d8f]/10 px-2 py-0.5 rounded-md">
+                          Selected
+                        </span>
+                      )}
                     </div>
                   );
                 })
               )}
             </div>
+
+            {/* Instrument Pagination Controls */}
+            {filteredInstruments.length > ITEMS_PER_PAGE && (
+              <div className="flex items-center justify-between pt-1 border-t border-gray-100">
+                <button
+                  type="button"
+                  disabled={instrumentPage === 1}
+                  onClick={() => setInstrumentPage((prev) => prev - 1)}
+                  className="flex items-center gap-0.5 text-[11px] font-semibold text-[#1b4d8f] disabled:text-gray-300 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  <ChevronLeft size={14} />
+                  <span>Prev</span>
+                </button>
+
+                <span className="text-[10.5px] font-medium text-gray-500">
+                  Page {instrumentPage} of {totalInstrumentPages}
+                </span>
+
+                <button
+                  type="button"
+                  disabled={instrumentPage === totalInstrumentPages}
+                  onClick={() => setInstrumentPage((prev) => prev + 1)}
+                  className="flex items-center gap-0.5 text-[11px] font-semibold text-[#1b4d8f] disabled:text-gray-300 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  <span>Next</span>
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -459,14 +590,14 @@ export default function IssueWizardScreen({
                   <button
                     type="button"
                     onClick={() => setSelectedScientist(null)}
-                    className="text-[11px] font-semibold text-[#1b4d8f] bg-white border border-[#1b4d8f]/30 px-2.5 py-1 rounded-xl hover:bg-[#1b4d8f] hover:text-white transition-all shrink-0 active:scale-95"
+                    className="text-[11px] font-semibold text-[#1b4d8f] bg-white border border-[#1b4d8f]/30 px-2.5 py-1 rounded-xl hover:bg-[#1b4d8f] hover:text-white transition-all shrink-0 active:scale-95 cursor-pointer"
                   >
                     Change
                   </button>
                 </div>
               ) : (
                 /* CASE 2: NO SCIENTIST SELECTED -> SHOW SEARCH AND SELECTION LIST */
-                <div className="space-y-1.5">
+                <div className="space-y-2">
                   {/* Scientist Search Input */}
                   <div className="relative">
                     <Search
@@ -491,8 +622,8 @@ export default function IssueWizardScreen({
                     )}
                   </div>
 
-                  {/* Scrollable Scientist Directory List */}
-                  <div className="max-h-[160px] overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                  {/* Scientist Directory List (3 Items Visible) */}
+                  <div className="space-y-2">
                     {filteredScientists.length === 0 ? (
                       <p className="text-xs text-gray-500 text-center py-4">
                         {scientistSearchQuery
@@ -500,7 +631,7 @@ export default function IssueWizardScreen({
                           : "No scientist contacts found."}
                       </p>
                     ) : (
-                      filteredScientists.map((sc) => {
+                      paginatedScientists.map((sc) => {
                         const scId = sc.id || sc._id;
                         const initials = sc.name
                           ? sc.name
@@ -539,6 +670,35 @@ export default function IssueWizardScreen({
                       })
                     )}
                   </div>
+
+                  {/* Scientist Pagination Controls */}
+                  {filteredScientists.length > ITEMS_PER_PAGE && (
+                    <div className="flex items-center justify-between pt-1 border-t border-gray-100">
+                      <button
+                        type="button"
+                        disabled={scientistPage === 1}
+                        onClick={() => setScientistPage((prev) => prev - 1)}
+                        className="flex items-center gap-0.5 text-[11px] font-semibold text-[#1b4d8f] disabled:text-gray-300 disabled:cursor-not-allowed cursor-pointer"
+                      >
+                        <ChevronLeft size={14} />
+                        <span>Prev</span>
+                      </button>
+
+                      <span className="text-[10.5px] font-medium text-gray-500">
+                        Page {scientistPage} of {totalScientistPages}
+                      </span>
+
+                      <button
+                        type="button"
+                        disabled={scientistPage === totalScientistPages}
+                        onClick={() => setScientistPage((prev) => prev + 1)}
+                        className="flex items-center gap-0.5 text-[11px] font-semibold text-[#1b4d8f] disabled:text-gray-300 disabled:cursor-not-allowed cursor-pointer"
+                      >
+                        <span>Next</span>
+                        <ChevronRight size={14} />
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -585,7 +745,7 @@ export default function IssueWizardScreen({
                           setSelectedStaffId("NEW");
                           setIsStaffDropdownOpen(true);
                         }}
-                        className="absolute right-2.5 top-2 text-gray-400 hover:text-gray-600"
+                        className="absolute right-2.5 top-2 text-gray-400 hover:text-gray-600 cursor-pointer"
                       >
                         <X size={14} />
                       </button>
@@ -676,7 +836,7 @@ export default function IssueWizardScreen({
           <div className="space-y-2.5 pt-1 animate-fade-in">
             <div className="space-y-1">
               <label className="text-[11px] font-semibold text-[#5d5b56]">
-                Issue date
+                Issue date *
               </label>
               <input
                 type="date"
@@ -688,7 +848,7 @@ export default function IssueWizardScreen({
 
             <div className="space-y-1">
               <label className="text-[11px] font-semibold text-[#5d5b56]">
-                Expected return
+                Expected return *
               </label>
               <input
                 type="date"
@@ -697,8 +857,7 @@ export default function IssueWizardScreen({
                 className="w-full bg-white text-[12.5px] p-2.5 rounded-xl border border-black/15 focus:outline-none focus:border-[#1b4d8f]"
               />
               <p className="text-[10px] text-[#7a7872] leading-tight pt-0.5">
-                Default loan period is 14 days. Daily reminders sent when
-                overdue.
+                Default loan period is 14 days from issue date.
               </p>
             </div>
 
@@ -715,19 +874,19 @@ export default function IssueWizardScreen({
               />
             </div>
 
-            {/* Condition Field with Camera Button */}
+            {/* Condition Field with Mandatory Camera Button */}
             <div className="space-y-1.5 pt-1">
               <div className="flex items-center justify-between">
-                <label className="text-[11px] font-semibold text-[#5d5b56]">
-                  Condition at issue
+                <label className="text-[11px] font-bold uppercase text-[#c92a2a] tracking-wider flex items-center gap-1">
+                  <span>Instrument Photo (Mandatory) *</span>
                 </label>
                 <button
                   type="button"
                   onClick={startCamera}
-                  className="bg-[#1b4d8f] hover:bg-[#143d73] text-white text-[10.5px] font-medium py-1 px-2.5 rounded-lg transition-all flex items-center gap-1 active:scale-95 shadow-2xs"
+                  className="bg-[#1b4d8f] hover:bg-[#143d73] text-white text-[10.5px] font-medium py-1 px-2.5 rounded-lg transition-all flex items-center gap-1 active:scale-95 shadow-2xs cursor-pointer"
                 >
                   <Camera size={12} />
-                  <span>Take Photo</span>
+                  <span>{capturedPhoto ? "Retake Photo" : "Take Photo"}</span>
                 </button>
               </div>
 
@@ -735,12 +894,13 @@ export default function IssueWizardScreen({
                 type="text"
                 value={conditionOut}
                 onChange={(e) => setConditionOut(e.target.value)}
+                placeholder="Condition description..."
                 className="w-full bg-white text-[12.5px] p-2.5 rounded-xl border border-black/15 focus:outline-none focus:border-[#1b4d8f]"
               />
 
-              {/* Photo Preview Badge */}
-              {capturedPhoto && (
-                <div className="mt-2 p-2 bg-white rounded-xl border border-black/10 flex items-center justify-between gap-2 shadow-2xs">
+              {/* Photo Preview / Mandatory Warning Badge */}
+              {capturedPhoto ? (
+                <div className="mt-2 p-2 bg-white rounded-xl border border-emerald-500 ring-1 ring-emerald-500 flex items-center justify-between gap-2 shadow-2xs">
                   <div className="flex items-center gap-2 min-w-0">
                     <img
                       src={capturedPhoto}
@@ -749,20 +909,27 @@ export default function IssueWizardScreen({
                     />
                     <div className="min-w-0">
                       <span className="text-[11px] font-semibold text-[#12695a] flex items-center gap-1">
-                        <CheckCircle2 size={12} /> Photo Attached
+                        <CheckCircle2 size={12} /> Photo Captured
                       </span>
                       <p className="text-[10px] text-gray-500 truncate">
-                        Instrument condition photo recorded
+                        Mandatory issue photo recorded
                       </p>
                     </div>
                   </div>
                   <button
                     type="button"
                     onClick={() => setCapturedPhoto(null)}
-                    className="p-1 hover:bg-red-50 text-red-500 rounded-lg transition-colors"
+                    className="p-1 hover:bg-red-50 text-red-500 rounded-lg transition-colors cursor-pointer"
                   >
                     <X size={14} />
                   </button>
+                </div>
+              ) : (
+                <div className="mt-2 p-2 bg-red-50/60 rounded-xl border border-dashed border-[#f5c2c2] text-[#8f2318] flex items-center gap-2 text-[11px]">
+                  <AlertCircle size={15} className="shrink-0 text-red-500" />
+                  <span>
+                    A live camera photo of the instrument is required to proceed.
+                  </span>
                 </div>
               )}
             </div>
@@ -808,6 +975,12 @@ export default function IssueWizardScreen({
                 <span className="text-[#7a7872]">Purpose</span>
                 <span className="font-semibold text-[#1b1a18]">
                   {purpose.trim() ? purpose : "Not stated"}
+                </span>
+              </div>
+              <div className="flex justify-between items-center border-t border-gray-100 pt-1 mt-1">
+                <span className="text-[#7a7872]">Condition Photo</span>
+                <span className="font-semibold text-emerald-600 flex items-center gap-1 text-[11px]">
+                  <CheckCircle2 size={12} /> Attached
                 </span>
               </div>
             </div>
@@ -876,7 +1049,7 @@ export default function IssueWizardScreen({
               <button
                 type="button"
                 onClick={stopCamera}
-                className="p-1 rounded-full bg-white/20 hover:bg-white/30 text-white transition-all"
+                className="p-1 rounded-full bg-white/20 hover:bg-white/30 text-white transition-all cursor-pointer"
               >
                 <X size={16} />
               </button>
@@ -896,14 +1069,14 @@ export default function IssueWizardScreen({
               <button
                 type="button"
                 onClick={stopCamera}
-                className="bg-white/20 hover:bg-white/30 text-white text-xs px-4 py-2 rounded-xl transition-all font-medium"
+                className="bg-white/20 hover:bg-white/30 text-white text-xs px-4 py-2 rounded-xl transition-all font-medium cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={takePhoto}
-                className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-all border-4 border-[#1b4d8f]"
+                className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-all border-4 border-[#1b4d8f] cursor-pointer"
               >
                 <div className="w-8 h-8 bg-[#1b4d8f] rounded-full" />
               </button>
@@ -917,7 +1090,7 @@ export default function IssueWizardScreen({
         {currentStep === 1 && (
           <button
             onClick={handleContinueStep1}
-            className="w-full bg-[#1b4d8f] text-white py-2.5 rounded-xl text-[13px] font-semibold active:scale-98 transition-all shadow-xs text-center"
+            className="w-full bg-[#1b4d8f] text-white py-2.5 rounded-xl text-[13px] font-semibold active:scale-98 transition-all shadow-xs text-center cursor-pointer"
           >
             Continue
           </button>
@@ -927,13 +1100,13 @@ export default function IssueWizardScreen({
           <div className="flex items-center gap-2">
             <button
               onClick={() => setCurrentStep(1)}
-              className="bg-white text-[#1b1a18] border border-gray-300 py-2.5 px-4 rounded-xl text-[12.5px] font-medium active:scale-98 transition-all"
+              className="bg-white text-[#1b1a18] border border-gray-300 py-2.5 px-4 rounded-xl text-[12.5px] font-medium active:scale-98 transition-all cursor-pointer"
             >
               Back
             </button>
             <button
               onClick={handleContinueStep2}
-              className="flex-1 bg-[#1b4d8f] text-white py-2.5 rounded-xl text-[13px] font-semibold active:scale-98 transition-all shadow-xs text-center"
+              className="flex-1 bg-[#1b4d8f] text-white py-2.5 rounded-xl text-[13px] font-semibold active:scale-98 transition-all shadow-xs text-center cursor-pointer"
             >
               Continue
             </button>
@@ -944,13 +1117,14 @@ export default function IssueWizardScreen({
           <div className="flex items-center gap-2">
             <button
               onClick={() => setCurrentStep(2)}
-              className="bg-white text-[#1b1a18] border border-gray-300 py-2.5 px-4 rounded-xl text-[12.5px] font-medium active:scale-98 transition-all"
+              className="bg-white text-[#1b1a18] border border-gray-300 py-2.5 px-4 rounded-xl text-[12.5px] font-medium active:scale-98 transition-all cursor-pointer"
             >
               Back
             </button>
             <button
               onClick={handleContinueStep3}
-              className="flex-1 bg-[#1b4d8f] text-white py-2.5 rounded-xl text-[13px] font-semibold active:scale-98 transition-all shadow-xs text-center"
+              disabled={!capturedPhoto}
+              className="flex-1 bg-[#1b4d8f] text-white py-2.5 rounded-xl text-[13px] font-semibold active:scale-98 transition-all shadow-xs text-center cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Continue
             </button>
@@ -962,14 +1136,14 @@ export default function IssueWizardScreen({
             <button
               onClick={() => setCurrentStep(3)}
               disabled={isSubmitting}
-              className="bg-white text-[#1b1a18] border border-gray-300 py-2.5 px-4 rounded-xl text-[12.5px] font-medium active:scale-98 transition-all disabled:opacity-50"
+              className="bg-white text-[#1b1a18] border border-gray-300 py-2.5 px-4 rounded-xl text-[12.5px] font-medium active:scale-98 transition-all disabled:opacity-50 cursor-pointer"
             >
               Back
             </button>
             <button
               onClick={handleConfirmIssue}
-              disabled={isSubmitting}
-              className="flex-1 bg-[#12695a] text-white py-2.5 rounded-xl text-[13px] font-bold active:scale-98 transition-all shadow-xs text-center flex items-center justify-center gap-2 disabled:opacity-50"
+              disabled={isSubmitting || !capturedPhoto}
+              className="flex-1 bg-[#12695a] text-white py-2.5 rounded-xl text-[13px] font-bold active:scale-98 transition-all shadow-xs text-center flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
             >
               {isSubmitting ? (
                 <>
