@@ -17,6 +17,7 @@ import {
   Loader2,
   QrCode,
   Download,
+  Wrench,
 } from "lucide-react";
 import { QRCodeCanvas } from "qrcode.react";
 import axiosClient from "../api/axiosClient";
@@ -44,6 +45,10 @@ export default function InstrumentDetailScreen({
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
+
+  // Status Change Confirmation Modal State
+  const [showStatusConfirmModal, setShowStatusConfirmModal] = useState(false);
+  const [pendingStatusChange, setPendingStatusChange] = useState(null);
 
   const qrCanvasRef = useRef(null);
 
@@ -92,6 +97,7 @@ export default function InstrumentDetailScreen({
       initialInstrument?.calibrationValidTo || initialInstrument?.calibration_valid_to || "",
     purchaseDate: initialInstrument?.purchaseDate || initialInstrument?.purchase_date || "",
     purchaseCost: initialInstrument?.purchaseCost || initialInstrument?.purchase_cost || "",
+    status: initialInstrument?.status || "AVAILABLE",
     photoPath: initialInstrument?.photoPath || initialInstrument?.photo_path || null,
   });
 
@@ -146,7 +152,6 @@ export default function InstrumentDetailScreen({
       : `http://localhost:8080${rawQrPath}`
     : null;
 
-  // Download Handler (Downloads image or captures dynamically rendered QR Canvas)
   const handleDownloadQr = async () => {
     try {
       const cleanAssetId = assetId.replace(/[^a-zA-Z0-9]/g, "_");
@@ -244,10 +249,26 @@ export default function InstrumentDetailScreen({
     if (onShowToast) onShowToast("Instrument photo captured!");
   };
 
-  const handleSaveEdit = async (e) => {
+  // Pre-submit handler: Intercepts status changes to show confirmation modal
+  const handleFormSubmitAttempt = (e) => {
     e.preventDefault();
     if (!instrumentId) return;
 
+    const currentStatus = instrument.status || "AVAILABLE";
+    const targetStatus = editFormData.status;
+
+    // Trigger two-step popup if status is being changed between AVAILABLE <-> MAINTENANCE
+    if (currentStatus !== targetStatus) {
+      setPendingStatusChange({ from: currentStatus, to: targetStatus });
+      setShowStatusConfirmModal(true);
+    } else {
+      executeSaveEdit();
+    }
+  };
+
+  // Core API Submission execution handler
+  const executeSaveEdit = async () => {
+    setShowStatusConfirmModal(false);
     try {
       setIsSubmitting(true);
 
@@ -265,6 +286,7 @@ export default function InstrumentDetailScreen({
       formData.append("purchaseDate", editFormData.purchaseDate);
       formData.append("purchase_cost", editFormData.purchaseCost);
       formData.append("purchaseCost", editFormData.purchaseCost);
+      formData.append("status", editFormData.status);
 
       if (selectedPhotoFile) {
         formData.append("photo", selectedPhotoFile, selectedPhotoFile.name);
@@ -284,6 +306,7 @@ export default function InstrumentDetailScreen({
       setInstrument(updatedInstrument);
       setIsEditing(false);
       setSelectedPhotoFile(null);
+      setPendingStatusChange(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
 
       if (onShowToast) {
@@ -498,7 +521,6 @@ export default function InstrumentDetailScreen({
           )}
 
           <div className="pt-2 space-y-2">
-            {/* VIEW SAVED QR CODE BUTTON */}
             <button
               onClick={() => setShowQrModal(true)}
               className="w-full bg-[#1b4d8f] text-white py-3 rounded-xl text-[13.5px] font-semibold active:scale-98 transition-all shadow-xs flex items-center justify-center gap-2"
@@ -536,6 +558,7 @@ export default function InstrumentDetailScreen({
                     instrument.purchaseDate || instrument.purchase_date || "",
                   purchaseCost:
                     instrument.purchaseCost || instrument.purchase_cost || "",
+                  status: instrument.status || "AVAILABLE",
                   photoPath: instrument.photoPath || instrument.photo_path || null,
                 });
                 setIsEditing(true);
@@ -565,7 +588,7 @@ export default function InstrumentDetailScreen({
         </>
       ) : (
         <form
-          onSubmit={handleSaveEdit}
+          onSubmit={handleFormSubmitAttempt}
           className="bg-white p-4 rounded-2xl border border-black/10 shadow-xs space-y-3"
         >
           <h3 className="text-sm font-bold text-[#1b4d8f] uppercase tracking-wider border-b pb-2">
@@ -596,7 +619,7 @@ export default function InstrumentDetailScreen({
                       setSelectedPhotoFile(null);
                       setEditFormData((prev) => ({ ...prev, photoPath: null }));
                     }}
-                    className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 shadow-xs hover:bg-red-600"
+                    className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 shadow-xs hover:bg-red-600 cursor-pointer"
                   >
                     <X size={10} />
                   </button>
@@ -611,7 +634,7 @@ export default function InstrumentDetailScreen({
                 <button
                   type="button"
                   onClick={startCamera}
-                  className="flex-1 bg-[#1b4d8f] text-white text-[11px] font-medium py-2 px-2.5 rounded-xl flex items-center justify-center gap-1 active:scale-95 transition-all"
+                  className="flex-1 bg-[#1b4d8f] text-white text-[11px] font-medium py-2 px-2.5 rounded-xl flex items-center justify-center gap-1 active:scale-95 transition-all cursor-pointer"
                 >
                   <Camera size={13} />
                   <span>Camera</span>
@@ -620,7 +643,7 @@ export default function InstrumentDetailScreen({
                 <button
                   type="button"
                   onClick={() => fileInputRef.current && fileInputRef.current.click()}
-                  className="flex-1 bg-gray-100 hover:bg-gray-200 text-[#1b1a18] border border-black/10 text-[11px] font-medium py-2 px-2.5 rounded-xl flex items-center justify-center gap-1 active:scale-95 transition-all"
+                  className="flex-1 bg-gray-100 hover:bg-gray-200 text-[#1b1a18] border border-black/10 text-[11px] font-medium py-2 px-2.5 rounded-xl flex items-center justify-center gap-1 active:scale-95 transition-all cursor-pointer"
                 >
                   <Upload size={13} />
                   <span>Upload</span>
@@ -635,6 +658,26 @@ export default function InstrumentDetailScreen({
                 />
               </div>
             </div>
+          </div>
+
+          {/* Instrument Operational Status Selector */}
+          <div className="space-y-1 bg-[#f4f7fc] p-2.5 rounded-xl border border-[#1b4d8f]/20">
+            <label className="text-[11px] font-bold text-[#1b4d8f] uppercase tracking-wider flex items-center gap-1">
+              <Wrench size={13} />
+              <span>Operational Status</span>
+            </label>
+            <select
+              name="status"
+              value={editFormData.status}
+              onChange={handleEditChange}
+              className="w-full bg-white text-xs font-semibold p-2 rounded-lg border border-black/15 focus:outline-none focus:border-[#1b4d8f] text-[#1b1a18]"
+            >
+              <option value="AVAILABLE">AVAILABLE (Ready for Issue)</option>
+              <option value="MAINTENANCE">MAINTENANCE (Under Service)</option>
+            </select>
+            <p className="text-[10px] text-gray-500 pt-0.5">
+              Changing status requires a two-step confirmation.
+            </p>
           </div>
 
           <div className="space-y-1">
@@ -748,16 +791,17 @@ export default function InstrumentDetailScreen({
               onClick={() => {
                 setIsEditing(false);
                 setSelectedPhotoFile(null);
+                setPendingStatusChange(null);
                 if (fileInputRef.current) fileInputRef.current.value = "";
               }}
-              className="flex-1 py-2.5 rounded-xl text-xs font-medium border border-gray-300 text-gray-700 bg-white"
+              className="flex-1 py-2.5 rounded-xl text-xs font-medium border border-gray-300 text-gray-700 bg-white cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-[#1b4d8f] text-white flex items-center justify-center gap-1"
+              className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-[#1b4d8f] text-white flex items-center justify-center gap-1 cursor-pointer"
             >
               {isSubmitting ? (
                 <Loader2 size={14} className="animate-spin" />
@@ -769,6 +813,72 @@ export default function InstrumentDetailScreen({
         </form>
       )}
 
+      {/* TWO-STEP STATUS CHANGE CONFIRMATION POPUP MODAL */}
+      {showStatusConfirmModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-3.5 shadow-2xl border border-black/10">
+            <div className="flex items-center justify-between border-b pb-2">
+              <div className="flex items-center gap-2 text-[#8a5a12]">
+                <AlertTriangle size={18} />
+                <h3 className="text-sm font-bold text-[#1b1a18]">
+                  Confirm Status Change
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowStatusConfirmModal(false)}
+                className="text-gray-400 hover:text-gray-600 p-1"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="bg-[#fbf0dc] border border-[#f5d089] p-3 rounded-2xl text-[12px] space-y-1">
+              <p className="font-semibold text-[#8a5a12]">
+                You are changing status for {instrument.name}:
+              </p>
+              <div className="flex items-center justify-center gap-2 pt-1 font-mono font-bold text-[#1b1a18]">
+                <span className="px-2 py-0.5 rounded bg-white border border-gray-300">
+                  {pendingStatusChange?.from}
+                </span>
+                <span>→</span>
+                <span className="px-2 py-0.5 rounded bg-white border border-[#1b4d8f] text-[#1b4d8f]">
+                  {pendingStatusChange?.to}
+                </span>
+              </div>
+            </div>
+
+            <p className="text-[11.5px] text-[#5d5b56] leading-relaxed">
+              {pendingStatusChange?.to === "MAINTENANCE"
+                ? "Setting status to MAINTENANCE will prevent this instrument from being issued until marked AVAILABLE again."
+                : "Setting status to AVAILABLE will re-enable this instrument for issue and borrowing workflows."}
+            </p>
+
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setShowStatusConfirmModal(false)}
+                className="flex-1 py-2.5 rounded-xl text-xs font-medium border border-gray-300 text-gray-700 bg-white cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isSubmitting}
+                onClick={executeSaveEdit}
+                className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-[#1b4d8f] text-white flex items-center justify-center gap-1 active:scale-95 transition-all cursor-pointer"
+              >
+                {isSubmitting ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <span>Confirm Status</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* QR MODAL */}
       {showQrModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-fade-in">
@@ -776,11 +886,13 @@ export default function InstrumentDetailScreen({
             <div className="flex items-center justify-between border-b pb-2">
               <div className="flex items-center gap-2 text-[#1b4d8f]">
                 <QrCode size={18} />
-                <h3 className="text-sm font-bold text-[#1b1a18]">Instrument QR Code</h3>
+                <h3 className="text-sm font-bold text-[#1b1a18]">
+                  Instrument QR Code
+                </h3>
               </div>
               <button
                 onClick={() => setShowQrModal(false)}
-                className="text-gray-400 hover:text-gray-600 p-1 rounded-lg"
+                className="text-gray-400 hover:text-gray-600 p-1 rounded-lg cursor-pointer"
               >
                 <X size={18} />
               </button>
@@ -793,7 +905,6 @@ export default function InstrumentDetailScreen({
               <p className="font-mono text-[11px] text-[#7a7872]">{assetId}</p>
             </div>
 
-            {/* Render Saved QR image from backend OR live fallback canvas */}
             <div
               ref={qrCanvasRef}
               className="p-4 bg-[#f8fafc] border-2 border-dashed border-[#1b4d8f]/30 rounded-2xl flex items-center justify-center shadow-inner"
@@ -818,7 +929,7 @@ export default function InstrumentDetailScreen({
 
             <button
               onClick={handleDownloadQr}
-              className="w-full bg-[#1b4d8f] text-white py-2.5 rounded-xl text-xs font-bold active:scale-95 transition-all shadow-xs flex items-center justify-center gap-2"
+              className="w-full bg-[#1b4d8f] text-white py-2.5 rounded-xl text-xs font-bold active:scale-95 transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer"
             >
               <Download size={15} />
               <span>Download QR Photo</span>
@@ -834,11 +945,13 @@ export default function InstrumentDetailScreen({
             <div className="flex items-center justify-between border-b pb-2">
               <div className="flex items-center gap-2 text-[#c92a2a]">
                 <AlertTriangle size={18} />
-                <h3 className="text-sm font-bold text-[#1b1a18]">Confirm Delete</h3>
+                <h3 className="text-sm font-bold text-[#1b1a18]">
+                  Confirm Delete
+                </h3>
               </div>
               <button
                 onClick={() => setShowDeleteModal(false)}
-                className="text-gray-400 hover:text-gray-600 p-1"
+                className="text-gray-400 hover:text-gray-600 p-1 cursor-pointer"
               >
                 <X size={18} />
               </button>
@@ -854,7 +967,7 @@ export default function InstrumentDetailScreen({
               <button
                 type="button"
                 onClick={() => setShowDeleteModal(false)}
-                className="flex-1 py-2.5 rounded-xl text-xs font-medium border border-gray-300 text-gray-700 bg-white"
+                className="flex-1 py-2.5 rounded-xl text-xs font-medium border border-gray-300 text-gray-700 bg-white cursor-pointer"
               >
                 Cancel
               </button>
@@ -862,7 +975,7 @@ export default function InstrumentDetailScreen({
                 type="button"
                 disabled={isDeleting}
                 onClick={handleDeleteInstrument}
-                className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-[#c92a2a] hover:bg-[#b02525] text-white disabled:opacity-50 transition-all"
+                className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-[#c92a2a] hover:bg-[#b02525] text-white disabled:opacity-50 transition-all cursor-pointer"
               >
                 {isDeleting ? "Deleting..." : "Delete Permanently"}
               </button>
@@ -883,28 +996,33 @@ export default function InstrumentDetailScreen({
               <button
                 type="button"
                 onClick={stopCamera}
-                className="p-1 rounded-full bg-white/20 hover:bg-white/30 text-white transition-all"
+                className="p-1 rounded-full bg-white/20 hover:bg-white/30 text-white transition-all cursor-pointer"
               >
                 <X size={16} />
               </button>
             </div>
 
             <div className="relative flex-1 bg-black rounded-2xl overflow-hidden flex items-center justify-center my-2">
-              <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                className="w-full h-full object-cover"
+              />
             </div>
 
             <div className="pt-1 pb-1 flex items-center justify-center gap-4">
               <button
                 type="button"
                 onClick={stopCamera}
-                className="bg-white/20 hover:bg-white/30 text-white text-xs px-4 py-2 rounded-xl transition-all font-medium"
+                className="bg-white/20 hover:bg-white/30 text-white text-xs px-4 py-2 rounded-xl transition-all font-medium cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={takePhoto}
-                className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-all border-4 border-[#1b4d8f]"
+                className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-all border-4 border-[#1b4d8f] cursor-pointer"
               >
                 <div className="w-8 h-8 bg-[#1b4d8f] rounded-full" />
               </button>
