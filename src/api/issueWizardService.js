@@ -24,6 +24,7 @@ export const scanInstrumentByAssetId = async (assetId) => {
   return response.data;
 };
 
+
 /**
  * Submit checkout (JSON or Multipart)
  */
