@@ -26,27 +26,22 @@ export default function IssueWizardScreen({
   onShowToast,
   onIssueComplete,
 }) {
-  // Wizard active step tracker (1: Instrument, 2: Person & Staff, 3: Dates, 4: Confirm)
   const [currentStep, setCurrentStep] = useState(1);
 
-  // Dynamic Data States from Backend
   const [availableInstruments, setAvailableInstruments] = useState([]);
   const [scientists, setScientists] = useState([]);
   const [savedStaffList, setSavedStaffList] = useState([]);
   const [selectedStaffId, setSelectedStaffId] = useState("");
 
-  // Search Query States
   const [instrumentSearchQuery, setInstrumentSearchQuery] = useState("");
   const [scientistSearchQuery, setScientistSearchQuery] = useState("");
   const [staffSearchQuery, setStaffSearchQuery] = useState("");
   const [isStaffDropdownOpen, setIsStaffDropdownOpen] = useState(false);
 
-  // Live QR Scanner State
   const [isQrScannerOpen, setIsQrScannerOpen] = useState(false);
   const [isScanningApi, setIsScanningApi] = useState(false);
   const qrScannerRef = useRef(null);
 
-  // Pagination States (3 Items Per Page)
   const [instrumentPage, setInstrumentPage] = useState(1);
   const [scientistPage, setScientistPage] = useState(1);
   const ITEMS_PER_PAGE = 3;
@@ -54,15 +49,14 @@ export default function IssueWizardScreen({
   const [loadingData, setLoadingData] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Form State across all wizard steps
+  // Form State
   const [selectedInstrument, setSelectedInstrument] = useState(null);
+  const [issueQuantity, setIssueQuantity] = useState(1);
 
-  // Step 2 State: Selected Borrower Scientist & Optional Intermediary Staff details
   const [selectedScientist, setSelectedScientist] = useState(null);
   const [staffName, setStaffName] = useState("");
   const [staffEmail, setStaffEmail] = useState("");
 
-  // Step 3 State: Dynamic Dates (Today & +14 Days), Purpose, Condition & Photo Record
   const getTodayFormatted = () => new Date().toISOString().split("T")[0];
   const getFourteenDaysLaterFormatted = () => {
     const d = new Date();
@@ -79,13 +73,11 @@ export default function IssueWizardScreen({
     "Complete with case and accessories"
   );
 
-  // Camera & Photo Capture State (Step 3)
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [capturedPhoto, setCapturedPhoto] = useState(null);
   const videoRef = useRef(null);
   const mediaStreamRef = useRef(null);
 
-  // --- Initial Data Fetching from Backend ---
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -96,7 +88,6 @@ export default function IssueWizardScreen({
           axiosClient.get("/staff-members").catch(() => ({ data: [] })),
         ]);
 
-        // Filter instruments to show AVAILABLE ones
         const availableOnly = (Array.isArray(instRes) ? instRes : []).filter(
           (item) => item.status === "AVAILABLE" || item.status === "Available"
         );
@@ -118,7 +109,6 @@ export default function IssueWizardScreen({
     fetchData();
   }, []);
 
-  // --- Live QR Scanner Lifecycle Effect ---
   useEffect(() => {
     if (isQrScannerOpen) {
       const scanner = new Html5QrcodeScanner(
@@ -128,14 +118,13 @@ export default function IssueWizardScreen({
           qrbox: { width: 220, height: 220 },
           aspectRatio: 1.0,
         },
-        /* verbose= */ false
+        false
       );
 
       qrScannerRef.current = scanner;
 
       scanner.render(
         async (decodedText) => {
-          // Pause/Clear scanner on successful read
           scanner.clear().catch(() => {});
           setIsQrScannerOpen(false);
 
@@ -143,17 +132,16 @@ export default function IssueWizardScreen({
             setIsScanningApi(true);
             if (onShowToast) onShowToast(`Scanned Tag: ${decodedText}. Fetching details...`);
 
-            // Fetch instrument details via backend scan API
             const scannedInstrument = await scanInstrumentByAssetId(decodedText.trim());
 
             if (scannedInstrument) {
               setSelectedInstrument(scannedInstrument);
+              setIssueQuantity(1);
               if (onShowToast) {
                 onShowToast(
                   `Instrument Matched: ${scannedInstrument.name} (${scannedInstrument.asset_id || scannedInstrument.assetId})`
                 );
               }
-              // Automatically move to Step 2 (Person selection)
               setCurrentStep(2);
             } else {
               if (onShowToast) onShowToast("Instrument not found for scanned QR tag.");
@@ -166,9 +154,7 @@ export default function IssueWizardScreen({
             setIsScanningApi(false);
           }
         },
-        (errorMessage) => {
-          // Silent callback for non-detected frames
-        }
+        () => {}
       );
 
       return () => {
@@ -179,7 +165,6 @@ export default function IssueWizardScreen({
     }
   }, [isQrScannerOpen]);
 
-  // Filter Instruments in real-time based on search input
   const filteredInstruments = availableInstruments.filter((inst) => {
     const q = instrumentSearchQuery.toLowerCase().trim();
     if (!q) return true;
@@ -190,7 +175,6 @@ export default function IssueWizardScreen({
     );
   });
 
-  // Filter Scientists in real-time based on search input
   const filteredScientists = scientists.filter((sc) => {
     const q = scientistSearchQuery.toLowerCase().trim();
     if (!q) return true;
@@ -201,7 +185,6 @@ export default function IssueWizardScreen({
     );
   });
 
-  // Filter Staff List in real-time based on search input
   const filteredStaffList = savedStaffList.filter((st) => {
     const q = staffSearchQuery.toLowerCase().trim();
     if (!q) return true;
@@ -211,7 +194,6 @@ export default function IssueWizardScreen({
     );
   });
 
-  // --- Pagination Slice Calculations ---
   const totalInstrumentPages =
     Math.ceil(filteredInstruments.length / ITEMS_PER_PAGE) || 1;
   const paginatedInstruments = filteredInstruments.slice(
@@ -234,7 +216,6 @@ export default function IssueWizardScreen({
     setScientistPage(1);
   }, [scientistSearchQuery]);
 
-  // Handle Saved Staff Selection
   const handleSelectStaff = (staff) => {
     if (!staff) {
       setSelectedStaffId("NEW");
@@ -251,7 +232,6 @@ export default function IssueWizardScreen({
     setIsStaffDropdownOpen(false);
   };
 
-  // Camera Stream Handlers for Step 3 Photo
   const startCamera = async () => {
     try {
       setIsCameraOpen(true);
@@ -293,7 +273,6 @@ export default function IssueWizardScreen({
     return () => stopCamera();
   }, []);
 
-  // --- Step Validation Handlers ---
   const handleContinueStep1 = () => {
     if (!selectedInstrument) {
       if (onShowToast)
@@ -302,6 +281,16 @@ export default function IssueWizardScreen({
         );
       return;
     }
+
+    const availableQty = selectedInstrument.quantity || 1;
+    if (issueQuantity < 1 || issueQuantity > availableQty) {
+      if (onShowToast)
+        onShowToast(
+          `Validation Error: Please select a valid quantity between 1 and ${availableQty}.`
+        );
+      return;
+    }
+
     setCurrentStep(2);
   };
 
@@ -332,7 +321,6 @@ export default function IssueWizardScreen({
     setCurrentStep(4);
   };
 
-  // --- Backend Submit Handler ---
   const handleConfirmIssue = async () => {
     if (!capturedPhoto) {
       if (onShowToast)
@@ -349,6 +337,7 @@ export default function IssueWizardScreen({
       const payload = {
         instrumentId: selectedInstrument.id || selectedInstrument._id,
         scientistListId: targetScientistId,
+        quantity: issueQuantity,
         staffName: staffName.trim() || null,
         staffEmail: staffEmail.trim() || null,
         dueDate: expectedReturn,
@@ -364,7 +353,7 @@ export default function IssueWizardScreen({
         : "";
       if (onShowToast) {
         onShowToast(
-          `Issued successfully. Confirmation mail sent to ${selectedScientist.name}${staffText}.`
+          `Issued ${issueQuantity} unit(s) successfully. Confirmation mail sent to ${selectedScientist.name}${staffText}.`
         );
       }
 
@@ -393,7 +382,6 @@ export default function IssueWizardScreen({
 
   return (
     <div className="relative h-full flex flex-col justify-between overflow-hidden font-sans text-[#1b1a18]">
-      {/* Top Header & Step Progress Bar */}
       <div className="shrink-0 pb-2">
         <div className="flex items-center gap-2 mb-1">
           <button
@@ -432,36 +420,25 @@ export default function IssueWizardScreen({
             />
           </div>
           <div className="grid grid-cols-4 text-[10.5px] font-medium text-gray-500 text-center">
-            <span
-              className={currentStep === 1 ? "font-bold text-[#1b4d8f]" : ""}
-            >
+            <span className={currentStep === 1 ? "font-bold text-[#1b4d8f]" : ""}>
               Instrument
             </span>
-            <span
-              className={currentStep === 2 ? "font-bold text-[#1b4d8f]" : ""}
-            >
+            <span className={currentStep === 2 ? "font-bold text-[#1b4d8f]" : ""}>
               Person
             </span>
-            <span
-              className={currentStep === 3 ? "font-bold text-[#1b4d8f]" : ""}
-            >
+            <span className={currentStep === 3 ? "font-bold text-[#1b4d8f]" : ""}>
               Dates
             </span>
-            <span
-              className={currentStep === 4 ? "font-bold text-[#12695a]" : ""}
-            >
+            <span className={currentStep === 4 ? "font-bold text-[#12695a]" : ""}>
               Confirm
             </span>
           </div>
         </div>
       </div>
 
-      {/* Middle Scrollable Area */}
       <div className="flex-1 overflow-y-auto py-1 pr-1 custom-scrollbar">
-        {/* ==================== STEP 1: SELECT INSTRUMENT ==================== */}
         {currentStep === 1 && (
           <div className="space-y-2.5 animate-fade-in">
-            {/* Live Camera QR Trigger Section */}
             <div className="bg-[#eef3fa] border-2 border-dashed border-[#1b4d8f]/40 rounded-2xl p-3 text-center space-y-1">
               <div className="w-10 h-10 rounded-xl bg-white border-2 border-[#1b4d8f] mx-auto flex items-center justify-center shadow-xs">
                 <QrCode size={20} className="text-[#1b4d8f]" />
@@ -498,7 +475,6 @@ export default function IssueWizardScreen({
               </span>
             </div>
 
-            {/* Instrument Search Bar */}
             <div className="relative">
               <Search
                 className="absolute left-2.5 top-2.5 text-gray-400"
@@ -522,7 +498,6 @@ export default function IssueWizardScreen({
               )}
             </div>
 
-            {/* Instrument Cards List */}
             <div className="space-y-2">
               {filteredInstruments.length === 0 ? (
                 <p className="text-xs text-gray-500 text-center py-4">
@@ -536,28 +511,66 @@ export default function IssueWizardScreen({
                   const isSelected =
                     selectedInstrument?.id === instId ||
                     selectedInstrument?._id === instId;
+                  const maxQuantity = item.quantity || 1;
+
                   return (
                     <div
                       key={instId}
-                      onClick={() => setSelectedInstrument(item)}
-                      className={`bg-white p-2.5 rounded-2xl border transition-all cursor-pointer active:scale-99 shadow-xs flex items-center justify-between gap-2 ${
+                      onClick={() => {
+                        setSelectedInstrument(item);
+                        setIssueQuantity(1);
+                      }}
+                      className={`bg-white p-2.5 rounded-2xl border transition-all cursor-pointer active:scale-99 shadow-xs flex flex-col gap-2 ${
                         isSelected
                           ? "border-[#1b4d8f] ring-1 ring-[#1b4d8f] bg-[#f4f7fc]"
                           : "border-black/10 hover:border-gray-300"
                       }`}
                     >
-                      <div className="min-w-0 flex-1">
-                        <h4 className="text-[12.5px] font-semibold text-[#1b1a18] truncate">
-                          {item.name}
-                        </h4>
-                        <p className="font-mono text-[10px] text-[#7a7872] mt-0.5 truncate">
-                          Asset ID: {item.asset_id || item.assetId}
-                        </p>
+                      <div className="flex items-center justify-between gap-2 min-w-0">
+                        <div className="min-w-0 flex-1">
+                          <h4 className="text-[12.5px] font-semibold text-[#1b1a18] truncate">
+                            {item.name}
+                          </h4>
+                          <p className="font-mono text-[10px] text-[#7a7872] mt-0.5 truncate">
+                            Asset ID: {item.asset_id || item.assetId} · In Stock: {maxQuantity}
+                          </p>
+                        </div>
+                        {isSelected && (
+                          <span className="text-[10px] font-bold text-[#1b4d8f] bg-[#1b4d8f]/10 px-2 py-0.5 rounded-md shrink-0">
+                            Selected
+                          </span>
+                        )}
                       </div>
-                      {isSelected && (
-                        <span className="text-[10px] font-bold text-[#1b4d8f] bg-[#1b4d8f]/10 px-2 py-0.5 rounded-md">
-                          Selected
-                        </span>
+
+                      {isSelected && maxQuantity > 1 && (
+                        <div
+                          onClick={(e) => e.stopPropagation()}
+                          className="pt-1 border-t border-black/10 flex items-center justify-between gap-2"
+                        >
+                          <label className="text-[11px] font-semibold text-[#5d5b56]">
+                            Checkout Quantity:
+                          </label>
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="number"
+                              min="1"
+                              max={maxQuantity}
+                              value={issueQuantity}
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value, 10);
+                                if (!isNaN(val)) {
+                                  setIssueQuantity(Math.max(1, Math.min(maxQuantity, val)));
+                                } else {
+                                  setIssueQuantity(1);
+                                }
+                              }}
+                              className="w-16 bg-white text-[12px] font-semibold text-center py-1 border border-black/20 rounded-lg focus:outline-none focus:border-[#1b4d8f]"
+                            />
+                            <span className="text-[10.5px] text-gray-500">
+                              / {maxQuantity} max
+                            </span>
+                          </div>
+                        </div>
                       )}
                     </div>
                   );
@@ -565,7 +578,6 @@ export default function IssueWizardScreen({
               )}
             </div>
 
-            {/* Instrument Pagination Controls */}
             {filteredInstruments.length > ITEMS_PER_PAGE && (
               <div className="flex items-center justify-between pt-1 border-t border-gray-100">
                 <button
@@ -596,7 +608,6 @@ export default function IssueWizardScreen({
           </div>
         )}
 
-        {/* ==================== STEP 2: SELECT BORROWER SCIENTIST & STAFF ==================== */}
         {currentStep === 2 && (
           <div className="space-y-2.5 animate-fade-in pb-4">
             <div className="bg-white p-2.5 rounded-xl border border-black/10 space-y-0.5 shadow-xs">
@@ -604,7 +615,7 @@ export default function IssueWizardScreen({
                 INSTRUMENT
               </span>
               <h3 className="text-[13px] font-bold text-[#1b1a18] truncate">
-                {selectedInstrument?.name}
+                {selectedInstrument?.name} (Qty: {issueQuantity})
               </h3>
             </div>
 
@@ -873,7 +884,6 @@ export default function IssueWizardScreen({
           </div>
         )}
 
-        {/* ==================== STEP 3: DATES & CONDITION ==================== */}
         {currentStep === 3 && (
           <div className="space-y-2.5 pt-1 animate-fade-in">
             <div className="space-y-1">
@@ -976,7 +986,6 @@ export default function IssueWizardScreen({
           </div>
         )}
 
-        {/* ==================== STEP 4: CONFIRM & MAIL PREVIEW ==================== */}
         {currentStep === 4 && (
           <div className="space-y-2.5 animate-fade-in">
             <div className="bg-white p-3 rounded-2xl border border-black/10 space-y-1.5 text-[12px] shadow-xs">
@@ -991,6 +1000,12 @@ export default function IssueWizardScreen({
                 <span className="font-mono font-medium text-[#1b1a18]">
                   {selectedInstrument?.asset_id ||
                     selectedInstrument?.assetId}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[#7a7872]">Checkout Quantity</span>
+                <span className="font-bold text-[#1b4d8f]">
+                  {issueQuantity} unit(s)
                 </span>
               </div>
               <div className="flex justify-between">
@@ -1067,7 +1082,7 @@ export default function IssueWizardScreen({
               )}
 
               <div className="border-t border-[#1b4d8f]/15 pt-1.5 text-[11px] leading-relaxed text-[#3f4d63]">
-                {selectedInstrument?.name} (
+                {issueQuantity} unit(s) of {selectedInstrument?.name} (
                 {selectedInstrument?.asset_id || selectedInstrument?.assetId})
                 is issued to {selectedScientist?.name} from {issueDate} to{" "}
                 {expectedReturn}.
@@ -1077,7 +1092,6 @@ export default function IssueWizardScreen({
         )}
       </div>
 
-      {/* Live QR Scanner Modal Overlay */}
       {isQrScannerOpen && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in">
           <div className="w-full max-w-sm bg-white rounded-3xl p-4 shadow-2xl border border-black/10 space-y-3">
@@ -1095,7 +1109,6 @@ export default function IssueWizardScreen({
               </button>
             </div>
 
-            {/* Html5Qrcode Scanner Target Element */}
             <div className="overflow-hidden rounded-2xl bg-black min-h-[220px]">
               <div id="qr-reader-container" className="w-full" />
             </div>
@@ -1115,7 +1128,6 @@ export default function IssueWizardScreen({
         </div>
       )}
 
-      {/* Condition Photo Live Viewfinder Modal */}
       {isCameraOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in">
           <div className="w-full max-w-sm h-[70vh] bg-black rounded-3xl overflow-hidden flex flex-col justify-between p-3.5 shadow-2xl border border-white/20">
@@ -1163,7 +1175,6 @@ export default function IssueWizardScreen({
         </div>
       )}
 
-      {/* Fixed Action Footer */}
       <div className="pt-2 border-t border-gray-100 shrink-0 bg-[#f7f6f3]">
         {currentStep === 1 && (
           <button
