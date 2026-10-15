@@ -8,6 +8,7 @@ import {
   Loader2,
   IndianRupee,
   AlertCircle,
+  Hash,
 } from "lucide-react";
 import { QRCodeCanvas } from "qrcode.react";
 import axiosClient from "../api/axiosClient";
@@ -18,6 +19,7 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
     name: "",
     make: "",
     serialNo: "",
+    quantity: "1", // Added quantity state
     location: "",
     calibrationValidity: "",
     purchaseDate: "",
@@ -167,6 +169,7 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
       multipartPayload.append("make", formData.make.trim());
       if (formData.serialNo.trim())
         multipartPayload.append("serial_no", formData.serialNo.trim());
+      multipartPayload.append("quantity", formData.quantity || "1"); // Attached dynamic quantity
       multipartPayload.append("location", formData.location.trim());
       if (formData.calibrationValidity)
         multipartPayload.append(
@@ -178,7 +181,6 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
       if (formData.purchaseCost)
         multipartPayload.append("purchase_cost", formData.purchaseCost);
       multipartPayload.append("status", "AVAILABLE");
-      multipartPayload.append("quantity", "1");
 
       // Attach mandatory photo file
       multipartPayload.append("photo", selectedPhotoFile);
@@ -329,19 +331,39 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
           />
         </div>
 
-        <div className="space-y-1">
-          <label className="text-[11.5px] font-semibold text-[#5d5b56]">
-            Serial number
-          </label>
-          <input
-            type="text"
-            name="serialNo"
-            value={formData.serialNo}
-            onChange={handleChange}
-            placeholder="440-01192"
-            className="w-full bg-white text-[13px] p-3 rounded-xl border border-black/15 focus:outline-none focus:border-[#1b4d8f] focus:ring-1 focus:ring-[#1b4d8f] transition-all"
-            disabled={isSubmitting}
-          />
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <label className="text-[11.5px] font-semibold text-[#5d5b56]">
+              Serial number
+            </label>
+            <input
+              type="text"
+              name="serialNo"
+              value={formData.serialNo}
+              onChange={handleChange}
+              placeholder="440-01192"
+              className="w-full bg-white text-[13px] p-3 rounded-xl border border-black/15 focus:outline-none focus:border-[#1b4d8f] focus:ring-1 focus:ring-[#1b4d8f] transition-all"
+              disabled={isSubmitting}
+            />
+          </div>
+
+          {/* Quantity Field */}
+          <div className="space-y-1">
+            <label className="text-[11.5px] font-semibold text-[#5d5b56]">
+              Quantity <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="number"
+              name="quantity"
+              min="1"
+              value={formData.quantity}
+              onChange={handleChange}
+              placeholder="1"
+              className="w-full bg-white text-[13px] p-3 rounded-xl border border-black/15 focus:outline-none focus:border-[#1b4d8f] focus:ring-1 focus:ring-[#1b4d8f] transition-all"
+              required
+              disabled={isSubmitting}
+            />
+          </div>
         </div>
 
         <div className="space-y-1">

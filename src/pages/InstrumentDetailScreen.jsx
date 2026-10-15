@@ -20,6 +20,7 @@ import {
   Wrench,
   Lock,
   Send,
+  Hash,
 } from "lucide-react";
 import { QRCodeCanvas } from "qrcode.react";
 import axiosClient from "../api/axiosClient";
@@ -62,6 +63,7 @@ export default function InstrumentDetailScreen({
   const assetId = instrument?.assetId || instrument?.asset_id || "N/A";
   const make = instrument?.make || "N/A";
   const serialNo = instrument?.serialNo || instrument?.serial_no || "N/A";
+  const quantity = instrument?.quantity !== undefined && instrument?.quantity !== null ? instrument?.quantity : 1;
   const location = instrument?.location || "N/A";
   const calibrationValidTo =
     instrument?.calibrationValidTo || instrument?.calibration_valid_to || "N/A";
@@ -94,6 +96,7 @@ export default function InstrumentDetailScreen({
     assetId: initialInstrument?.assetId || initialInstrument?.asset_id || "",
     make: initialInstrument?.make || "",
     serialNo: initialInstrument?.serialNo || initialInstrument?.serial_no || "",
+    quantity: initialInstrument?.quantity !== undefined && initialInstrument?.quantity !== null ? initialInstrument?.quantity : 1,
     location: initialInstrument?.location || "",
     calibrationValidTo:
       initialInstrument?.calibrationValidTo || initialInstrument?.calibration_valid_to || "",
@@ -279,6 +282,7 @@ export default function InstrumentDetailScreen({
       formData.append("make", editFormData.make);
       formData.append("serial_no", editFormData.serialNo);
       formData.append("serialNo", editFormData.serialNo);
+      formData.append("quantity", editFormData.quantity);
       formData.append("location", editFormData.location);
       formData.append("calibration_valid_to", editFormData.calibrationValidTo);
       formData.append("calibrationValidTo", editFormData.calibrationValidTo);
@@ -429,6 +433,16 @@ export default function InstrumentDetailScreen({
 
               <div>
                 <span className="text-[10.5px] font-semibold text-[#7a7872] uppercase block">
+                  Quantity
+                </span>
+                <span className="font-medium text-[#1b1a18] flex items-center gap-1 mt-0.5">
+                  <Hash size={12} className="text-[#1b4d8f]" />
+                  {quantity}
+                </span>
+              </div>
+
+              <div>
+                <span className="text-[10.5px] font-semibold text-[#7a7872] uppercase block">
                   Location
                 </span>
                 <span className="font-medium text-[#1b1a18] flex items-center gap-1 mt-0.5">
@@ -437,7 +451,7 @@ export default function InstrumentDetailScreen({
                 </span>
               </div>
 
-              <div>
+              <div className="col-span-2">
                 <span className="text-[10.5px] font-semibold text-[#7a7872] uppercase block">
                   Calibration Valid To
                 </span>
@@ -574,6 +588,7 @@ export default function InstrumentDetailScreen({
                     assetId: instrument.assetId || instrument.asset_id || "",
                     make: instrument.make || "",
                     serialNo: instrument.serialNo || instrument.serial_no || "",
+                    quantity: instrument.quantity !== undefined && instrument.quantity !== null ? instrument.quantity : 1,
                     location: instrument.location || "",
                     calibrationValidTo:
                       instrument.calibrationValidTo ||
@@ -792,15 +807,33 @@ export default function InstrumentDetailScreen({
             </div>
           </div>
 
-          <div className="space-y-1">
-            <label className="text-[11px] font-semibold text-[#5d5b56]">Location</label>
-            <input
-              type="text"
-              name="location"
-              value={editFormData.location}
-              onChange={handleEditChange}
-              className="w-full bg-white text-xs p-2.5 rounded-xl border border-black/15 focus:outline-none focus:border-[#1b4d8f]"
-            />
+          <div className="grid grid-cols-2 gap-2">
+            {/* EDITABLE FIELD: Quantity */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-semibold text-[#5d5b56]">
+                Quantity <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="number"
+                name="quantity"
+                min="1"
+                value={editFormData.quantity}
+                onChange={handleEditChange}
+                required
+                className="w-full bg-white text-xs p-2.5 rounded-xl border border-black/15 focus:outline-none focus:border-[#1b4d8f]"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[11px] font-semibold text-[#5d5b56]">Location</label>
+              <input
+                type="text"
+                name="location"
+                value={editFormData.location}
+                onChange={handleEditChange}
+                className="w-full bg-white text-xs p-2.5 rounded-xl border border-black/15 focus:outline-none focus:border-[#1b4d8f]"
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-2">
