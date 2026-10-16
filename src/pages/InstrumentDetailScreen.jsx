@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   ArrowLeft,
   Calendar,
@@ -21,9 +21,12 @@ import {
   Lock,
   Send,
   Hash,
+  RotateCcw,
+  AlertCircle,
 } from "lucide-react";
 import { QRCodeCanvas } from "qrcode.react";
 import axiosClient from "../api/axiosClient";
+import { getActiveIssueRecords } from "../api/instrumentService";
 
 const dataURLtoBlob = (dataurl) => {
   if (!dataurl || !dataurl.includes(",")) return null;
@@ -55,10 +58,24 @@ export default function InstrumentDetailScreen({
 
   const qrCanvasRef = useRef(null);
 
-  // Form State
+  // Form Edit State
   const [isEditing, setIsEditing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedPhotoFile, setSelectedPhotoFile] = useState(null);
+
+  // Receive / Return Instrument State
+  const [showReturnModal, setShowReturnModal] = useState(false);
+  const [activeRecord, setActiveRecord] = useState(null);
+  const [conditionIn, setConditionIn] = useState("GOOD");
+  const [isReturning, setIsReturning] = useState(false);
+  const [isLoadingRecord, setIsLoadingRecord] = useState(false);
+
+  // Live Camera Capture State
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [capturedPhoto, setCapturedPhoto] = useState(null);
+  const videoRef = useRef(null);
+  const mediaStreamRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   const assetId = instrument?.assetId || instrument?.asset_id || "N/A";
   const make = instrument?.make || "N/A";
@@ -105,11 +122,6 @@ export default function InstrumentDetailScreen({
     status: initialInstrument?.status || "AVAILABLE",
     photoPath: initialInstrument?.photoPath || initialInstrument?.photo_path || null,
   });
-
-  const [isCameraOpen, setIsCameraOpen] = useState(false);
-  const videoRef = useRef(null);
-  const mediaStreamRef = useRef(null);
-  const fileInputRef = useRef(null);
 
   if (!instrument) {
     return (
@@ -192,23 +204,7 @@ export default function InstrumentDetailScreen({
     }
   };
 
-  const handleEditChange = (e) => {
-    const { name, value } = e.target;
-    setEditFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleFileChange = (e) => {
-    const file = e.target.files && e.target.files[0];
-    if (file) {
-      setSelectedPhotoFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () =>
-        setEditFormData((prev) => ({ ...prev, photoPath: reader.result }));
-      reader.readAsDataURL(file);
-      if (onShowToast) onShowToast("New photo selected!");
-    }
-  };
-
+  // Camera Handlers
   const startCamera = async () => {
     try {
       setIsCameraOpen(true);
@@ -243,7 +239,10 @@ export default function InstrumentDetailScreen({
 
     const dataUrl = canvas.toDataURL("image/jpeg");
     const blob = dataURLtoBlob(dataUrl);
-    if (blob) {
+
+    if (showReturnModal) {
+      setCapturedPhoto(dataUrl);
+    } else if (isEditing && blob) {
       const file = new File([blob], `instrument_${Date.now()}.jpg`, {
         type: "image/jpeg",
       });
@@ -252,7 +251,107 @@ export default function InstrumentDetailScreen({
     }
 
     stopCamera();
-    if (onShowToast) onShowToast("Instrument photo captured!");
+    if (onShowToast) onShowToast("Photo captured successfully!");
+  };
+
+  // Fetch corresponding active IssueRecord for Return processing
+  const handleOpenReceiveModal = async () => {
+    try {
+      setIsLoadingRecord(true);
+      const records = await getActiveIssueRecords();
+      
+      const matchingRecord = (records || []).find((rec) => {
+        const recInstId = rec.instrument?.id || rec.instrument?._id;
+        const recAssetId = rec.instrument?.assetId || rec.instrument?.asset_id;
+        return (recInstId && recInstId === instrumentId) || (recAssetId && recAssetId === assetId);
+      });
+
+      if (matchingRecord) {
+        setActiveRecord(matchingRecord);
+        setConditionIn("GOOD");
+        setCapturedPhoto(null);
+        setShowReturnModal(true);
+      } else {
+        if (onShowToast) onShowToast("Could not find open issue record for this instrument.");
+      }
+    } catch (err) {
+      if (onShowToast) onShowToast("Failed to fetch issue details for receiving.");
+    } finally {
+      setIsLoadingRecord(false);
+    }
+  };
+
+  // Execute Return API logic exactly as in ReceiveScreen.jsx
+  const handleConfirmReturn = async () => {
+    if (!activeRecord) return;
+
+    if (!capturedPhoto) {
+      if (onShowToast) {
+        onShowToast("Please capture a live photo of the instrument before proceeding.");
+      }
+      return;
+    }
+
+    const recordId = activeRecord.id || activeRecord._id;
+
+    try {
+      setIsReturning(true);
+
+      const formData = new FormData();
+      formData.append("condition_in", conditionIn);
+
+      const photoBlob = dataURLtoBlob(capturedPhoto);
+      formData.append("photo", photoBlob, "return_condition.jpg");
+
+      await axiosClient.put(
+        `/issue-records/${recordId}/return/photo`,
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        }
+      );
+
+      if (onShowToast) {
+        onShowToast(
+          `Received back. Instrument status set to ${
+            conditionIn === "GOOD" ? "AVAILABLE" : "MAINTENANCE"
+          }.`
+        );
+      }
+
+      setShowReturnModal(false);
+      setCapturedPhoto(null);
+
+      // Redirect to the previous page
+      if (onBack) onBack();
+    } catch (err) {
+      if (onShowToast) {
+        onShowToast(
+          err.response?.data?.message || "Failed to record return in backend database."
+        );
+      }
+    } finally {
+      setIsReturning(false);
+    }
+  };
+
+  const handleEditChange = (e) => {
+    const { name, value } = e.target;
+    setEditFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (file) {
+      setSelectedPhotoFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () =>
+        setEditFormData((prev) => ({ ...prev, photoPath: reader.result }));
+      reader.readAsDataURL(file);
+      if (onShowToast) onShowToast("New photo selected!");
+    }
   };
 
   const handleFormSubmitAttempt = (e) => {
@@ -362,7 +461,7 @@ export default function InstrumentDetailScreen({
       <div className="flex items-center gap-2 mb-1">
         <button
           onClick={onBack}
-          className="p-1 rounded-lg hover:bg-black/5 active:scale-95 transition-all"
+          className="p-1 rounded-lg hover:bg-black/5 active:scale-95 transition-all cursor-pointer"
         >
           <ArrowLeft size={18} className="text-[#1b4d8f]" />
         </button>
@@ -556,25 +655,44 @@ export default function InstrumentDetailScreen({
                 <span className="text-[11px] font-bold truncate">View QR</span>
               </button>
 
-              {/* 2. ISSUE BUTTON */}
-              <button
-                disabled={status !== "AVAILABLE"}
-                onClick={() => onNavigate && onNavigate("Issue")}
-                className={`flex items-center gap-2 p-2.5 rounded-xl transition-all ${
-                  status === "AVAILABLE"
-                    ? "bg-[#12695a] hover:bg-[#0e5246] text-white active:scale-95 cursor-pointer shadow-xs"
-                    : "bg-gray-100 border border-gray-200 text-gray-400 cursor-not-allowed opacity-60"
-                }`}
-              >
-                <div
-                  className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
-                    status === "AVAILABLE" ? "bg-white/20" : "bg-gray-200"
+              {/* 2. DYNAMIC ISSUE / RECEIVE BUTTON */}
+              {isCurrentlyIssued ? (
+                <button
+                  disabled={isLoadingRecord}
+                  onClick={handleOpenReceiveModal}
+                  className="flex items-center gap-2 p-2.5 bg-[#1b4d8f] hover:bg-[#143d73] text-white rounded-xl active:scale-95 transition-all cursor-pointer shadow-xs"
+                >
+                  <div className="w-7 h-7 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
+                    {isLoadingRecord ? (
+                      <Loader2 size={15} className="animate-spin" />
+                    ) : (
+                      <RotateCcw size={15} />
+                    )}
+                  </div>
+                  <span className="text-[11px] font-bold truncate">Receive Item</span>
+                </button>
+              ) : (
+                <button
+                  disabled={status !== "AVAILABLE"}
+                  onClick={() => {
+                    if (onNavigate) onNavigate("Issue");
+                  }}
+                  className={`flex items-center gap-2 p-2.5 rounded-xl transition-all ${
+                    status === "AVAILABLE"
+                      ? "bg-[#12695a] hover:bg-[#0e5246] text-white active:scale-95 cursor-pointer shadow-xs"
+                      : "bg-gray-100 border border-gray-200 text-gray-400 cursor-not-allowed opacity-60"
                   }`}
                 >
-                  <Send size={15} />
-                </div>
-                <span className="text-[11px] font-bold truncate">Issue Item</span>
-              </button>
+                  <div
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+                      status === "AVAILABLE" ? "bg-white/20" : "bg-gray-200"
+                    }`}
+                  >
+                    <Send size={15} />
+                  </div>
+                  <span className="text-[11px] font-bold truncate">Issue Item</span>
+                </button>
+              )}
 
               {/* 3. EDIT BUTTON */}
               <button
@@ -914,6 +1032,133 @@ export default function InstrumentDetailScreen({
             </button>
           </div>
         </form>
+      )}
+
+      {/* RECEIVE / RETURN INSTRUMENT MODAL */}
+      {showReturnModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl p-4 w-full max-w-sm space-y-3 shadow-2xl border border-black/10">
+            <div className="flex items-center justify-between border-b pb-2">
+              <h3 className="text-sm font-bold text-[#1b1a18]">
+                Record Return Details
+              </h3>
+              <button
+                onClick={() => {
+                  setShowReturnModal(false);
+                  stopCamera();
+                }}
+                className="text-gray-400 hover:text-gray-600 p-1 cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-0.5">
+              <span className="text-xs font-semibold text-gray-800">
+                {instrument.name}
+              </span>
+              <p className="text-[11px] text-gray-500">
+                Borrower:{" "}
+                {activeRecord?.borrowerScientist?.name ||
+                  activeRecord?.borrower_scientist?.name ||
+                  activeRecord?.staffName ||
+                  activeRecord?.staff_name ||
+                  scientistName}
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold uppercase text-gray-500 tracking-wider">
+                Physical Condition at Return *
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setConditionIn("GOOD")}
+                  className={`py-2 px-3 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+                    conditionIn === "GOOD"
+                      ? "bg-[#eef8f5] text-[#12695a] border-[#12695a] ring-1 ring-[#12695a]"
+                      : "bg-white text-gray-600 border-gray-300"
+                  }`}
+                >
+                  Good (Available)
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setConditionIn("BAD")}
+                  className={`py-2 px-3 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+                    conditionIn === "BAD"
+                      ? "bg-[#fcf2f2] text-[#c92a2a] border-[#c92a2a] ring-1 ring-[#c92a2a]"
+                      : "bg-white text-gray-600 border-gray-300"
+                  }`}
+                >
+                  Bad (Maintenance)
+                </button>
+              </div>
+            </div>
+
+            {/* Mandatory Photo Capture Section */}
+            <div className="space-y-1.5 pt-1">
+              <label className="text-[11px] font-bold uppercase text-[#c92a2a] tracking-wider flex items-center justify-between">
+                <span>Instrument Photo (Required) *</span>
+                {!capturedPhoto && (
+                  <span className="text-[10px] lowercase font-normal text-red-500 flex items-center gap-0.5">
+                    <AlertCircle size={11} /> Photo required
+                  </span>
+                )}
+              </label>
+
+              {capturedPhoto ? (
+                <div className="relative rounded-xl overflow-hidden border border-emerald-500 ring-1 ring-emerald-500">
+                  <img
+                    src={capturedPhoto}
+                    alt="Captured condition"
+                    className="w-full h-28 object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setCapturedPhoto(null)}
+                    className="absolute top-1 right-1 bg-black/60 text-white p-1 rounded-full cursor-pointer"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={startCamera}
+                  className="w-full bg-red-50/50 border border-dashed border-[#f5c2c2] text-[#8f2318] py-2.5 rounded-xl text-xs font-medium flex items-center justify-center gap-2 hover:bg-red-100/50 cursor-pointer"
+                >
+                  <Camera size={16} />
+                  <span>Take Live Photo (Mandatory)</span>
+                </button>
+              )}
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowReturnModal(false);
+                  stopCamera();
+                }}
+                className="flex-1 py-2.5 rounded-xl text-xs font-medium border border-gray-300 text-gray-700 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isReturning || !capturedPhoto}
+                onClick={handleConfirmReturn}
+                className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-[#1b4d8f] text-white disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+              >
+                {isReturning ? "Processing..." : "Confirm Return"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* TWO-STEP STATUS CHANGE CONFIRMATION POPUP MODAL */}
