@@ -19,7 +19,7 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
     name: "",
     make: "",
     serialNo: "",
-    quantity: "1", // Added quantity state
+    quantity: "1",
     location: "",
     calibrationValidity: "",
     purchaseDate: "",
@@ -38,6 +38,24 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
 
   // Off-screen canvas ref for capturing generated QR image
   const qrCanvasRef = useRef(null);
+
+  // Construct filtered QR payload matching the 8 requested fields
+  const qrPayload = JSON.stringify(
+    {
+      assetId: formData.assetId.trim() || "N/A",
+      equipment: formData.name.trim() || "N/A",
+      brandMake: formData.make.trim() || "N/A",
+      serialNumber: formData.serialNo.trim() || "N/A",
+      location: formData.location.trim() || "N/A",
+      purchaseDate: formData.purchaseDate || "N/A",
+      purchaseCost: formData.purchaseCost
+        ? Number(formData.purchaseCost)
+        : null,
+      calibrationValidTo: formData.calibrationValidity || "N/A",
+    },
+    null,
+    2
+  );
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -110,7 +128,6 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
     return () => stopCamera();
   }, []);
 
-  // Converts off-screen QR canvas element into a binary PNG File
   const generateQrFile = () => {
     return new Promise((resolve) => {
       if (!qrCanvasRef.current) return resolve(null);
@@ -143,13 +160,13 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
       !formData.make.trim() ||
       !formData.location.trim()
     ) {
-      const msg = "Validation Error: Asset ID, Name, Make, and Location are required.";
+      const msg =
+        "Validation Error: Asset ID, Name, Make, and Location are required.";
       setErrorMsg(msg);
       if (onShowToast) onShowToast(msg);
       return;
     }
 
-    // MANDATORY PHOTO VALIDATION CHECK
     if (!selectedPhotoFile) {
       const photoMsg = "Validation Error: Instrument photo is mandatory.";
       setErrorMsg(photoMsg);
@@ -160,7 +177,6 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
     try {
       setIsSubmitting(true);
 
-      // Generate binary QR Code file from offscreen canvas
       const qrImageFile = await generateQrFile();
 
       const multipartPayload = new FormData();
@@ -169,7 +185,7 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
       multipartPayload.append("make", formData.make.trim());
       if (formData.serialNo.trim())
         multipartPayload.append("serial_no", formData.serialNo.trim());
-      multipartPayload.append("quantity", formData.quantity || "1"); // Attached dynamic quantity
+      multipartPayload.append("quantity", formData.quantity || "1");
       multipartPayload.append("location", formData.location.trim());
       if (formData.calibrationValidity)
         multipartPayload.append(
@@ -182,10 +198,8 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
         multipartPayload.append("purchase_cost", formData.purchaseCost);
       multipartPayload.append("status", "AVAILABLE");
 
-      // Attach mandatory photo file
       multipartPayload.append("photo", selectedPhotoFile);
 
-      // Pass generated QR image to backend
       if (qrImageFile) {
         multipartPayload.append("qrPhoto", qrImageFile);
       }
@@ -246,11 +260,11 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
       >
         {formData.assetId.trim() && (
           <QRCodeCanvas
-            value={formData.assetId.trim()}
+            value={qrPayload}
             size={300}
             bgColor="#FFFFFF"
             fgColor="#1b4d8f"
-            level="H"
+            level="M"
             includeMargin={true}
           />
         )}
@@ -347,7 +361,6 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
             />
           </div>
 
-          {/* Quantity Field */}
           <div className="space-y-1">
             <label className="text-[11.5px] font-semibold text-[#5d5b56]">
               Quantity <span className="text-red-500">*</span>

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef } from "react";
 import {
   ArrowLeft,
   Calendar,
@@ -80,19 +80,28 @@ export default function InstrumentDetailScreen({
   const assetId = instrument?.assetId || instrument?.asset_id || "N/A";
   const make = instrument?.make || "N/A";
   const serialNo = instrument?.serialNo || instrument?.serial_no || "N/A";
-  const quantity = instrument?.quantity !== undefined && instrument?.quantity !== null ? instrument?.quantity : 1;
+  const quantity =
+    instrument?.quantity !== undefined && instrument?.quantity !== null
+      ? instrument?.quantity
+      : 1;
   const location = instrument?.location || "N/A";
   const calibrationValidTo =
-    instrument?.calibrationValidTo || instrument?.calibration_valid_to || "N/A";
-  const purchaseDate = instrument?.purchaseDate || instrument?.purchase_date || "N/A";
-  const purchaseCost = instrument?.purchaseCost || instrument?.purchase_cost || null;
+    instrument?.calibrationValidTo ||
+    instrument?.calibration_valid_to ||
+    "N/A";
+  const purchaseDate =
+    instrument?.purchaseDate || instrument?.purchase_date || "N/A";
+  const purchaseCost =
+    instrument?.purchaseCost || instrument?.purchase_cost || null;
 
   const scientistName =
     instrument?.scientistName ||
     instrument?.scientist ||
     instrument?.borrowerScientist?.name ||
     instrument?.borrower_scientist?.name ||
-    (typeof instrument?.holder === "string" ? instrument?.holder : instrument?.holder?.name) ||
+    (typeof instrument?.holder === "string"
+      ? instrument?.holder
+      : instrument?.holder?.name) ||
     instrument?.ownerScientist?.name ||
     instrument?.owner_scientist?.name ||
     "N/A";
@@ -105,22 +114,54 @@ export default function InstrumentDetailScreen({
     instrument?.issuedBy ||
     instrument?.staffMember ||
     instrument?.issuedToStaffName ||
-    (typeof instrument?.issuedTo === "string" ? instrument?.issuedTo : instrument?.issuedTo?.name) ||
+    (typeof instrument?.issuedTo === "string"
+      ? instrument?.issuedTo
+      : instrument?.issuedTo?.name) ||
     null;
+
+  // QR Code Payload (Selected 8 Fields Only)
+  const qrPayload = JSON.stringify(
+    {
+      assetId: assetId,
+      equipment: instrument?.name || "N/A",
+      brandMake: make,
+      serialNumber: serialNo,
+      location: location,
+      purchaseDate: purchaseDate,
+      purchaseCost: purchaseCost,
+      calibrationValidTo: calibrationValidTo,
+    },
+    null,
+    2
+  );
 
   const [editFormData, setEditFormData] = useState({
     name: initialInstrument?.name || "",
     assetId: initialInstrument?.assetId || initialInstrument?.asset_id || "",
     make: initialInstrument?.make || "",
-    serialNo: initialInstrument?.serialNo || initialInstrument?.serial_no || "",
-    quantity: initialInstrument?.quantity !== undefined && initialInstrument?.quantity !== null ? initialInstrument?.quantity : 1,
+    serialNo:
+      initialInstrument?.serialNo || initialInstrument?.serial_no || "",
+    quantity:
+      initialInstrument?.quantity !== undefined &&
+      initialInstrument?.quantity !== null
+        ? initialInstrument?.quantity
+        : 1,
     location: initialInstrument?.location || "",
     calibrationValidTo:
-      initialInstrument?.calibrationValidTo || initialInstrument?.calibration_valid_to || "",
-    purchaseDate: initialInstrument?.purchaseDate || initialInstrument?.purchase_date || "",
-    purchaseCost: initialInstrument?.purchaseCost || initialInstrument?.purchase_cost || "",
+      initialInstrument?.calibrationValidTo ||
+      initialInstrument?.calibration_valid_to ||
+      "",
+    purchaseDate:
+      initialInstrument?.purchaseDate ||
+      initialInstrument?.purchase_date ||
+      "",
+    purchaseCost:
+      initialInstrument?.purchaseCost ||
+      initialInstrument?.purchase_cost ||
+      "",
     status: initialInstrument?.status || "AVAILABLE",
-    photoPath: initialInstrument?.photoPath || initialInstrument?.photo_path || null,
+    photoPath:
+      initialInstrument?.photoPath || initialInstrument?.photo_path || null,
   });
 
   if (!instrument) {
@@ -133,7 +174,9 @@ export default function InstrumentDetailScreen({
           >
             <ArrowLeft size={18} className="text-[#1b4d8f]" />
           </button>
-          <h2 className="text-base font-bold text-[#1b4d8f]">Instrument details</h2>
+          <h2 className="text-base font-bold text-[#1b4d8f]">
+            Instrument details
+          </h2>
         </div>
         <p className="text-xs text-gray-500">No instrument selected.</p>
       </div>
@@ -142,7 +185,8 @@ export default function InstrumentDetailScreen({
 
   const status = instrument.status || "AVAILABLE";
   const isOverdue = status === "OVERDUE" || instrument.isOverdue;
-  const isCurrentlyIssued = status === "ISSUED" || status === "OVERDUE" || isOverdue;
+  const isCurrentlyIssued =
+    status === "ISSUED" || status === "OVERDUE" || isOverdue;
 
   let statusBadgeClass = "bg-[#eef7f2] text-[#12695a]";
   if (isOverdue) {
@@ -259,11 +303,14 @@ export default function InstrumentDetailScreen({
     try {
       setIsLoadingRecord(true);
       const records = await getActiveIssueRecords();
-      
+
       const matchingRecord = (records || []).find((rec) => {
         const recInstId = rec.instrument?.id || rec.instrument?._id;
         const recAssetId = rec.instrument?.assetId || rec.instrument?.asset_id;
-        return (recInstId && recInstId === instrumentId) || (recAssetId && recAssetId === assetId);
+        return (
+          (recInstId && recInstId === instrumentId) ||
+          (recAssetId && recAssetId === assetId)
+        );
       });
 
       if (matchingRecord) {
@@ -272,22 +319,26 @@ export default function InstrumentDetailScreen({
         setCapturedPhoto(null);
         setShowReturnModal(true);
       } else {
-        if (onShowToast) onShowToast("Could not find open issue record for this instrument.");
+        if (onShowToast)
+          onShowToast("Could not find open issue record for this instrument.");
       }
     } catch (err) {
-      if (onShowToast) onShowToast("Failed to fetch issue details for receiving.");
+      if (onShowToast)
+        onShowToast("Failed to fetch issue details for receiving.");
     } finally {
       setIsLoadingRecord(false);
     }
   };
 
-  // Execute Return API logic exactly as in ReceiveScreen.jsx
+  // Execute Return API logic
   const handleConfirmReturn = async () => {
     if (!activeRecord) return;
 
     if (!capturedPhoto) {
       if (onShowToast) {
-        onShowToast("Please capture a live photo of the instrument before proceeding.");
+        onShowToast(
+          "Please capture a live photo of the instrument before proceeding."
+        );
       }
       return;
     }
@@ -324,12 +375,12 @@ export default function InstrumentDetailScreen({
       setShowReturnModal(false);
       setCapturedPhoto(null);
 
-      // Redirect to the previous page
       if (onBack) onBack();
     } catch (err) {
       if (onShowToast) {
         onShowToast(
-          err.response?.data?.message || "Failed to record return in backend database."
+          err.response?.data?.message ||
+            "Failed to record return in backend database."
         );
       }
     } finally {
@@ -413,12 +464,16 @@ export default function InstrumentDetailScreen({
       if (fileInputRef.current) fileInputRef.current.value = "";
 
       if (onShowToast) {
-        onShowToast(`Updated "${updatedInstrument.name || "Instrument"}" successfully!`);
+        onShowToast(
+          `Updated "${updatedInstrument.name || "Instrument"}" successfully!`
+        );
       }
     } catch (err) {
       if (onShowToast) {
         onShowToast(
-          err.response?.data?.message || err.response?.data || "Failed to update details."
+          err.response?.data?.message ||
+            err.response?.data ||
+            "Failed to update details."
         );
       }
     } finally {
@@ -442,14 +497,18 @@ export default function InstrumentDetailScreen({
       await axiosClient.delete(`/instruments/${instrumentId}`);
 
       if (onShowToast) {
-        onShowToast(`Instrument "${instrument.name || "Item"}" deleted successfully.`);
+        onShowToast(
+          `Instrument "${instrument.name || "Item"}" deleted successfully.`
+        );
       }
 
       setShowDeleteModal(false);
       if (onBack) onBack();
     } catch (err) {
       if (onShowToast) {
-        onShowToast(err.response?.data?.message || "Failed to delete instrument.");
+        onShowToast(
+          err.response?.data?.message || "Failed to delete instrument."
+        );
       }
     } finally {
       setIsDeleting(false);
@@ -465,7 +524,9 @@ export default function InstrumentDetailScreen({
         >
           <ArrowLeft size={18} className="text-[#1b4d8f]" />
         </button>
-        <h2 className="text-base font-bold text-[#1b4d8f]">Instrument details</h2>
+        <h2 className="text-base font-bold text-[#1b4d8f]">
+          Instrument details
+        </h2>
       </div>
 
       {!isEditing ? (
@@ -585,7 +646,9 @@ export default function InstrumentDetailScreen({
                   </span>
                   <span className="font-medium text-[#1b1a18] flex items-center gap-0.5 mt-0.5">
                     <IndianRupee size={12} className="text-[#12695a]" />
-                    {purchaseCost ? Number(purchaseCost).toLocaleString("en-IN") : "N/A"}
+                    {purchaseCost
+                      ? Number(purchaseCost).toLocaleString("en-IN")
+                      : "N/A"}
                   </span>
                 </div>
               </div>
@@ -605,18 +668,25 @@ export default function InstrumentDetailScreen({
                     <span className="text-[10.5px] text-[#7a7872] uppercase font-semibold block">
                       Scientist
                     </span>
-                    <span className="font-bold text-[#1b1a18]">{scientistName}</span>
+                    <span className="font-bold text-[#1b1a18]">
+                      {scientistName}
+                    </span>
                   </div>
                 </div>
 
                 {staffName && (
                   <div className="flex items-start gap-2 pt-1 border-t border-black/5">
-                    <User size={14} className="text-[#12695a] mt-0.5 shrink-0" />
+                    <User
+                      size={14}
+                      className="text-[#12695a] mt-0.5 shrink-0"
+                    />
                     <div>
                       <span className="text-[10.5px] text-[#7a7872] uppercase font-semibold block">
                         Intermediary Staff
                       </span>
-                      <span className="font-bold text-[#1b1a18]">{staffName}</span>
+                      <span className="font-bold text-[#1b1a18]">
+                        {staffName}
+                      </span>
                     </div>
                   </div>
                 )}
@@ -625,7 +695,9 @@ export default function InstrumentDetailScreen({
                   <div className="flex items-center gap-2 pt-1 border-t border-black/5">
                     <Clock
                       size={14}
-                      className={isOverdue ? "text-[#8f2318]" : "text-[#8a5a12]"}
+                      className={
+                        isOverdue ? "text-[#8f2318]" : "text-[#8a5a12]"
+                      }
                     />
                     <span
                       className={`font-medium ${
@@ -669,7 +741,9 @@ export default function InstrumentDetailScreen({
                       <RotateCcw size={15} />
                     )}
                   </div>
-                  <span className="text-[11px] font-bold truncate">Receive Item</span>
+                  <span className="text-[11px] font-bold truncate">
+                    Receive Item
+                  </span>
                 </button>
               ) : (
                 <button
@@ -690,7 +764,9 @@ export default function InstrumentDetailScreen({
                   >
                     <Send size={15} />
                   </div>
-                  <span className="text-[11px] font-bold truncate">Issue Item</span>
+                  <span className="text-[11px] font-bold truncate">
+                    Issue Item
+                  </span>
                 </button>
               )}
 
@@ -705,19 +781,29 @@ export default function InstrumentDetailScreen({
                     name: instrument.name || "",
                     assetId: instrument.assetId || instrument.asset_id || "",
                     make: instrument.make || "",
-                    serialNo: instrument.serialNo || instrument.serial_no || "",
-                    quantity: instrument.quantity !== undefined && instrument.quantity !== null ? instrument.quantity : 1,
+                    serialNo:
+                      instrument.serialNo || instrument.serial_no || "",
+                    quantity:
+                      instrument.quantity !== undefined &&
+                      instrument.quantity !== null
+                        ? instrument.quantity
+                        : 1,
                     location: instrument.location || "",
                     calibrationValidTo:
                       instrument.calibrationValidTo ||
                       instrument.calibration_valid_to ||
                       "",
                     purchaseDate:
-                      instrument.purchaseDate || instrument.purchase_date || "",
+                      instrument.purchaseDate ||
+                      instrument.purchase_date ||
+                      "",
                     purchaseCost:
-                      instrument.purchaseCost || instrument.purchase_cost || "",
+                      instrument.purchaseCost ||
+                      instrument.purchase_cost ||
+                      "",
                     status: instrument.status || "AVAILABLE",
-                    photoPath: instrument.photoPath || instrument.photo_path || null,
+                    photoPath:
+                      instrument.photoPath || instrument.photo_path || null,
                   });
                   setIsEditing(true);
                 }}
@@ -734,7 +820,9 @@ export default function InstrumentDetailScreen({
                 >
                   <Edit3 size={15} />
                 </div>
-                <span className="text-[11px] font-bold truncate">Edit Details</span>
+                <span className="text-[11px] font-bold truncate">
+                  Edit Details
+                </span>
               </button>
 
               {/* 4. DELETE BUTTON */}
@@ -757,14 +845,17 @@ export default function InstrumentDetailScreen({
                 >
                   <Trash2 size={15} />
                 </div>
-                <span className="text-[11px] font-bold truncate">Delete Item</span>
+                <span className="text-[11px] font-bold truncate">
+                  Delete Item
+                </span>
               </button>
             </div>
 
             {/* STATUS ALERT FOOTNOTE */}
             {isCurrentlyIssued && (
               <p className="text-[10px] text-center text-amber-700 bg-amber-50 border border-amber-200 py-1 px-2.5 rounded-lg font-medium">
-                Editing and deletion are locked while this instrument is issued or overdue.
+                Editing and deletion are locked while this instrument is issued
+                or overdue.
               </p>
             )}
           </div>
@@ -800,7 +891,10 @@ export default function InstrumentDetailScreen({
                     type="button"
                     onClick={() => {
                       setSelectedPhotoFile(null);
-                      setEditFormData((prev) => ({ ...prev, photoPath: null }));
+                      setEditFormData((prev) => ({
+                        ...prev,
+                        photoPath: null,
+                      }));
                     }}
                     className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 shadow-xs hover:bg-red-600 cursor-pointer"
                   >
@@ -825,7 +919,9 @@ export default function InstrumentDetailScreen({
 
                 <button
                   type="button"
-                  onClick={() => fileInputRef.current && fileInputRef.current.click()}
+                  onClick={() =>
+                    fileInputRef.current && fileInputRef.current.click()
+                  }
                   className="flex-1 bg-gray-100 hover:bg-gray-200 text-[#1b1a18] border border-black/10 text-[11px] font-medium py-2 px-2.5 rounded-xl flex items-center justify-center gap-1 active:scale-95 transition-all cursor-pointer"
                 >
                   <Upload size={13} />
@@ -901,7 +997,9 @@ export default function InstrumentDetailScreen({
 
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-[#5d5b56]">Make</label>
+              <label className="text-[11px] font-semibold text-[#5d5b56]">
+                Make
+              </label>
               <input
                 type="text"
                 name="make"
@@ -943,7 +1041,9 @@ export default function InstrumentDetailScreen({
             </div>
 
             <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-[#5d5b56]">Location</label>
+              <label className="text-[11px] font-semibold text-[#5d5b56]">
+                Location
+              </label>
               <input
                 type="text"
                 name="location"
@@ -1265,11 +1365,11 @@ export default function InstrumentDetailScreen({
                 />
               ) : (
                 <QRCodeCanvas
-                  value={assetId}
+                  value={qrPayload}
                   size={180}
                   bgColor="#FFFFFF"
                   fgColor="#1b4d8f"
-                  level="H"
+                  level="M"
                   includeMargin={true}
                 />
               )}
