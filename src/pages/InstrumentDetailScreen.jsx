@@ -28,17 +28,35 @@ import { QRCodeCanvas } from "qrcode.react";
 import axiosClient from "../api/axiosClient";
 import { getActiveIssueRecords } from "../api/instrumentService";
 
+/* =========================================================
+   HELPER
+========================================================= */
+
 const dataURLtoBlob = (dataurl) => {
-  if (!dataurl || !dataurl.includes(",")) return null;
+  if (!dataurl || !dataurl.includes(",")) {
+    return null;
+  }
+
   const arr = dataurl.split(",");
-  const mime = arr[0].match(/:(.*?);/)[1];
+  const mimeMatch = arr[0].match(/:(.*?);/);
+
+  if (!mimeMatch) {
+    return null;
+  }
+
+  const mime = mimeMatch[1];
   const bstr = atob(arr[1]);
+
   let n = bstr.length;
   const u8arr = new Uint8Array(n);
+
   while (n--) {
     u8arr[n] = bstr.charCodeAt(n);
   }
-  return new Blob([u8arr], { type: mime });
+
+  return new Blob([u8arr], {
+    type: mime,
+  });
 };
 
 export default function InstrumentDetailScreen({
@@ -47,52 +65,143 @@ export default function InstrumentDetailScreen({
   onNavigate,
   onShowToast,
 }) {
+  /* =========================================================
+     BASIC STATE
+  ========================================================= */
+
   const [instrument, setInstrument] = useState(initialInstrument);
+
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+
   const [showQrModal, setShowQrModal] = useState(false);
 
-  // Status Change Confirmation Modal State
-  const [showStatusConfirmModal, setShowStatusConfirmModal] = useState(false);
-  const [pendingStatusChange, setPendingStatusChange] = useState(null);
+  /* =========================================================
+     STATUS CHANGE
+  ========================================================= */
+
+  const [showStatusConfirmModal, setShowStatusConfirmModal] =
+    useState(false);
+
+  const [pendingStatusChange, setPendingStatusChange] =
+    useState(null);
+
+  /* =========================================================
+     QR
+  ========================================================= */
 
   const qrCanvasRef = useRef(null);
 
-  // Form Edit State
+  /* =========================================================
+     EDIT
+  ========================================================= */
+
   const [isEditing, setIsEditing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
   const [selectedPhotoFile, setSelectedPhotoFile] = useState(null);
 
-  // Receive / Return Instrument State
+  /* =========================================================
+     RETURN / RECEIVE
+  ========================================================= */
+
   const [showReturnModal, setShowReturnModal] = useState(false);
+
   const [activeRecord, setActiveRecord] = useState(null);
+
   const [conditionIn, setConditionIn] = useState("GOOD");
+
   const [isReturning, setIsReturning] = useState(false);
+
   const [isLoadingRecord, setIsLoadingRecord] = useState(false);
 
-  // Live Camera Capture State
+  /* =========================================================
+     CAMERA
+  ========================================================= */
+
   const [isCameraOpen, setIsCameraOpen] = useState(false);
+
   const [capturedPhoto, setCapturedPhoto] = useState(null);
+
   const videoRef = useRef(null);
+
   const mediaStreamRef = useRef(null);
+
   const fileInputRef = useRef(null);
 
-  const assetId = instrument?.assetId || instrument?.asset_id || "N/A";
-  const make = instrument?.make || "N/A";
-  const serialNo = instrument?.serialNo || instrument?.serial_no || "N/A";
+  /* =========================================================
+     SAFETY CHECK
+  ========================================================= */
+
+  if (!instrument) {
+    return (
+      <div className="space-y-4 font-sans text-[#1b1a18]">
+        <div className="flex items-center gap-2 mb-1">
+          <button
+            onClick={onBack}
+            className="p-1 rounded-lg hover:bg-black/5 active:scale-95 transition-all cursor-pointer"
+          >
+            <ArrowLeft size={18} className="text-[#1b4d8f]" />
+          </button>
+
+          <h2 className="text-base font-bold text-[#1b4d8f]">
+            Instrument details
+          </h2>
+        </div>
+
+        <p className="text-xs text-gray-500">
+          No instrument selected.
+        </p>
+      </div>
+    );
+  }
+
+  /* =========================================================
+     INSTRUMENT DATA
+  ========================================================= */
+
+  const assetId =
+    instrument?.assetId ||
+    instrument?.asset_id ||
+    "N/A";
+
+  const make =
+    instrument?.make ||
+    "N/A";
+
+  const serialNo =
+    instrument?.serialNo ||
+    instrument?.serial_no ||
+    "N/A";
+
   const quantity =
-    instrument?.quantity !== undefined && instrument?.quantity !== null
-      ? instrument?.quantity
+    instrument?.quantity !== undefined &&
+    instrument?.quantity !== null
+      ? instrument.quantity
       : 1;
-  const location = instrument?.location || "N/A";
+
+  const location =
+    instrument?.location ||
+    "N/A";
+
   const calibrationValidTo =
     instrument?.calibrationValidTo ||
     instrument?.calibration_valid_to ||
     "N/A";
+
   const purchaseDate =
-    instrument?.purchaseDate || instrument?.purchase_date || "N/A";
+    instrument?.purchaseDate ||
+    instrument?.purchase_date ||
+    "N/A";
+
   const purchaseCost =
-    instrument?.purchaseCost || instrument?.purchase_cost || null;
+    instrument?.purchaseCost ||
+    instrument?.purchase_cost ||
+    null;
+
+  /* =========================================================
+     CURRENT HOLDER
+  ========================================================= */
 
   const scientistName =
     instrument?.scientistName ||
@@ -100,7 +209,7 @@ export default function InstrumentDetailScreen({
     instrument?.borrowerScientist?.name ||
     instrument?.borrower_scientist?.name ||
     (typeof instrument?.holder === "string"
-      ? instrument?.holder
+      ? instrument.holder
       : instrument?.holder?.name) ||
     instrument?.ownerScientist?.name ||
     instrument?.owner_scientist?.name ||
@@ -115,11 +224,77 @@ export default function InstrumentDetailScreen({
     instrument?.staffMember ||
     instrument?.issuedToStaffName ||
     (typeof instrument?.issuedTo === "string"
-      ? instrument?.issuedTo
+      ? instrument.issuedTo
       : instrument?.issuedTo?.name) ||
     null;
 
-  // QR Code Payload (Selected 8 Fields Only)
+  /* =========================================================
+     STATUS
+  ========================================================= */
+
+  const status =
+    instrument.status ||
+    "AVAILABLE";
+
+  const isOverdue =
+    status === "OVERDUE" ||
+    instrument.isOverdue;
+
+  const isCurrentlyIssued =
+    status === "ISSUED" ||
+    status === "OVERDUE" ||
+    isOverdue;
+
+  let statusBadgeClass =
+    "bg-[#eef7f2] text-[#12695a]";
+
+  if (isOverdue) {
+    statusBadgeClass =
+      "bg-[#fbe4e0] text-[#8f2318] border border-[#f5c2c2]";
+  } else if (status === "ISSUED") {
+    statusBadgeClass =
+      "bg-[#fbf0dc] text-[#8a5a12]";
+  } else if (status === "MAINTENANCE") {
+    statusBadgeClass =
+      "bg-[#f3f0f8] text-[#5c4a86]";
+  }
+
+  const instrumentId =
+    instrument.id ||
+    instrument._id;
+
+  /* =========================================================
+     PHOTO URL
+  ========================================================= */
+
+  const rawPhotoPath =
+    instrument.photoPath ||
+    instrument.photo_path;
+
+  const photoUrl = rawPhotoPath
+    ? rawPhotoPath.startsWith("http")
+      ? `${rawPhotoPath}?t=${Date.now()}`
+      : `http://localhost:8080${rawPhotoPath}?t=${Date.now()}`
+    : null;
+
+  /* =========================================================
+     QR URL
+  ========================================================= */
+
+  const rawQrPath =
+    instrument.qrPhoto ||
+    instrument.qr_photo;
+
+  const qrUrl = rawQrPath
+    ? rawQrPath.startsWith("http")
+      ? rawQrPath
+      : `http://localhost:8080${rawQrPath}`
+    : null;
+
+  /* =========================================================
+     QR PAYLOAD
+  ========================================================= */
+
   const qrPayload = JSON.stringify(
     {
       assetId: assetId,
@@ -135,441 +310,1068 @@ export default function InstrumentDetailScreen({
     2
   );
 
+  /* =========================================================
+     EDIT FORM
+  ========================================================= */
+
   const [editFormData, setEditFormData] = useState({
     name: initialInstrument?.name || "",
-    assetId: initialInstrument?.assetId || initialInstrument?.asset_id || "",
-    make: initialInstrument?.make || "",
+
+    assetId:
+      initialInstrument?.assetId ||
+      initialInstrument?.asset_id ||
+      "",
+
+    make:
+      initialInstrument?.make ||
+      "",
+
     serialNo:
-      initialInstrument?.serialNo || initialInstrument?.serial_no || "",
+      initialInstrument?.serialNo ||
+      initialInstrument?.serial_no ||
+      "",
+
     quantity:
       initialInstrument?.quantity !== undefined &&
       initialInstrument?.quantity !== null
-        ? initialInstrument?.quantity
+        ? initialInstrument.quantity
         : 1,
-    location: initialInstrument?.location || "",
+
+    location:
+      initialInstrument?.location ||
+      "",
+
     calibrationValidTo:
       initialInstrument?.calibrationValidTo ||
       initialInstrument?.calibration_valid_to ||
       "",
+
     purchaseDate:
       initialInstrument?.purchaseDate ||
       initialInstrument?.purchase_date ||
       "",
+
     purchaseCost:
       initialInstrument?.purchaseCost ||
       initialInstrument?.purchase_cost ||
       "",
-    status: initialInstrument?.status || "AVAILABLE",
+
+    status:
+      initialInstrument?.status ||
+      "AVAILABLE",
+
     photoPath:
-      initialInstrument?.photoPath || initialInstrument?.photo_path || null,
+      initialInstrument?.photoPath ||
+      initialInstrument?.photo_path ||
+      null,
   });
 
-  if (!instrument) {
-    return (
-      <div className="space-y-4 font-sans text-[#1b1a18]">
-        <div className="flex items-center gap-2 mb-1">
-          <button
-            onClick={onBack}
-            className="p-1 rounded-lg hover:bg-black/5 active:scale-95 transition-all"
-          >
-            <ArrowLeft size={18} className="text-[#1b4d8f]" />
-          </button>
-          <h2 className="text-base font-bold text-[#1b4d8f]">
-            Instrument details
-          </h2>
-        </div>
-        <p className="text-xs text-gray-500">No instrument selected.</p>
-      </div>
-    );
-  }
-
-  const status = instrument.status || "AVAILABLE";
-  const isOverdue = status === "OVERDUE" || instrument.isOverdue;
-  const isCurrentlyIssued =
-    status === "ISSUED" || status === "OVERDUE" || isOverdue;
-
-  let statusBadgeClass = "bg-[#eef7f2] text-[#12695a]";
-  if (isOverdue) {
-    statusBadgeClass = "bg-[#fbe4e0] text-[#8f2318] border border-[#f5c2c2]";
-  } else if (status === "ISSUED") {
-    statusBadgeClass = "bg-[#fbf0dc] text-[#8a5a12]";
-  } else if (status === "MAINTENANCE") {
-    statusBadgeClass = "bg-[#f3f0f8] text-[#5c4a86]";
-  }
-
-  const instrumentId = instrument.id || instrument._id;
-
-  // Photos
-  const rawPhotoPath = instrument.photoPath || instrument.photo_path;
-  const photoUrl = rawPhotoPath
-    ? rawPhotoPath.startsWith("http")
-      ? `${rawPhotoPath}?t=${Date.now()}`
-      : `http://localhost:8080${rawPhotoPath}?t=${Date.now()}`
-    : null;
-
-  const rawQrPath = instrument.qrPhoto || instrument.qr_photo;
-  const qrUrl = rawQrPath
-    ? rawQrPath.startsWith("http")
-      ? rawQrPath
-      : `http://localhost:8080${rawQrPath}`
-    : null;
+  /* =========================================================
+     QR DOWNLOAD
+  ========================================================= */
 
   const handleDownloadQr = async () => {
     try {
-      const cleanAssetId = assetId.replace(/[^a-zA-Z0-9]/g, "_");
+      const cleanAssetId = assetId.replace(
+        /[^a-zA-Z0-9]/g,
+        "_"
+      );
 
       if (qrUrl) {
         const response = await fetch(qrUrl);
+
         const blob = await response.blob();
-        const blobUrl = window.URL.createObjectURL(blob);
-        const link = document.createElement("a");
+
+        const blobUrl =
+          window.URL.createObjectURL(blob);
+
+        const link =
+          document.createElement("a");
+
         link.href = blobUrl;
-        link.download = `QR_${cleanAssetId}.png`;
+
+        link.download =
+          `QR_${cleanAssetId}.png`;
+
         document.body.appendChild(link);
+
         link.click();
+
         document.body.removeChild(link);
+
         window.URL.revokeObjectURL(blobUrl);
       } else if (qrCanvasRef.current) {
-        const canvas = qrCanvasRef.current.querySelector("canvas");
+        const canvas =
+          qrCanvasRef.current.querySelector(
+            "canvas"
+          );
+
         if (canvas) {
-          const image = canvas.toDataURL("image/png");
-          const link = document.createElement("a");
+          const image =
+            canvas.toDataURL("image/png");
+
+          const link =
+            document.createElement("a");
+
           link.href = image;
-          link.download = `QR_${cleanAssetId}.png`;
+
+          link.download =
+            `QR_${cleanAssetId}.png`;
+
           document.body.appendChild(link);
+
           link.click();
+
           document.body.removeChild(link);
         }
       }
 
-      if (onShowToast) onShowToast(`Downloaded QR for ${assetId}`);
+      if (onShowToast) {
+        onShowToast(
+          `Downloaded QR for ${assetId}`
+        );
+      }
     } catch (err) {
-      if (onShowToast) onShowToast("Failed to download QR code.");
+      if (onShowToast) {
+        onShowToast(
+          "Failed to download QR code."
+        );
+      }
     }
   };
 
-  // Camera Handlers
+  /* =========================================================
+     CAMERA
+  ========================================================= */
+
   const startCamera = async () => {
     try {
-      setIsCameraOpen(true);
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" },
-      });
-      mediaStreamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
+      if (
+        !navigator.mediaDevices ||
+        !navigator.mediaDevices.getUserMedia
+      ) {
+        if (onShowToast) {
+          onShowToast(
+            "Camera is not supported by this browser."
+          );
+        }
+
+        return;
       }
+
+      const stream =
+        await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: {
+              ideal: "environment",
+            },
+          },
+          audio: false,
+        });
+
+      mediaStreamRef.current = stream;
+
+      setIsCameraOpen(true);
+
+      /*
+       * Give React time to render the video element.
+       * This is important because the camera is rendered
+       * conditionally.
+       */
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+
+          videoRef.current
+            .play()
+            .catch(() => {});
+        }
+      }, 50);
     } catch (err) {
-      if (onShowToast) onShowToast("Unable to access live camera.");
+      console.error(
+        "Camera start error:",
+        err
+      );
+
+      if (onShowToast) {
+        onShowToast(
+          "Unable to access live camera stream."
+        );
+      }
+
       setIsCameraOpen(false);
     }
   };
 
   const stopCamera = () => {
     if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current
+        .getTracks()
+        .forEach((track) => {
+          track.stop();
+        });
+
       mediaStreamRef.current = null;
     }
+
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+
     setIsCameraOpen(false);
   };
 
-  const takePhoto = () => {
-    if (!videoRef.current) return;
-    const canvas = document.createElement("canvas");
-    canvas.width = videoRef.current.videoWidth || 640;
-    canvas.height = videoRef.current.videoHeight || 480;
-    const ctx = canvas.getContext("2d");
-    ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+  /* =========================================================
+     CAPTURE PHOTO
+  ========================================================= */
 
-    const dataUrl = canvas.toDataURL("image/jpeg");
-    const blob = dataURLtoBlob(dataUrl);
+  const capturePhoto = () => {
+    if (!videoRef.current) {
+      if (onShowToast) {
+        onShowToast(
+          "Camera is not ready yet."
+        );
+      }
 
+      return;
+    }
+
+    const video = videoRef.current;
+
+    const width =
+      video.videoWidth || 640;
+
+    const height =
+      video.videoHeight || 480;
+
+    if (!width || !height) {
+      if (onShowToast) {
+        onShowToast(
+          "Camera is still loading. Please try again."
+        );
+      }
+
+      return;
+    }
+
+    const canvas =
+      document.createElement("canvas");
+
+    canvas.width = width;
+    canvas.height = height;
+
+    const ctx =
+      canvas.getContext("2d");
+
+    if (!ctx) {
+      if (onShowToast) {
+        onShowToast(
+          "Unable to capture photo."
+        );
+      }
+
+      return;
+    }
+
+    ctx.drawImage(
+      video,
+      0,
+      0,
+      width,
+      height
+    );
+
+    const dataUrl =
+      canvas.toDataURL(
+        "image/jpeg",
+        0.9
+      );
+
+    /*
+     * IMPORTANT:
+     * Return flow uses capturedPhoto.
+     * Edit flow uses selectedPhotoFile.
+     */
     if (showReturnModal) {
       setCapturedPhoto(dataUrl);
-    } else if (isEditing && blob) {
-      const file = new File([blob], `instrument_${Date.now()}.jpg`, {
-        type: "image/jpeg",
-      });
-      setSelectedPhotoFile(file);
-      setEditFormData((prev) => ({ ...prev, photoPath: dataUrl }));
+    } else if (isEditing) {
+      const blob =
+        dataURLtoBlob(dataUrl);
+
+      if (blob) {
+        const file = new File(
+          [blob],
+          `instrument_${Date.now()}.jpg`,
+          {
+            type: "image/jpeg",
+          }
+        );
+
+        setSelectedPhotoFile(file);
+
+        setEditFormData((prev) => ({
+          ...prev,
+          photoPath: dataUrl,
+        }));
+      }
     }
 
     stopCamera();
-    if (onShowToast) onShowToast("Photo captured successfully!");
-  };
 
-  // Fetch corresponding active IssueRecord for Return processing
-  const handleOpenReceiveModal = async () => {
-    try {
-      setIsLoadingRecord(true);
-      const records = await getActiveIssueRecords();
-
-      const matchingRecord = (records || []).find((rec) => {
-        const recInstId = rec.instrument?.id || rec.instrument?._id;
-        const recAssetId = rec.instrument?.assetId || rec.instrument?.asset_id;
-        return (
-          (recInstId && recInstId === instrumentId) ||
-          (recAssetId && recAssetId === assetId)
-        );
-      });
-
-      if (matchingRecord) {
-        setActiveRecord(matchingRecord);
-        setConditionIn("GOOD");
-        setCapturedPhoto(null);
-        setShowReturnModal(true);
-      } else {
-        if (onShowToast)
-          onShowToast("Could not find open issue record for this instrument.");
-      }
-    } catch (err) {
-      if (onShowToast)
-        onShowToast("Failed to fetch issue details for receiving.");
-    } finally {
-      setIsLoadingRecord(false);
-    }
-  };
-
-  // Execute Return API logic
-  const handleConfirmReturn = async () => {
-    if (!activeRecord) return;
-
-    if (!capturedPhoto) {
-      if (onShowToast) {
-        onShowToast(
-          "Please capture a live photo of the instrument before proceeding."
-        );
-      }
-      return;
-    }
-
-    const recordId = activeRecord.id || activeRecord._id;
-
-    try {
-      setIsReturning(true);
-
-      const formData = new FormData();
-      formData.append("condition_in", conditionIn);
-
-      const photoBlob = dataURLtoBlob(capturedPhoto);
-      formData.append("photo", photoBlob, "return_condition.jpg");
-
-      await axiosClient.put(
-        `/issue-records/${recordId}/return/photo`,
-        formData,
-        {
-          headers: {
-            "Content-Type": "multipart/form-data",
-          },
-        }
+    if (onShowToast) {
+      onShowToast(
+        "Photo captured successfully!"
       );
-
-      if (onShowToast) {
-        onShowToast(
-          `Received back. Instrument status set to ${
-            conditionIn === "GOOD" ? "AVAILABLE" : "MAINTENANCE"
-          }.`
-        );
-      }
-
-      setShowReturnModal(false);
-      setCapturedPhoto(null);
-
-      if (onBack) onBack();
-    } catch (err) {
-      if (onShowToast) {
-        onShowToast(
-          err.response?.data?.message ||
-            "Failed to record return in backend database."
-        );
-      }
-    } finally {
-      setIsReturning(false);
     }
   };
+
+  /* =========================================================
+     OPEN RECEIVE MODAL
+  ========================================================= */
+
+  const handleOpenReceiveModal =
+    async () => {
+      try {
+        setIsLoadingRecord(true);
+
+        /*
+         * Fetch exactly like ReceiveScreen.
+         */
+        const records =
+          await getActiveIssueRecords();
+
+        /*
+         * Only active/open issue records.
+         */
+        const openRecords =
+          (records || []).filter(
+            (record) =>
+              record.state === "OPEN" ||
+              record.state === "ISSUED" ||
+              !record.state
+          );
+
+        /*
+         * Find the issue record belonging
+         * to this exact instrument.
+         */
+        const matchingRecord =
+          openRecords.find((record) => {
+            const recInstrumentId =
+              record.instrument?.id ||
+              record.instrument?._id;
+
+            const recAssetId =
+              record.instrument?.assetId ||
+              record.instrument?.asset_id;
+
+            const sameId =
+              recInstrumentId &&
+              instrumentId &&
+              String(recInstrumentId) ===
+                String(instrumentId);
+
+            const sameAsset =
+              recAssetId &&
+              assetId &&
+              String(recAssetId) ===
+                String(assetId);
+
+            return sameId || sameAsset;
+          });
+
+        if (!matchingRecord) {
+          if (onShowToast) {
+            onShowToast(
+              "Could not find open issue record for this instrument."
+            );
+          }
+
+          return;
+        }
+
+        /*
+         * Reset return modal state.
+         */
+        setActiveRecord(
+          matchingRecord
+        );
+
+        setConditionIn("GOOD");
+
+        setCapturedPhoto(null);
+
+        setIsCameraOpen(false);
+
+        setShowReturnModal(true);
+      } catch (err) {
+        console.error(
+          "Receive record error:",
+          err
+        );
+
+        if (onShowToast) {
+          onShowToast(
+            err.response?.data?.message ||
+              "Failed to fetch issue details for receiving."
+          );
+        }
+      } finally {
+        setIsLoadingRecord(false);
+      }
+    };
+
+  /* =========================================================
+     CONFIRM RETURN
+     
+     THIS IS COPIED LOGICALLY FROM THE WORKING
+     ReceiveScreen.
+  ========================================================= */
+
+  const handleConfirmReturn =
+    async () => {
+      if (!activeRecord) {
+        if (onShowToast) {
+          onShowToast(
+            "No active issue record selected."
+          );
+        }
+
+        return;
+      }
+
+      /*
+       * Mandatory photo guard.
+       */
+      if (!capturedPhoto) {
+        if (onShowToast) {
+          onShowToast(
+            "Please capture a live photo of the instrument before proceeding."
+          );
+        }
+
+        return;
+      }
+
+      /*
+       * Get actual IssueRecord ID.
+       */
+      const recordId =
+        activeRecord.id ||
+        activeRecord._id;
+
+      if (!recordId) {
+        if (onShowToast) {
+          onShowToast(
+            "Issue record ID is missing."
+          );
+        }
+
+        return;
+      }
+
+      try {
+        setIsReturning(true);
+
+        /*
+         * Build multipart request exactly
+         * like ReceiveScreen.
+         */
+        const formData =
+          new FormData();
+
+        formData.append(
+          "condition_in",
+          conditionIn
+        );
+
+        /*
+         * Convert captured base64 image
+         * into actual binary Blob.
+         */
+        const photoBlob =
+          dataURLtoBlob(
+            capturedPhoto
+          );
+
+        if (!photoBlob) {
+          if (onShowToast) {
+            onShowToast(
+              "Captured photo could not be processed."
+            );
+          }
+
+          setIsReturning(false);
+
+          return;
+        }
+
+        formData.append(
+          "photo",
+          photoBlob,
+          "return_condition.jpg"
+        );
+
+        console.log(
+          "Submitting return:",
+          {
+            recordId,
+            conditionIn,
+            photoType: photoBlob.type,
+            photoSize: photoBlob.size,
+          }
+        );
+
+        /*
+         * IMPORTANT:
+         *
+         * Same endpoint and same request
+         * structure as working ReceiveScreen.
+         */
+        await axiosClient.put(
+          `/issue-records/${recordId}/return/photo`,
+          formData,
+          {
+            headers: {
+              "Content-Type":
+                "multipart/form-data",
+            },
+          }
+        );
+
+        /*
+         * Success.
+         */
+        if (onShowToast) {
+          onShowToast(
+            `Received back. Instrument status set to ${
+              conditionIn === "GOOD"
+                ? "AVAILABLE"
+                : "MAINTENANCE"
+            }.`
+          );
+        }
+
+        /*
+         * Close return modal.
+         */
+        stopCamera();
+
+        setShowReturnModal(false);
+
+        setActiveRecord(null);
+
+        setCapturedPhoto(null);
+
+        setConditionIn("GOOD");
+
+        /*
+         * Go back to previous screen.
+         */
+        if (onBack) {
+          onBack();
+        }
+      } catch (err) {
+        console.error(
+          "Return submission error:",
+          err
+        );
+
+        if (onShowToast) {
+          onShowToast(
+            err.response?.data?.message ||
+              err.response?.data ||
+              "Failed to record return in backend database."
+          );
+        }
+      } finally {
+        setIsReturning(false);
+      }
+    };
+
+  /* =========================================================
+     EDIT HANDLERS
+  ========================================================= */
 
   const handleEditChange = (e) => {
-    const { name, value } = e.target;
-    setEditFormData((prev) => ({ ...prev, [name]: value }));
+    const {
+      name,
+      value,
+    } = e.target;
+
+    setEditFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
   };
 
   const handleFileChange = (e) => {
-    const file = e.target.files && e.target.files[0];
-    if (file) {
-      setSelectedPhotoFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () =>
-        setEditFormData((prev) => ({ ...prev, photoPath: reader.result }));
-      reader.readAsDataURL(file);
-      if (onShowToast) onShowToast("New photo selected!");
-    }
-  };
+    const file =
+      e.target.files &&
+      e.target.files[0];
 
-  const handleFormSubmitAttempt = (e) => {
-    e.preventDefault();
-    if (!instrumentId) return;
-
-    const currentStatus = instrument.status || "AVAILABLE";
-    const targetStatus = editFormData.status;
-
-    if (currentStatus !== targetStatus) {
-      setPendingStatusChange({ from: currentStatus, to: targetStatus });
-      setShowStatusConfirmModal(true);
-    } else {
-      executeSaveEdit();
-    }
-  };
-
-  const executeSaveEdit = async () => {
-    setShowStatusConfirmModal(false);
-    try {
-      setIsSubmitting(true);
-
-      const formData = new FormData();
-      formData.append("asset_id", editFormData.assetId);
-      formData.append("assetId", editFormData.assetId);
-      formData.append("name", editFormData.name);
-      formData.append("make", editFormData.make);
-      formData.append("serial_no", editFormData.serialNo);
-      formData.append("serialNo", editFormData.serialNo);
-      formData.append("quantity", editFormData.quantity);
-      formData.append("location", editFormData.location);
-      formData.append("calibration_valid_to", editFormData.calibrationValidTo);
-      formData.append("calibrationValidTo", editFormData.calibrationValidTo);
-      formData.append("purchase_date", editFormData.purchaseDate);
-      formData.append("purchaseDate", editFormData.purchaseDate);
-      formData.append("purchase_cost", editFormData.purchaseCost);
-      formData.append("purchaseCost", editFormData.purchaseCost);
-      formData.append("status", editFormData.status);
-
-      if (selectedPhotoFile) {
-        formData.append("photo", selectedPhotoFile, selectedPhotoFile.name);
-      }
-
-      const response = await axiosClient.put(
-        `/instruments/${instrumentId}`,
-        formData,
-        { headers: { "Content-Type": "multipart/form-data" } }
-      );
-
-      const updatedInstrument = response.data || {
-        ...instrument,
-        ...editFormData,
-      };
-
-      setInstrument(updatedInstrument);
-      setIsEditing(false);
-      setSelectedPhotoFile(null);
-      setPendingStatusChange(null);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-
-      if (onShowToast) {
-        onShowToast(
-          `Updated "${updatedInstrument.name || "Instrument"}" successfully!`
-        );
-      }
-    } catch (err) {
-      if (onShowToast) {
-        onShowToast(
-          err.response?.data?.message ||
-            err.response?.data ||
-            "Failed to update details."
-        );
-      }
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleDeleteInstrument = async () => {
-    if (!instrumentId) return;
-
-    if (isCurrentlyIssued) {
-      if (onShowToast) {
-        onShowToast("Cannot delete instrument while it is issued or overdue.");
-      }
-      setShowDeleteModal(false);
+    if (!file) {
       return;
     }
 
-    try {
-      setIsDeleting(true);
-      await axiosClient.delete(`/instruments/${instrumentId}`);
+    setSelectedPhotoFile(file);
 
-      if (onShowToast) {
-        onShowToast(
-          `Instrument "${instrument.name || "Item"}" deleted successfully.`
-        );
-      }
+    const reader =
+      new FileReader();
 
-      setShowDeleteModal(false);
-      if (onBack) onBack();
-    } catch (err) {
-      if (onShowToast) {
-        onShowToast(
-          err.response?.data?.message || "Failed to delete instrument."
-        );
-      }
-    } finally {
-      setIsDeleting(false);
+    reader.onloadend = () => {
+      setEditFormData((prev) => ({
+        ...prev,
+        photoPath:
+          reader.result,
+      }));
+    };
+
+    reader.readAsDataURL(file);
+
+    if (onShowToast) {
+      onShowToast(
+        "New photo selected!"
+      );
     }
   };
 
+  /* =========================================================
+     EDIT SUBMIT
+  ========================================================= */
+
+  const handleFormSubmitAttempt =
+    (e) => {
+      e.preventDefault();
+
+      if (!instrumentId) {
+        return;
+      }
+
+      const currentStatus =
+        instrument.status ||
+        "AVAILABLE";
+
+      const targetStatus =
+        editFormData.status;
+
+      if (
+        currentStatus !==
+        targetStatus
+      ) {
+        setPendingStatusChange({
+          from: currentStatus,
+          to: targetStatus,
+        });
+
+        setShowStatusConfirmModal(
+          true
+        );
+      } else {
+        executeSaveEdit();
+      }
+    };
+
+  const executeSaveEdit =
+    async () => {
+      setShowStatusConfirmModal(
+        false
+      );
+
+      try {
+        setIsSubmitting(true);
+
+        const formData =
+          new FormData();
+
+        formData.append(
+          "asset_id",
+          editFormData.assetId
+        );
+
+        formData.append(
+          "assetId",
+          editFormData.assetId
+        );
+
+        formData.append(
+          "name",
+          editFormData.name
+        );
+
+        formData.append(
+          "make",
+          editFormData.make
+        );
+
+        formData.append(
+          "serial_no",
+          editFormData.serialNo
+        );
+
+        formData.append(
+          "serialNo",
+          editFormData.serialNo
+        );
+
+        formData.append(
+          "quantity",
+          editFormData.quantity
+        );
+
+        formData.append(
+          "location",
+          editFormData.location
+        );
+
+        formData.append(
+          "calibration_valid_to",
+          editFormData.calibrationValidTo
+        );
+
+        formData.append(
+          "calibrationValidTo",
+          editFormData.calibrationValidTo
+        );
+
+        formData.append(
+          "purchase_date",
+          editFormData.purchaseDate
+        );
+
+        formData.append(
+          "purchaseDate",
+          editFormData.purchaseDate
+        );
+
+        formData.append(
+          "purchase_cost",
+          editFormData.purchaseCost
+        );
+
+        formData.append(
+          "purchaseCost",
+          editFormData.purchaseCost
+        );
+
+        formData.append(
+          "status",
+          editFormData.status
+        );
+
+        if (selectedPhotoFile) {
+          formData.append(
+            "photo",
+            selectedPhotoFile,
+            selectedPhotoFile.name
+          );
+        }
+
+        const response =
+          await axiosClient.put(
+            `/instruments/${instrumentId}`,
+            formData,
+            {
+              headers: {
+                "Content-Type":
+                  "multipart/form-data",
+              },
+            }
+          );
+
+        const updatedInstrument =
+          response.data || {
+            ...instrument,
+            ...editFormData,
+          };
+
+        setInstrument(
+          updatedInstrument
+        );
+
+        setIsEditing(false);
+
+        setSelectedPhotoFile(null);
+
+        setPendingStatusChange(
+          null
+        );
+
+        if (fileInputRef.current) {
+          fileInputRef.current.value =
+            "";
+        }
+
+        if (onShowToast) {
+          onShowToast(
+            `Updated "${
+              updatedInstrument.name ||
+              "Instrument"
+            }" successfully!`
+          );
+        }
+      } catch (err) {
+        console.error(
+          "Update error:",
+          err
+        );
+
+        if (onShowToast) {
+          onShowToast(
+            err.response?.data
+              ?.message ||
+              err.response?.data ||
+              "Failed to update details."
+          );
+        }
+      } finally {
+        setIsSubmitting(false);
+      }
+    };
+
+  /* =========================================================
+     DELETE
+  ========================================================= */
+
+  const handleDeleteInstrument =
+    async () => {
+      if (!instrumentId) {
+        return;
+      }
+
+      if (isCurrentlyIssued) {
+        if (onShowToast) {
+          onShowToast(
+            "Cannot delete instrument while it is issued or overdue."
+          );
+        }
+
+        setShowDeleteModal(false);
+
+        return;
+      }
+
+      try {
+        setIsDeleting(true);
+
+        await axiosClient.delete(
+          `/instruments/${instrumentId}`
+        );
+
+        if (onShowToast) {
+          onShowToast(
+            `Instrument "${
+              instrument.name ||
+              "Item"
+            }" deleted successfully.`
+          );
+        }
+
+        setShowDeleteModal(false);
+
+        if (onBack) {
+          onBack();
+        }
+      } catch (err) {
+        console.error(
+          "Delete error:",
+          err
+        );
+
+        if (onShowToast) {
+          onShowToast(
+            err.response?.data
+              ?.message ||
+              "Failed to delete instrument."
+          );
+        }
+      } finally {
+        setIsDeleting(false);
+      }
+    };
+
+  /* =========================================================
+     START EDIT
+  ========================================================= */
+
+  const startEditing = () => {
+    if (isCurrentlyIssued) {
+      return;
+    }
+
+    setSelectedPhotoFile(null);
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value =
+        "";
+    }
+
+    setEditFormData({
+      name:
+        instrument.name ||
+        "",
+
+      assetId:
+        instrument.assetId ||
+        instrument.asset_id ||
+        "",
+
+      make:
+        instrument.make ||
+        "",
+
+      serialNo:
+        instrument.serialNo ||
+        instrument.serial_no ||
+        "",
+
+      quantity:
+        instrument.quantity !==
+          undefined &&
+        instrument.quantity !==
+          null
+          ? instrument.quantity
+          : 1,
+
+      location:
+        instrument.location ||
+        "",
+
+      calibrationValidTo:
+        instrument.calibrationValidTo ||
+        instrument.calibration_valid_to ||
+        "",
+
+      purchaseDate:
+        instrument.purchaseDate ||
+        instrument.purchase_date ||
+        "",
+
+      purchaseCost:
+        instrument.purchaseCost ||
+        instrument.purchase_cost ||
+        "",
+
+      status:
+        instrument.status ||
+        "AVAILABLE",
+
+      photoPath:
+        instrument.photoPath ||
+        instrument.photo_path ||
+        null,
+    });
+
+    setIsEditing(true);
+  };
+
+  /* =========================================================
+     RETURN MODAL CLOSE
+  ========================================================= */
+
+  const closeReturnModal = () => {
+    stopCamera();
+
+    setShowReturnModal(false);
+
+    setActiveRecord(null);
+
+    setCapturedPhoto(null);
+
+    setConditionIn("GOOD");
+  };
+
+  /* =========================================================
+     RENDER
+  ========================================================= */
+
   return (
     <div className="space-y-3.5 font-sans text-[#1b1a18]">
+
+      {/* =====================================================
+          HEADER
+      ===================================================== */}
+
       <div className="flex items-center gap-2 mb-1">
         <button
           onClick={onBack}
           className="p-1 rounded-lg hover:bg-black/5 active:scale-95 transition-all cursor-pointer"
         >
-          <ArrowLeft size={18} className="text-[#1b4d8f]" />
+          <ArrowLeft
+            size={18}
+            className="text-[#1b4d8f]"
+          />
         </button>
+
         <h2 className="text-base font-bold text-[#1b4d8f]">
           Instrument details
         </h2>
       </div>
 
+      {/* =====================================================
+          VIEW MODE
+      ===================================================== */}
+
       {!isEditing ? (
         <>
+          {/* PHOTO */}
+
           {photoUrl ? (
             <div className="relative w-full h-48 bg-gray-100 rounded-2xl overflow-hidden border border-black/10 shadow-xs">
               <img
                 src={photoUrl}
-                alt={instrument.name || "Instrument"}
+                alt={
+                  instrument.name ||
+                  "Instrument"
+                }
                 className="w-full h-full object-cover"
               />
+
               <div className="absolute top-3 right-3">
                 <span
                   className={`text-[10.5px] font-bold px-2.5 py-1 rounded-full shadow-xs ${statusBadgeClass}`}
                 >
-                  {isOverdue ? "OVERDUE" : status}
+                  {isOverdue
+                    ? "OVERDUE"
+                    : status}
                 </span>
               </div>
             </div>
           ) : (
             <div className="w-full h-28 bg-[#f4f7fc] rounded-2xl border border-dashed border-[#1b4d8f]/30 flex flex-col items-center justify-center gap-1">
-              <Tag size={20} className="text-[#1b4d8f]" />
+              <Tag
+                size={20}
+                className="text-[#1b4d8f]"
+              />
+
               <span className="text-[11.5px] font-medium text-[#1b4d8f]">
                 No Photo Available
               </span>
             </div>
           )}
 
+          {/* BASIC DETAILS */}
+
           <div className="bg-white p-4 rounded-2xl border border-black/10 shadow-xs space-y-3">
             <div className="flex justify-between items-start gap-2">
               <div>
                 <h3 className="text-base font-bold text-[#1b1a18] leading-tight">
-                  {instrument.name || "Unnamed Instrument"}
+                  {instrument.name ||
+                    "Unnamed Instrument"}
                 </h3>
+
                 <p className="font-mono text-[11px] text-[#7a7872] mt-1">
                   Asset ID: {assetId}
                 </p>
               </div>
+
               {!photoUrl && (
                 <span
                   className={`text-[10.5px] font-bold px-2.5 py-1 rounded-md shrink-0 ${statusBadgeClass}`}
                 >
-                  {isOverdue ? "OVERDUE" : status}
+                  {isOverdue
+                    ? "OVERDUE"
+                    : status}
                 </span>
               )}
             </div>
@@ -577,26 +1379,38 @@ export default function InstrumentDetailScreen({
             <hr className="border-black/5" />
 
             <div className="grid grid-cols-2 gap-3 text-[12px]">
+
               <div>
                 <span className="text-[10.5px] font-semibold text-[#7a7872] uppercase block">
                   Make
                 </span>
-                <span className="font-medium text-[#1b1a18]">{make}</span>
+
+                <span className="font-medium text-[#1b1a18]">
+                  {make}
+                </span>
               </div>
 
               <div>
                 <span className="text-[10.5px] font-semibold text-[#7a7872] uppercase block">
                   Serial No
                 </span>
-                <span className="font-mono text-[#1b1a18]">{serialNo}</span>
+
+                <span className="font-mono text-[#1b1a18]">
+                  {serialNo}
+                </span>
               </div>
 
               <div>
                 <span className="text-[10.5px] font-semibold text-[#7a7872] uppercase block">
                   Quantity
                 </span>
+
                 <span className="font-medium text-[#1b1a18] flex items-center gap-1 mt-0.5">
-                  <Hash size={12} className="text-[#1b4d8f]" />
+                  <Hash
+                    size={12}
+                    className="text-[#1b4d8f]"
+                  />
+
                   {quantity}
                 </span>
               </div>
@@ -605,8 +1419,13 @@ export default function InstrumentDetailScreen({
                 <span className="text-[10.5px] font-semibold text-[#7a7872] uppercase block">
                   Location
                 </span>
+
                 <span className="font-medium text-[#1b1a18] flex items-center gap-1 mt-0.5">
-                  <MapPin size={12} className="text-[#1b4d8f]" />
+                  <MapPin
+                    size={12}
+                    className="text-[#1b4d8f]"
+                  />
+
                   {location}
                 </span>
               </div>
@@ -615,27 +1434,42 @@ export default function InstrumentDetailScreen({
                 <span className="text-[10.5px] font-semibold text-[#7a7872] uppercase block">
                   Calibration Valid To
                 </span>
+
                 <span className="font-medium text-[#1b1a18] flex items-center gap-1 mt-0.5">
-                  <ShieldCheck size={12} className="text-[#12695a]" />
+                  <ShieldCheck
+                    size={12}
+                    className="text-[#12695a]"
+                  />
+
                   {calibrationValidTo}
                 </span>
               </div>
+
             </div>
           </div>
 
-          {(purchaseDate !== "N/A" || purchaseCost !== null) && (
+          {/* ACQUISITION DETAILS */}
+
+          {(purchaseDate !== "N/A" ||
+            purchaseCost !== null) && (
             <div className="bg-white p-4 rounded-2xl border border-black/10 shadow-xs space-y-2">
               <span className="text-[10.5px] font-bold uppercase tracking-wider text-[#5d5b56]">
                 Acquisition Details
               </span>
 
               <div className="grid grid-cols-2 gap-3 text-[12px] pt-1">
+
                 <div>
                   <span className="text-[10.5px] font-semibold text-[#7a7872] uppercase block">
                     Purchase Date
                   </span>
+
                   <span className="font-medium text-[#1b1a18] flex items-center gap-1 mt-0.5">
-                    <Calendar size={12} className="text-[#1b4d8f]" />
+                    <Calendar
+                      size={12}
+                      className="text-[#1b4d8f]"
+                    />
+
                     {purchaseDate}
                   </span>
                 </div>
@@ -644,16 +1478,28 @@ export default function InstrumentDetailScreen({
                   <span className="text-[10.5px] font-semibold text-[#7a7872] uppercase block">
                     Purchase Cost
                   </span>
+
                   <span className="font-medium text-[#1b1a18] flex items-center gap-0.5 mt-0.5">
-                    <IndianRupee size={12} className="text-[#12695a]" />
+                    <IndianRupee
+                      size={12}
+                      className="text-[#12695a]"
+                    />
+
                     {purchaseCost
-                      ? Number(purchaseCost).toLocaleString("en-IN")
+                      ? Number(
+                          purchaseCost
+                        ).toLocaleString(
+                          "en-IN"
+                        )
                       : "N/A"}
                   </span>
                 </div>
+
               </div>
             </div>
           )}
+
+          {/* CURRENT ISSUE */}
 
           {isCurrentlyIssued && (
             <div className="bg-white p-4 rounded-2xl border border-black/10 shadow-xs space-y-2">
@@ -662,12 +1508,18 @@ export default function InstrumentDetailScreen({
               </span>
 
               <div className="space-y-2 text-[12px] pt-0.5">
+
                 <div className="flex items-start gap-2">
-                  <User size={14} className="text-[#1b4d8f] mt-0.5 shrink-0" />
+                  <User
+                    size={14}
+                    className="text-[#1b4d8f] mt-0.5 shrink-0"
+                  />
+
                   <div>
                     <span className="text-[10.5px] text-[#7a7872] uppercase font-semibold block">
                       Scientist
                     </span>
+
                     <span className="font-bold text-[#1b1a18]">
                       {scientistName}
                     </span>
@@ -680,10 +1532,12 @@ export default function InstrumentDetailScreen({
                       size={14}
                       className="text-[#12695a] mt-0.5 shrink-0"
                     />
+
                     <div>
                       <span className="text-[10.5px] text-[#7a7872] uppercase font-semibold block">
                         Intermediary Staff
                       </span>
+
                       <span className="font-bold text-[#1b1a18]">
                         {staffName}
                       </span>
@@ -691,122 +1545,144 @@ export default function InstrumentDetailScreen({
                   </div>
                 )}
 
-                {(instrument.dueDate || instrument.due_date) && (
+                {(instrument.dueDate ||
+                  instrument.due_date) && (
                   <div className="flex items-center gap-2 pt-1 border-t border-black/5">
+
                     <Clock
                       size={14}
                       className={
-                        isOverdue ? "text-[#8f2318]" : "text-[#8a5a12]"
+                        isOverdue
+                          ? "text-[#8f2318]"
+                          : "text-[#8a5a12]"
                       }
                     />
+
                     <span
                       className={`font-medium ${
-                        isOverdue ? "text-[#8f2318]" : "text-[#8a5a12]"
+                        isOverdue
+                          ? "text-[#8f2318]"
+                          : "text-[#8a5a12]"
                       }`}
                     >
-                      Return Date: {instrument.dueDate || instrument.due_date}{" "}
-                      {isOverdue && "(OVERDUE)"}
+                      Return Date:{" "}
+                      {instrument.dueDate ||
+                        instrument.due_date}{" "}
+                      {isOverdue &&
+                        "(OVERDUE)"}
                     </span>
+
                   </div>
                 )}
+
               </div>
             </div>
           )}
 
-          {/* COMPACT 2x2 ACTION BUTTON GRID */}
+          {/* =================================================
+              ACTION BUTTONS
+          ================================================= */}
+
           <div className="pt-1.5 space-y-2">
+
             <div className="grid grid-cols-2 gap-2">
-              {/* 1. QR CODE BUTTON */}
+
+              {/* QR */}
+
               <button
-                onClick={() => setShowQrModal(true)}
+                onClick={() =>
+                  setShowQrModal(true)
+                }
                 className="flex items-center gap-2 p-2.5 bg-[#f4f7fc] hover:bg-[#e8f0fa] border border-[#1b4d8f]/20 rounded-xl active:scale-95 transition-all cursor-pointer text-[#1b4d8f]"
               >
                 <div className="w-7 h-7 rounded-lg bg-[#1b4d8f]/10 flex items-center justify-center shrink-0">
                   <QrCode size={15} />
                 </div>
-                <span className="text-[11px] font-bold truncate">View QR</span>
+
+                <span className="text-[11px] font-bold truncate">
+                  View QR
+                </span>
               </button>
 
-              {/* 2. DYNAMIC ISSUE / RECEIVE BUTTON */}
+              {/* ISSUE / RECEIVE */}
+
               {isCurrentlyIssued ? (
                 <button
-                  disabled={isLoadingRecord}
-                  onClick={handleOpenReceiveModal}
-                  className="flex items-center gap-2 p-2.5 bg-[#1b4d8f] hover:bg-[#143d73] text-white rounded-xl active:scale-95 transition-all cursor-pointer shadow-xs"
+                  disabled={
+                    isLoadingRecord
+                  }
+                  onClick={
+                    handleOpenReceiveModal
+                  }
+                  className="flex items-center gap-2 p-2.5 bg-[#1b4d8f] hover:bg-[#143d73] text-white rounded-xl active:scale-95 transition-all cursor-pointer shadow-xs disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <div className="w-7 h-7 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
+
                     {isLoadingRecord ? (
-                      <Loader2 size={15} className="animate-spin" />
+                      <Loader2
+                        size={15}
+                        className="animate-spin"
+                      />
                     ) : (
-                      <RotateCcw size={15} />
+                      <RotateCcw
+                        size={15}
+                      />
                     )}
+
                   </div>
+
                   <span className="text-[11px] font-bold truncate">
                     Receive Item
                   </span>
                 </button>
               ) : (
                 <button
-                  disabled={status !== "AVAILABLE"}
+                  disabled={
+                    status !==
+                    "AVAILABLE"
+                  }
                   onClick={() => {
-                    if (onNavigate) onNavigate("Issue");
+                    if (
+                      onNavigate
+                    ) {
+                      onNavigate(
+                        "Issue"
+                      );
+                    }
                   }}
                   className={`flex items-center gap-2 p-2.5 rounded-xl transition-all ${
-                    status === "AVAILABLE"
+                    status ===
+                    "AVAILABLE"
                       ? "bg-[#12695a] hover:bg-[#0e5246] text-white active:scale-95 cursor-pointer shadow-xs"
                       : "bg-gray-100 border border-gray-200 text-gray-400 cursor-not-allowed opacity-60"
                   }`}
                 >
                   <div
                     className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
-                      status === "AVAILABLE" ? "bg-white/20" : "bg-gray-200"
+                      status ===
+                      "AVAILABLE"
+                        ? "bg-white/20"
+                        : "bg-gray-200"
                     }`}
                   >
                     <Send size={15} />
                   </div>
+
                   <span className="text-[11px] font-bold truncate">
                     Issue Item
                   </span>
                 </button>
               )}
 
-              {/* 3. EDIT BUTTON */}
+              {/* EDIT */}
+
               <button
-                disabled={isCurrentlyIssued}
-                onClick={() => {
-                  if (isCurrentlyIssued) return;
-                  setSelectedPhotoFile(null);
-                  if (fileInputRef.current) fileInputRef.current.value = "";
-                  setEditFormData({
-                    name: instrument.name || "",
-                    assetId: instrument.assetId || instrument.asset_id || "",
-                    make: instrument.make || "",
-                    serialNo:
-                      instrument.serialNo || instrument.serial_no || "",
-                    quantity:
-                      instrument.quantity !== undefined &&
-                      instrument.quantity !== null
-                        ? instrument.quantity
-                        : 1,
-                    location: instrument.location || "",
-                    calibrationValidTo:
-                      instrument.calibrationValidTo ||
-                      instrument.calibration_valid_to ||
-                      "",
-                    purchaseDate:
-                      instrument.purchaseDate ||
-                      instrument.purchase_date ||
-                      "",
-                    purchaseCost:
-                      instrument.purchaseCost ||
-                      instrument.purchase_cost ||
-                      "",
-                    status: instrument.status || "AVAILABLE",
-                    photoPath:
-                      instrument.photoPath || instrument.photo_path || null,
-                  });
-                  setIsEditing(true);
-                }}
+                disabled={
+                  isCurrentlyIssued
+                }
+                onClick={
+                  startEditing
+                }
                 className={`flex items-center gap-2 p-2.5 rounded-xl transition-all ${
                   isCurrentlyIssued
                     ? "bg-gray-100 border border-gray-200 text-gray-400 cursor-not-allowed opacity-60"
@@ -815,22 +1691,35 @@ export default function InstrumentDetailScreen({
               >
                 <div
                   className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
-                    isCurrentlyIssued ? "bg-gray-200" : "bg-[#1b4d8f]/10"
+                    isCurrentlyIssued
+                      ? "bg-gray-200"
+                      : "bg-[#1b4d8f]/10"
                   }`}
                 >
                   <Edit3 size={15} />
                 </div>
+
                 <span className="text-[11px] font-bold truncate">
                   Edit Details
                 </span>
               </button>
 
-              {/* 4. DELETE BUTTON */}
+              {/* DELETE */}
+
               <button
-                disabled={isCurrentlyIssued}
+                disabled={
+                  isCurrentlyIssued
+                }
                 onClick={() => {
-                  if (isCurrentlyIssued) return;
-                  setShowDeleteModal(true);
+                  if (
+                    isCurrentlyIssued
+                  ) {
+                    return;
+                  }
+
+                  setShowDeleteModal(
+                    true
+                  );
                 }}
                 className={`flex items-center gap-2 p-2.5 rounded-xl transition-all ${
                   isCurrentlyIssued
@@ -840,66 +1729,94 @@ export default function InstrumentDetailScreen({
               >
                 <div
                   className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
-                    isCurrentlyIssued ? "bg-gray-200" : "bg-[#c92a2a]/10"
+                    isCurrentlyIssued
+                      ? "bg-gray-200"
+                      : "bg-[#c92a2a]/10"
                   }`}
                 >
                   <Trash2 size={15} />
                 </div>
+
                 <span className="text-[11px] font-bold truncate">
                   Delete Item
                 </span>
               </button>
+
             </div>
 
-            {/* STATUS ALERT FOOTNOTE */}
             {isCurrentlyIssued && (
               <p className="text-[10px] text-center text-amber-700 bg-amber-50 border border-amber-200 py-1 px-2.5 rounded-lg font-medium">
                 Editing and deletion are locked while this instrument is issued
                 or overdue.
               </p>
             )}
+
           </div>
         </>
       ) : (
+        /* ===================================================
+           EDIT MODE
+        =================================================== */
+
         <form
-          onSubmit={handleFormSubmitAttempt}
+          onSubmit={
+            handleFormSubmitAttempt
+          }
           className="bg-white p-4 rounded-2xl border border-black/10 shadow-xs space-y-3"
         >
+
           <h3 className="text-sm font-bold text-[#1b4d8f] uppercase tracking-wider border-b pb-2">
             Edit Instrument Details
           </h3>
+
+          {/* PHOTO */}
 
           <div className="space-y-1.5">
             <label className="text-[11px] font-semibold text-[#5d5b56]">
               Instrument Photo
             </label>
+
             <div className="flex items-center gap-3">
+
               {editFormData.photoPath ? (
                 <div className="relative shrink-0">
+
                   <img
                     src={
-                      editFormData.photoPath.startsWith("data:")
+                      editFormData.photoPath.startsWith(
+                        "data:"
+                      )
                         ? editFormData.photoPath
-                        : editFormData.photoPath.startsWith("http")
+                        : editFormData.photoPath.startsWith(
+                            "http"
+                          )
                         ? editFormData.photoPath
                         : `http://localhost:8080${editFormData.photoPath}`
                     }
                     alt="Preview"
                     className="w-12 h-12 rounded-xl object-cover border border-[#1b4d8f]/30"
                   />
+
                   <button
                     type="button"
                     onClick={() => {
-                      setSelectedPhotoFile(null);
-                      setEditFormData((prev) => ({
-                        ...prev,
-                        photoPath: null,
-                      }));
+                      setSelectedPhotoFile(
+                        null
+                      );
+
+                      setEditFormData(
+                        (prev) => ({
+                          ...prev,
+                          photoPath:
+                            null,
+                        })
+                      );
                     }}
                     className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 shadow-xs hover:bg-red-600 cursor-pointer"
                   >
                     <X size={10} />
                   </button>
+
                 </div>
               ) : (
                 <div className="w-12 h-12 rounded-xl bg-gray-100 border border-dashed border-gray-300 flex items-center justify-center text-gray-400 shrink-0">
@@ -908,255 +1825,420 @@ export default function InstrumentDetailScreen({
               )}
 
               <div className="flex items-center gap-2 flex-1">
+
                 <button
                   type="button"
-                  onClick={startCamera}
+                  onClick={
+                    startCamera
+                  }
                   className="flex-1 bg-[#1b4d8f] text-white text-[11px] font-medium py-2 px-2.5 rounded-xl flex items-center justify-center gap-1 active:scale-95 transition-all cursor-pointer"
                 >
                   <Camera size={13} />
-                  <span>Camera</span>
+                  <span>
+                    Camera
+                  </span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() =>
-                    fileInputRef.current && fileInputRef.current.click()
+                    fileInputRef.current &&
+                    fileInputRef.current.click()
                   }
                   className="flex-1 bg-gray-100 hover:bg-gray-200 text-[#1b1a18] border border-black/10 text-[11px] font-medium py-2 px-2.5 rounded-xl flex items-center justify-center gap-1 active:scale-95 transition-all cursor-pointer"
                 >
                   <Upload size={13} />
-                  <span>Upload</span>
+                  <span>
+                    Upload
+                  </span>
                 </button>
 
                 <input
                   type="file"
-                  ref={fileInputRef}
-                  onChange={handleFileChange}
+                  ref={
+                    fileInputRef
+                  }
+                  onChange={
+                    handleFileChange
+                  }
                   accept="image/*"
                   className="hidden"
                 />
+
               </div>
             </div>
           </div>
 
-          {/* Operational Status */}
+          {/* STATUS */}
+
           <div className="space-y-1 bg-[#f4f7fc] p-2.5 rounded-xl border border-[#1b4d8f]/20">
+
             <label className="text-[11px] font-bold text-[#1b4d8f] uppercase tracking-wider flex items-center gap-1">
               <Wrench size={13} />
-              <span>Operational Status</span>
+              <span>
+                Operational Status
+              </span>
             </label>
+
             <select
               name="status"
-              value={editFormData.status}
-              onChange={handleEditChange}
+              value={
+                editFormData.status
+              }
+              onChange={
+                handleEditChange
+              }
               className="w-full bg-white text-xs font-semibold p-2 rounded-lg border border-black/15 focus:outline-none focus:border-[#1b4d8f] text-[#1b1a18]"
             >
-              <option value="AVAILABLE">AVAILABLE (Ready for Issue)</option>
-              <option value="MAINTENANCE">MAINTENANCE (Under Service)</option>
+              <option value="AVAILABLE">
+                AVAILABLE (Ready for Issue)
+              </option>
+
+              <option value="MAINTENANCE">
+                MAINTENANCE (Under Service)
+              </option>
             </select>
+
             <p className="text-[10px] text-gray-500 pt-0.5">
               Changing status requires a two-step confirmation.
             </p>
+
           </div>
 
-          {/* LOCKED FIELD: Instrument Name */}
+          {/* NAME */}
+
           <div className="space-y-1">
+
             <label className="text-[11px] font-semibold text-[#5d5b56] flex items-center justify-between">
-              <span>Instrument Name</span>
+              <span>
+                Instrument Name
+              </span>
+
               <span className="text-[10px] text-gray-400 font-normal flex items-center gap-0.5">
-                <Lock size={10} /> Locked
+                <Lock size={10} />
+                Locked
               </span>
             </label>
+
             <input
               type="text"
               name="name"
-              value={editFormData.name}
+              value={
+                editFormData.name
+              }
               readOnly
               disabled
               className="w-full bg-gray-100 text-xs p-2.5 rounded-xl border border-black/10 text-gray-500 cursor-not-allowed select-none"
             />
+
           </div>
 
-          {/* LOCKED FIELD: Asset ID */}
+          {/* ASSET ID */}
+
           <div className="space-y-1">
+
             <label className="text-[11px] font-semibold text-[#5d5b56] flex items-center justify-between">
-              <span>Asset ID</span>
+              <span>
+                Asset ID
+              </span>
+
               <span className="text-[10px] text-gray-400 font-normal flex items-center gap-0.5">
-                <Lock size={10} /> Locked
+                <Lock size={10} />
+                Locked
               </span>
             </label>
+
             <input
               type="text"
               name="assetId"
-              value={editFormData.assetId}
+              value={
+                editFormData.assetId
+              }
               readOnly
               disabled
               className="w-full bg-gray-100 font-mono text-xs p-2.5 rounded-xl border border-black/10 text-gray-500 cursor-not-allowed select-none"
             />
+
           </div>
 
+          {/* MAKE / SERIAL */}
+
           <div className="grid grid-cols-2 gap-2">
+
             <div className="space-y-1">
+
               <label className="text-[11px] font-semibold text-[#5d5b56]">
                 Make
               </label>
+
               <input
                 type="text"
                 name="make"
-                value={editFormData.make}
-                onChange={handleEditChange}
+                value={
+                  editFormData.make
+                }
+                onChange={
+                  handleEditChange
+                }
                 className="w-full bg-white text-xs p-2.5 rounded-xl border border-black/15 focus:outline-none focus:border-[#1b4d8f]"
               />
+
             </div>
 
             <div className="space-y-1">
+
               <label className="text-[11px] font-semibold text-[#5d5b56]">
                 Serial No
               </label>
+
               <input
                 type="text"
                 name="serialNo"
-                value={editFormData.serialNo}
-                onChange={handleEditChange}
+                value={
+                  editFormData.serialNo
+                }
+                onChange={
+                  handleEditChange
+                }
                 className="w-full bg-white text-xs p-2.5 rounded-xl border border-black/15 focus:outline-none focus:border-[#1b4d8f]"
               />
+
             </div>
+
           </div>
 
+          {/* QUANTITY / LOCATION */}
+
           <div className="grid grid-cols-2 gap-2">
-            {/* EDITABLE FIELD: Quantity */}
+
             <div className="space-y-1">
+
               <label className="text-[11px] font-semibold text-[#5d5b56]">
-                Quantity <span className="text-red-500">*</span>
+                Quantity{" "}
+                <span className="text-red-500">
+                  *
+                </span>
               </label>
+
               <input
                 type="number"
                 name="quantity"
                 min="1"
-                value={editFormData.quantity}
-                onChange={handleEditChange}
+                value={
+                  editFormData.quantity
+                }
+                onChange={
+                  handleEditChange
+                }
                 required
                 className="w-full bg-white text-xs p-2.5 rounded-xl border border-black/15 focus:outline-none focus:border-[#1b4d8f]"
               />
+
             </div>
 
             <div className="space-y-1">
+
               <label className="text-[11px] font-semibold text-[#5d5b56]">
                 Location
               </label>
+
               <input
                 type="text"
                 name="location"
-                value={editFormData.location}
-                onChange={handleEditChange}
+                value={
+                  editFormData.location
+                }
+                onChange={
+                  handleEditChange
+                }
                 className="w-full bg-white text-xs p-2.5 rounded-xl border border-black/15 focus:outline-none focus:border-[#1b4d8f]"
               />
+
             </div>
+
           </div>
 
+          {/* DATES */}
+
           <div className="grid grid-cols-2 gap-2">
+
             <div className="space-y-1">
+
               <label className="text-[11px] font-semibold text-[#5d5b56]">
                 Calibration Valid To
               </label>
+
               <input
                 type="date"
                 name="calibrationValidTo"
-                value={editFormData.calibrationValidTo}
-                onChange={handleEditChange}
+                value={
+                  editFormData.calibrationValidTo
+                }
+                onChange={
+                  handleEditChange
+                }
                 className="w-full bg-white text-xs p-2.5 rounded-xl border border-black/15 focus:outline-none focus:border-[#1b4d8f]"
               />
+
             </div>
 
-            {/* LOCKED FIELD: Purchase Date */}
             <div className="space-y-1">
+
               <label className="text-[11px] font-semibold text-[#5d5b56] flex items-center justify-between">
-                <span>Purchase Date</span>
+                <span>
+                  Purchase Date
+                </span>
+
                 <span className="text-[10px] text-gray-400 font-normal flex items-center gap-0.5">
-                  <Lock size={10} /> Locked
+                  <Lock size={10} />
+                  Locked
                 </span>
               </label>
+
               <input
                 type="date"
                 name="purchaseDate"
-                value={editFormData.purchaseDate}
+                value={
+                  editFormData.purchaseDate
+                }
                 readOnly
                 disabled
                 className="w-full bg-gray-100 text-xs p-2.5 rounded-xl border border-black/10 text-gray-500 cursor-not-allowed select-none"
               />
+
             </div>
+
           </div>
 
-          {/* LOCKED FIELD: Purchase Cost */}
+          {/* PURCHASE COST */}
+
           <div className="space-y-1">
+
             <label className="text-[11px] font-semibold text-[#5d5b56] flex items-center justify-between">
-              <span>Purchase Cost (₹)</span>
+              <span>
+                Purchase Cost (₹)
+              </span>
+
               <span className="text-[10px] text-gray-400 font-normal flex items-center gap-0.5">
-                <Lock size={10} /> Locked
+                <Lock size={10} />
+                Locked
               </span>
             </label>
+
             <input
               type="number"
               name="purchaseCost"
-              value={editFormData.purchaseCost}
+              value={
+                editFormData.purchaseCost
+              }
               readOnly
               disabled
               className="w-full bg-gray-100 text-xs p-2.5 rounded-xl border border-black/10 text-gray-500 cursor-not-allowed select-none"
             />
+
           </div>
 
+          {/* EDIT ACTIONS */}
+
           <div className="flex items-center gap-2 pt-2">
+
             <button
               type="button"
-              disabled={isSubmitting}
+              disabled={
+                isSubmitting
+              }
               onClick={() => {
+                stopCamera();
+
                 setIsEditing(false);
-                setSelectedPhotoFile(null);
-                setPendingStatusChange(null);
-                if (fileInputRef.current) fileInputRef.current.value = "";
+
+                setSelectedPhotoFile(
+                  null
+                );
+
+                setPendingStatusChange(
+                  null
+                );
+
+                if (
+                  fileInputRef.current
+                ) {
+                  fileInputRef.current.value =
+                    "";
+                }
               }}
               className="flex-1 py-2.5 rounded-xl text-xs font-medium border border-gray-300 text-gray-700 bg-white cursor-pointer"
             >
               Cancel
             </button>
+
             <button
               type="submit"
-              disabled={isSubmitting}
-              className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-[#1b4d8f] text-white flex items-center justify-center gap-1 cursor-pointer"
+              disabled={
+                isSubmitting
+              }
+              className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-[#1b4d8f] text-white flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50"
             >
               {isSubmitting ? (
-                <Loader2 size={14} className="animate-spin" />
+                <Loader2
+                  size={14}
+                  className="animate-spin"
+                />
               ) : (
-                <span>Save Changes</span>
+                <span>
+                  Save Changes
+                </span>
               )}
             </button>
+
           </div>
+
         </form>
       )}
 
-      {/* RECEIVE / RETURN INSTRUMENT MODAL */}
+      {/* =====================================================
+          RECEIVE / RETURN MODAL
+          
+          IMPORTANT:
+          Camera is INSIDE this modal just like ReceiveScreen.
+      ===================================================== */}
+
       {showReturnModal && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
+
           <div className="bg-white rounded-2xl p-4 w-full max-w-sm space-y-3 shadow-2xl border border-black/10">
+
+            {/* HEADER */}
+
             <div className="flex items-center justify-between border-b pb-2">
+
               <h3 className="text-sm font-bold text-[#1b1a18]">
                 Record Return Details
               </h3>
+
               <button
-                onClick={() => {
-                  setShowReturnModal(false);
-                  stopCamera();
-                }}
-                className="text-gray-400 hover:text-gray-600 p-1 cursor-pointer"
+                type="button"
+                onClick={
+                  closeReturnModal
+                }
+                disabled={
+                  isReturning
+                }
+                className="text-gray-400 hover:text-gray-600 p-1 cursor-pointer disabled:opacity-50"
               >
                 <X size={18} />
               </button>
+
             </div>
 
+            {/* INSTRUMENT */}
+
             <div className="space-y-0.5">
+
               <span className="text-xs font-semibold text-gray-800">
                 {instrument.name}
               </span>
+
               <p className="text-[11px] text-gray-500">
                 Borrower:{" "}
                 {activeRecord?.borrowerScientist?.name ||
@@ -1165,18 +2247,32 @@ export default function InstrumentDetailScreen({
                   activeRecord?.staff_name ||
                   scientistName}
               </p>
+
             </div>
 
+            {/* CONDITION */}
+
             <div className="space-y-1.5">
+
               <label className="text-[11px] font-bold uppercase text-gray-500 tracking-wider">
                 Physical Condition at Return *
               </label>
+
               <div className="grid grid-cols-2 gap-2">
+
                 <button
                   type="button"
-                  onClick={() => setConditionIn("GOOD")}
-                  className={`py-2 px-3 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
-                    conditionIn === "GOOD"
+                  disabled={
+                    isReturning
+                  }
+                  onClick={() =>
+                    setConditionIn(
+                      "GOOD"
+                    )
+                  }
+                  className={`py-2 px-3 rounded-xl text-xs font-semibold border transition-all cursor-pointer disabled:opacity-50 ${
+                    conditionIn ===
+                    "GOOD"
                       ? "bg-[#eef8f5] text-[#12695a] border-[#12695a] ring-1 ring-[#12695a]"
                       : "bg-white text-gray-600 border-gray-300"
                   }`}
@@ -1186,177 +2282,359 @@ export default function InstrumentDetailScreen({
 
                 <button
                   type="button"
-                  onClick={() => setConditionIn("BAD")}
-                  className={`py-2 px-3 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
-                    conditionIn === "BAD"
+                  disabled={
+                    isReturning
+                  }
+                  onClick={() =>
+                    setConditionIn(
+                      "BAD"
+                    )
+                  }
+                  className={`py-2 px-3 rounded-xl text-xs font-semibold border transition-all cursor-pointer disabled:opacity-50 ${
+                    conditionIn ===
+                    "BAD"
                       ? "bg-[#fcf2f2] text-[#c92a2a] border-[#c92a2a] ring-1 ring-[#c92a2a]"
                       : "bg-white text-gray-600 border-gray-300"
                   }`}
                 >
                   Bad (Maintenance)
                 </button>
+
               </div>
+
             </div>
 
-            {/* Mandatory Photo Capture Section */}
+            {/* =================================================
+                PHOTO
+            ================================================= */}
+
             <div className="space-y-1.5 pt-1">
+
               <label className="text-[11px] font-bold uppercase text-[#c92a2a] tracking-wider flex items-center justify-between">
-                <span>Instrument Photo (Required) *</span>
-                {!capturedPhoto && (
-                  <span className="text-[10px] lowercase font-normal text-red-500 flex items-center gap-0.5">
-                    <AlertCircle size={11} /> Photo required
-                  </span>
-                )}
+
+                <span>
+                  Instrument Photo (Required) *
+                </span>
+
+                {!capturedPhoto &&
+                  !isCameraOpen && (
+                    <span className="text-[10px] lowercase font-normal text-red-500 flex items-center gap-0.5">
+                      <AlertCircle
+                        size={11}
+                      />
+                      Photo required
+                    </span>
+                  )}
+
               </label>
 
-              {capturedPhoto ? (
+              {/* CAMERA OPEN */}
+
+              {isCameraOpen ? (
+                <div className="space-y-2">
+
+                  <div className="relative bg-black rounded-xl overflow-hidden aspect-video">
+
+                    <video
+                      ref={
+                        videoRef
+                      }
+                      autoPlay
+                      playsInline
+                      muted
+                      className="w-full h-full object-cover"
+                    />
+
+                  </div>
+
+                  <div className="flex gap-2">
+
+                    <button
+                      type="button"
+                      onClick={
+                        capturePhoto
+                      }
+                      className="flex-1 bg-[#12695a] text-white py-1.5 rounded-xl text-xs font-semibold cursor-pointer"
+                    >
+                      Capture Photo
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={
+                        stopCamera
+                      }
+                      className="bg-gray-200 text-gray-700 py-1.5 px-3 rounded-xl text-xs cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+
+                  </div>
+
+                </div>
+              ) : capturedPhoto ? (
+                /* PHOTO PREVIEW */
+
                 <div className="relative rounded-xl overflow-hidden border border-emerald-500 ring-1 ring-emerald-500">
+
                   <img
-                    src={capturedPhoto}
+                    src={
+                      capturedPhoto
+                    }
                     alt="Captured condition"
                     className="w-full h-28 object-cover"
                   />
+
                   <button
                     type="button"
-                    onClick={() => setCapturedPhoto(null)}
-                    className="absolute top-1 right-1 bg-black/60 text-white p-1 rounded-full cursor-pointer"
+                    disabled={
+                      isReturning
+                    }
+                    onClick={() =>
+                      setCapturedPhoto(
+                        null
+                      )
+                    }
+                    className="absolute top-1 right-1 bg-black/60 text-white p-1 rounded-full cursor-pointer disabled:opacity-50"
                   >
                     <X size={14} />
                   </button>
+
                 </div>
               ) : (
+                /* TAKE PHOTO BUTTON */
+
                 <button
                   type="button"
-                  onClick={startCamera}
-                  className="w-full bg-red-50/50 border border-dashed border-[#f5c2c2] text-[#8f2318] py-2.5 rounded-xl text-xs font-medium flex items-center justify-center gap-2 hover:bg-red-100/50 cursor-pointer"
+                  disabled={
+                    isReturning
+                  }
+                  onClick={
+                    startCamera
+                  }
+                  className="w-full bg-red-50/50 border border-dashed border-[#f5c2c2] text-[#8f2318] py-2.5 rounded-xl text-xs font-medium flex items-center justify-center gap-2 hover:bg-red-100/50 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <Camera size={16} />
-                  <span>Take Live Photo (Mandatory)</span>
+                  <Camera
+                    size={16}
+                  />
+
+                  <span>
+                    Take Live Photo (Mandatory)
+                  </span>
                 </button>
               )}
+
             </div>
 
-            {/* Action Buttons */}
+            {/* =================================================
+                ACTION BUTTONS
+            ================================================= */}
+
             <div className="flex items-center gap-2 pt-2">
+
               <button
                 type="button"
-                onClick={() => {
-                  setShowReturnModal(false);
-                  stopCamera();
-                }}
-                className="flex-1 py-2.5 rounded-xl text-xs font-medium border border-gray-300 text-gray-700 cursor-pointer"
+                disabled={
+                  isReturning
+                }
+                onClick={
+                  closeReturnModal
+                }
+                className="flex-1 py-2.5 rounded-xl text-xs font-medium border border-gray-300 text-gray-700 cursor-pointer disabled:opacity-50"
               >
                 Cancel
               </button>
+
               <button
                 type="button"
-                disabled={isReturning || !capturedPhoto}
-                onClick={handleConfirmReturn}
+                disabled={
+                  isReturning ||
+                  !capturedPhoto
+                }
+                onClick={
+                  handleConfirmReturn
+                }
                 className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-[#1b4d8f] text-white disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
               >
-                {isReturning ? "Processing..." : "Confirm Return"}
+                {isReturning
+                  ? "Processing..."
+                  : "Confirm Return"}
               </button>
+
             </div>
+
           </div>
         </div>
       )}
 
-      {/* TWO-STEP STATUS CHANGE CONFIRMATION POPUP MODAL */}
+      {/* =====================================================
+          STATUS CONFIRMATION MODAL
+      ===================================================== */}
+
       {showStatusConfirmModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-fade-in">
+
           <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-3.5 shadow-2xl border border-black/10">
+
             <div className="flex items-center justify-between border-b pb-2">
+
               <div className="flex items-center gap-2 text-[#8a5a12]">
-                <AlertTriangle size={18} />
+
+                <AlertTriangle
+                  size={18}
+                />
+
                 <h3 className="text-sm font-bold text-[#1b1a18]">
                   Confirm Status Change
                 </h3>
+
               </div>
+
               <button
                 type="button"
-                onClick={() => setShowStatusConfirmModal(false)}
+                onClick={() =>
+                  setShowStatusConfirmModal(
+                    false
+                  )
+                }
                 className="text-gray-400 hover:text-gray-600 p-1"
               >
                 <X size={18} />
               </button>
+
             </div>
 
             <div className="bg-[#fbf0dc] border border-[#f5d089] p-3 rounded-2xl text-[12px] space-y-1">
+
               <p className="font-semibold text-[#8a5a12]">
-                You are changing status for {instrument.name}:
+                You are changing status for{" "}
+                {instrument.name}:
               </p>
+
               <div className="flex items-center justify-center gap-2 pt-1 font-mono font-bold text-[#1b1a18]">
+
                 <span className="px-2 py-0.5 rounded bg-white border border-gray-300">
-                  {pendingStatusChange?.from}
+                  {
+                    pendingStatusChange?.from
+                  }
                 </span>
-                <span>→</span>
+
+                <span>
+                  →
+                </span>
+
                 <span className="px-2 py-0.5 rounded bg-white border border-[#1b4d8f] text-[#1b4d8f]">
-                  {pendingStatusChange?.to}
+                  {
+                    pendingStatusChange?.to
+                  }
                 </span>
+
               </div>
+
             </div>
 
             <p className="text-[11.5px] text-[#5d5b56] leading-relaxed">
-              {pendingStatusChange?.to === "MAINTENANCE"
+              {pendingStatusChange?.to ===
+              "MAINTENANCE"
                 ? "Setting status to MAINTENANCE will prevent this instrument from being issued until marked AVAILABLE again."
                 : "Setting status to AVAILABLE will re-enable this instrument for issue and borrowing workflows."}
             </p>
 
             <div className="flex items-center gap-2 pt-1">
+
               <button
                 type="button"
-                onClick={() => setShowStatusConfirmModal(false)}
+                onClick={() =>
+                  setShowStatusConfirmModal(
+                    false
+                  )
+                }
                 className="flex-1 py-2.5 rounded-xl text-xs font-medium border border-gray-300 text-gray-700 bg-white cursor-pointer"
               >
                 Cancel
               </button>
+
               <button
                 type="button"
-                disabled={isSubmitting}
-                onClick={executeSaveEdit}
+                disabled={
+                  isSubmitting
+                }
+                onClick={
+                  executeSaveEdit
+                }
                 className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-[#1b4d8f] text-white flex items-center justify-center gap-1 active:scale-95 transition-all cursor-pointer"
               >
                 {isSubmitting ? (
-                  <Loader2 size={14} className="animate-spin" />
+                  <Loader2
+                    size={14}
+                    className="animate-spin"
+                  />
                 ) : (
-                  <span>Confirm Status</span>
+                  <span>
+                    Confirm Status
+                  </span>
                 )}
               </button>
+
             </div>
+
           </div>
         </div>
       )}
 
-      {/* QR MODAL */}
+      {/* =====================================================
+          QR MODAL
+      ===================================================== */}
+
       {showQrModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-fade-in">
+
           <div className="bg-white rounded-3xl p-5 w-full max-w-xs space-y-4 shadow-2xl border border-black/10 text-center">
+
             <div className="flex items-center justify-between border-b pb-2">
+
               <div className="flex items-center gap-2 text-[#1b4d8f]">
+
                 <QrCode size={18} />
+
                 <h3 className="text-sm font-bold text-[#1b1a18]">
                   Instrument QR Code
                 </h3>
+
               </div>
+
               <button
-                onClick={() => setShowQrModal(false)}
+                onClick={() =>
+                  setShowQrModal(
+                    false
+                  )
+                }
                 className="text-gray-400 hover:text-gray-600 p-1 rounded-lg cursor-pointer"
               >
                 <X size={18} />
               </button>
+
             </div>
 
             <div className="space-y-1">
+
               <h4 className="text-xs font-bold text-[#1b1a18] line-clamp-1">
                 {instrument.name}
               </h4>
-              <p className="font-mono text-[11px] text-[#7a7872]">{assetId}</p>
+
+              <p className="font-mono text-[11px] text-[#7a7872]">
+                {assetId}
+              </p>
+
             </div>
 
             <div
-              ref={qrCanvasRef}
+              ref={
+                qrCanvasRef
+              }
               className="p-4 bg-[#f8fafc] border-2 border-dashed border-[#1b4d8f]/30 rounded-2xl flex items-center justify-center shadow-inner"
             >
+
               {qrUrl ? (
                 <img
                   src={qrUrl}
@@ -1365,119 +2643,210 @@ export default function InstrumentDetailScreen({
                 />
               ) : (
                 <QRCodeCanvas
-                  value={qrPayload}
+                  value={
+                    qrPayload
+                  }
                   size={180}
                   bgColor="#FFFFFF"
                   fgColor="#1b4d8f"
                   level="M"
-                  includeMargin={true}
+                  includeMargin={
+                    true
+                  }
                 />
               )}
+
             </div>
 
             <button
-              onClick={handleDownloadQr}
+              onClick={
+                handleDownloadQr
+              }
               className="w-full bg-[#1b4d8f] text-white py-2.5 rounded-xl text-xs font-bold active:scale-95 transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer"
             >
-              <Download size={15} />
-              <span>Download QR Photo</span>
+              <Download
+                size={15}
+              />
+
+              <span>
+                Download QR Photo
+              </span>
             </button>
+
           </div>
         </div>
       )}
 
-      {/* DELETE CONFIRMATION MODAL */}
+      {/* =====================================================
+          DELETE MODAL
+      ===================================================== */}
+
       {showDeleteModal && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
+
           <div className="bg-white rounded-2xl p-4.5 w-full max-w-sm space-y-3 shadow-2xl border border-black/10 animate-fade-in">
+
             <div className="flex items-center justify-between border-b pb-2">
+
               <div className="flex items-center gap-2 text-[#c92a2a]">
-                <AlertTriangle size={18} />
+
+                <AlertTriangle
+                  size={18}
+                />
+
                 <h3 className="text-sm font-bold text-[#1b1a18]">
                   Confirm Delete
                 </h3>
+
               </div>
+
               <button
-                onClick={() => setShowDeleteModal(false)}
+                onClick={() =>
+                  setShowDeleteModal(
+                    false
+                  )
+                }
                 className="text-gray-400 hover:text-gray-600 p-1 cursor-pointer"
               >
                 <X size={18} />
               </button>
+
             </div>
 
             <p className="text-[12.5px] text-[#5d5b56] leading-relaxed">
+
               Are you sure you want to permanently delete{" "}
-              <strong className="text-[#1b1a18]">{instrument.name}</strong> (Asset ID:{" "}
-              <span className="font-mono text-xs">{assetId}</span>)?
+
+              <strong className="text-[#1b1a18]">
+                {instrument.name}
+              </strong>
+
+              {" "}(
+              Asset ID:{" "}
+
+              <span className="font-mono text-xs">
+                {assetId}
+              </span>
+              )?
+
             </p>
 
             <div className="flex items-center gap-2 pt-2">
+
               <button
                 type="button"
-                onClick={() => setShowDeleteModal(false)}
+                onClick={() =>
+                  setShowDeleteModal(
+                    false
+                  )
+                }
                 className="flex-1 py-2.5 rounded-xl text-xs font-medium border border-gray-300 text-gray-700 bg-white cursor-pointer"
               >
                 Cancel
               </button>
+
               <button
                 type="button"
-                disabled={isDeleting || isCurrentlyIssued}
-                onClick={handleDeleteInstrument}
+                disabled={
+                  isDeleting ||
+                  isCurrentlyIssued
+                }
+                onClick={
+                  handleDeleteInstrument
+                }
                 className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-[#c92a2a] hover:bg-[#b02525] text-white disabled:opacity-50 transition-all cursor-pointer"
               >
-                {isDeleting ? "Deleting..." : "Delete Permanently"}
+                {isDeleting
+                  ? "Deleting..."
+                  : "Delete Permanently"}
               </button>
+
             </div>
+
           </div>
         </div>
       )}
 
-      {/* CAMERA MODAL */}
-      {isCameraOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in">
-          <div className="w-full max-w-sm h-[70vh] bg-black rounded-3xl overflow-hidden flex flex-col justify-between p-3.5 shadow-2xl border border-white/20">
-            <div className="flex items-center justify-between text-white pb-1">
-              <h3 className="text-xs font-bold flex items-center gap-1.5">
-                <Camera size={14} className="text-[#1b4d8f]" />
-                Capture Instrument Photo
-              </h3>
-              <button
-                type="button"
-                onClick={stopCamera}
-                className="p-1 rounded-full bg-white/20 hover:bg-white/30 text-white transition-all cursor-pointer"
-              >
-                <X size={16} />
-              </button>
-            </div>
+      {/* =====================================================
+          EDIT CAMERA MODAL
+          
+          This is only for EDIT mode.
+          Return camera is handled INSIDE return modal.
+      ===================================================== */}
 
-            <div className="relative flex-1 bg-black rounded-2xl overflow-hidden flex items-center justify-center my-2">
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                className="w-full h-full object-cover"
-              />
-            </div>
+      {isCameraOpen &&
+        !showReturnModal && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in">
 
-            <div className="pt-1 pb-1 flex items-center justify-center gap-4">
-              <button
-                type="button"
-                onClick={stopCamera}
-                className="bg-white/20 hover:bg-white/30 text-white text-xs px-4 py-2 rounded-xl transition-all font-medium cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={takePhoto}
-                className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-all border-4 border-[#1b4d8f] cursor-pointer"
-              >
-                <div className="w-8 h-8 bg-[#1b4d8f] rounded-full" />
-              </button>
+            <div className="w-full max-w-sm h-[70vh] bg-black rounded-3xl overflow-hidden flex flex-col justify-between p-3.5 shadow-2xl border border-white/20">
+
+              <div className="flex items-center justify-between text-white pb-1">
+
+                <h3 className="text-xs font-bold flex items-center gap-1.5">
+
+                  <Camera
+                    size={14}
+                    className="text-[#1b4d8f]"
+                  />
+
+                  Capture Instrument Photo
+
+                </h3>
+
+                <button
+                  type="button"
+                  onClick={
+                    stopCamera
+                  }
+                  className="p-1 rounded-full bg-white/20 hover:bg-white/30 text-white transition-all cursor-pointer"
+                >
+                  <X size={16} />
+                </button>
+
+              </div>
+
+              <div className="relative flex-1 bg-black rounded-2xl overflow-hidden flex items-center justify-center my-2">
+
+                <video
+                  ref={
+                    videoRef
+                  }
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full h-full object-cover"
+                />
+
+              </div>
+
+              <div className="pt-1 pb-1 flex items-center justify-center gap-4">
+
+                <button
+                  type="button"
+                  onClick={
+                    stopCamera
+                  }
+                  className="bg-white/20 hover:bg-white/30 text-white text-xs px-4 py-2 rounded-xl transition-all font-medium cursor-pointer"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  onClick={
+                    capturePhoto
+                  }
+                  className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-all border-4 border-[#1b4d8f] cursor-pointer"
+                >
+                  <div className="w-8 h-8 bg-[#1b4d8f] rounded-full" />
+                </button>
+
+              </div>
+
             </div>
           </div>
-        </div>
-      )}
+        )}
+
     </div>
   );
 }
