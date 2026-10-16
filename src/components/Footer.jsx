@@ -15,11 +15,11 @@ export default function Footer({ currentTab = 'Home', onTabChange }) {
       className="
         fixed bottom-0 left-0 right-0 w-full
         bg-white/95 backdrop-blur-md
-        px-3 shadow-lg z-50 h-[56px]
+        px-3 shadow-lg z-50 h-14
       "
     >
       {/* Top border with curved QR notch */}
-      <div className="absolute top-0 left-0 right-0 h-[18px] pointer-events-none">
+      <div className="absolute top-0 left-0 right-0 h-4.5 pointer-events-none">
 
         {/* Left straight line */}
         <div
@@ -44,7 +44,7 @@ export default function Footer({ currentTab = 'Home', onTabChange }) {
           className="
             absolute left-1/2 top-0
             -translate-x-1/2
-            w-[68px] h-[21px]
+            w-17 h-5.25
             bg-white/95
             border-t border-gray-200/80
             rounded-t-full
@@ -73,7 +73,7 @@ export default function Footer({ currentTab = 'Home', onTabChange }) {
                 <div
                   className="
                     absolute -top-2
-                    w-[58px] h-[58px]
+                    w-14.5 h-14.5
                     bg-white/95
                     rounded-full
                     -z-10

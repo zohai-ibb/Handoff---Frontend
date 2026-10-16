@@ -114,7 +114,7 @@ export default function Header({ userPhotoUrl = null, user = null, onProfileClic
 
       {/* --- Logout Confirmation Modal --- */}
       {showLogoutConfirm && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-[100] flex items-center justify-center p-4 animate-in fade-in">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-100 flex items-center justify-center p-4 animate-in fade-in">
           <div className="bg-white rounded-2xl p-5 max-w-xs w-full shadow-2xl border border-gray-200 space-y-3 text-[#1b1a18]">
             <div className="flex items-center gap-2.5 text-[#1b4d8f]">
               <AlertCircle size={20} className="shrink-0 text-[#1b4d8f]" />
