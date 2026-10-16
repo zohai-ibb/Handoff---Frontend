@@ -13,6 +13,10 @@ import {
   LogOut,
   Loader2,
   AlertCircle,
+  FileSpreadsheet,
+  Download,
+  PackageCheck,
+  ClipboardList,
 } from "lucide-react";
 
 export default function ProfileScreen({
@@ -40,6 +44,10 @@ export default function ProfileScreen({
   const [formData, setFormData] = useState({ ...person });
   const [selectedPhotoFile, setSelectedPhotoFile] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Individual Excel Download Loading States
+  const [isDownloadingInstruments, setIsDownloadingInstruments] = useState(false);
+  const [isDownloadingIssues, setIsDownloadingIssues] = useState(false);
 
   // Confirmation Dialog Modal State
   const [confirmDialog, setConfirmDialog] = useState({
@@ -73,9 +81,88 @@ export default function ProfileScreen({
     }
   }, [user]);
 
+  // Download Handler 1: Authenticated Scientist Instruments Excel
+  const handleDownloadInstruments = async () => {
+    if (!person.id) {
+      if (onShowToast) onShowToast("Error: User ID missing.");
+      return;
+    }
+
+    try {
+      setIsDownloadingInstruments(true);
+      const token = localStorage.getItem("token");
+      const response = await fetch(`${BASE_URL}/api/persons/${person.id}/export-instruments`, {
+        method: "GET",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to download instruments Excel report.");
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const cleanName = (person.name || "Scientist").replace(/\s+/g, "_");
+      a.download = `${cleanName}_Instruments_${new Date().toISOString().split("T")[0]}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+
+      if (onShowToast) onShowToast("Instruments Excel report downloaded!");
+    } catch (err) {
+      if (onShowToast) onShowToast(err.message || "Error downloading report.");
+    } finally {
+      setIsDownloadingInstruments(false);
+    }
+  };
+
+  // Download Handler 2: Authenticated Scientist Issue Records Excel
+  const handleDownloadIssueRecords = async () => {
+    if (!person.id) {
+      if (onShowToast) onShowToast("Error: User ID missing.");
+      return;
+    }
+
+    try {
+      setIsDownloadingIssues(true);
+      const token = localStorage.getItem("token");
+      const response = await fetch(`${BASE_URL}/api/persons/${person.id}/export-issue-records`, {
+        method: "GET",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to download issue records Excel report.");
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const cleanName = (person.name || "Scientist").replace(/\s+/g, "_");
+      a.download = `${cleanName}_Issue_Records_${new Date().toISOString().split("T")[0]}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+
+      if (onShowToast) onShowToast("Issue records Excel report downloaded!");
+    } catch (err) {
+      if (onShowToast) onShowToast(err.message || "Error downloading report.");
+    } finally {
+      setIsDownloadingIssues(false);
+    }
+  };
+
   // Handle Edit Toggle
   const handleEditClick = () => {
-    // Strip prefix if stored with +91 or non-digits to keep pure 10 digits in edit state
     const cleanMobile = (person.mobile || "").replace(/\D/g, "").slice(-10);
     setFormData({ ...person, mobile: cleanMobile });
     setSelectedPhotoFile(null);
@@ -87,7 +174,6 @@ export default function ProfileScreen({
     const { name, value, type, checked } = e.target;
     
     if (name === "mobile") {
-      // Allow only numbers and restrict to max 10 digits
       const digitsOnly = value.replace(/\D/g, "").slice(0, 10);
       setFormData((prev) => ({
         ...prev,
@@ -177,7 +263,6 @@ export default function ProfileScreen({
   const handleSavePrompt = (e) => {
     e.preventDefault();
 
-    // Validate 10-digit phone number
     if (formData.mobile && formData.mobile.length !== 10) {
       if (onShowToast) {
         onShowToast("Mobile number must be exactly 10 digits!");
@@ -232,7 +317,6 @@ export default function ProfileScreen({
     const formattedMobile = formData.mobile ? `+91 ${formData.mobile}` : "";
 
     try {
-      // 1. Save Text Fields via PUT /api/persons/{id}
       const response = await fetch(`${BASE_URL}/api/persons/${person.id}`, {
         method: "PUT",
         headers,
@@ -251,7 +335,6 @@ export default function ProfileScreen({
 
       let updatedPersonData = await response.json();
 
-      // 2. Save Photo File via POST /api/persons/{id}/photo
       if (selectedPhotoFile) {
         const photoFormData = new FormData();
         photoFormData.append("photo", selectedPhotoFile);
@@ -310,10 +393,9 @@ export default function ProfileScreen({
     if (!photoPath) return null;
     if (photoPath.startsWith("data:")) return photoPath;
 
-    const baseUrl = "http://localhost:8080";
     const fullPath = photoPath.startsWith("http")
       ? photoPath
-      : `${baseUrl}${photoPath}`;
+      : `${BASE_URL}${photoPath}`;
 
     return `${fullPath}?t=${new Date().getTime()}`;
   };
@@ -380,100 +462,154 @@ export default function ProfileScreen({
 
       {/* --- View Mode --- */}
       {!isEditing ? (
-        <div className="bg-white p-4 rounded-2xl border border-black/10 shadow-2xs space-y-3">
-          <h4 className="text-xs font-bold text-[#1b4d8f] uppercase tracking-wider border-b pb-2">
-            Person Details
-          </h4>
+        <div className="space-y-4">
+          <div className="bg-white p-4 rounded-2xl border border-black/10 shadow-2xs space-y-3">
+            <h4 className="text-xs font-bold text-[#1b4d8f] uppercase tracking-wider border-b pb-2">
+              Person Details
+            </h4>
 
-          <div className="space-y-2.5 text-xs">
-            <div className="flex items-center gap-2.5 text-[#5d5b56]">
-              <User size={15} className="text-[#1b4d8f] shrink-0" />
-              <div>
-                <span className="text-[10px] uppercase font-semibold text-gray-400 block">
-                  Name
-                </span>
-                <span className="font-semibold text-[#1b1a18]">
-                  {person.name || "N/A"}
-                </span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2.5 text-[#5d5b56]">
-              <Mail size={15} className="text-[#1b4d8f] shrink-0" />
-              <div>
-                <span className="text-[10px] uppercase font-semibold text-gray-400 block">
-                  Official Email
-                </span>
-                <span className="font-mono text-[#1b1a18]">
-                  {person.email || "N/A"}
-                </span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2.5 text-[#5d5b56]">
-              <Phone size={15} className="text-[#1b4d8f] shrink-0" />
-              <div>
-                <span className="text-[10px] uppercase font-semibold text-gray-400 block">
-                  Mobile Number
-                </span>
-                <span className="text-[#1b1a18]">
-                  {person.mobile || "Not set"}
-                </span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2.5 text-[#5d5b56]">
-              <Building size={15} className="text-[#1b4d8f] shrink-0" />
-              <div>
-                <span className="text-[10px] uppercase font-semibold text-gray-400 block">
-                  Department
-                </span>
-                <span className="text-[#1b1a18]">
-                  {person.department || "APEEG"}
-                </span>
-              </div>
-            </div>
-
-            {person.created_at && (
+            <div className="space-y-2.5 text-xs">
               <div className="flex items-center gap-2.5 text-[#5d5b56]">
-                <Calendar size={15} className="text-[#1b4d8f] shrink-0" />
+                <User size={15} className="text-[#1b4d8f] shrink-0" />
                 <div>
                   <span className="text-[10px] uppercase font-semibold text-gray-400 block">
-                    Account Created
+                    Name
                   </span>
-                  <span className="font-mono text-[#1b1a18]">
-                    {new Date(person.created_at).toLocaleDateString("en-GB", {
-                      day: "2-digit",
-                      month: "short",
-                      year: "numeric",
-                    })}
+                  <span className="font-semibold text-[#1b1a18]">
+                    {person.name || "N/A"}
                   </span>
                 </div>
               </div>
-            )}
-          </div>
 
-          {/* Action Buttons */}
-          <div className="pt-3 border-t border-gray-100 flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleEditClick}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 bg-[#1b4d8f] hover:bg-[#143d73] text-white rounded-xl text-xs font-semibold transition-all active:scale-98 shadow-2xs"
-            >
-              <Edit3 size={14} />
-              <span>Edit Profile</span>
-            </button>
+              <div className="flex items-center gap-2.5 text-[#5d5b56]">
+                <Mail size={15} className="text-[#1b4d8f] shrink-0" />
+                <div>
+                  <span className="text-[10px] uppercase font-semibold text-gray-400 block">
+                    Official Email
+                  </span>
+                  <span className="font-mono text-[#1b1a18]">
+                    {person.email || "N/A"}
+                  </span>
+                </div>
+              </div>
 
-            {onLogout && (
+              <div className="flex items-center gap-2.5 text-[#5d5b56]">
+                <Phone size={15} className="text-[#1b4d8f] shrink-0" />
+                <div>
+                  <span className="text-[10px] uppercase font-semibold text-gray-400 block">
+                    Mobile Number
+                  </span>
+                  <span className="text-[#1b1a18]">
+                    {person.mobile || "Not set"}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2.5 text-[#5d5b56]">
+                <Building size={15} className="text-[#1b4d8f] shrink-0" />
+                <div>
+                  <span className="text-[10px] uppercase font-semibold text-gray-400 block">
+                    Department
+                  </span>
+                  <span className="text-[#1b1a18]">
+                    {person.department || "APEEG"}
+                  </span>
+                </div>
+              </div>
+
+              {person.created_at && (
+                <div className="flex items-center gap-2.5 text-[#5d5b56]">
+                  <Calendar size={15} className="text-[#1b4d8f] shrink-0" />
+                  <div>
+                    <span className="text-[10px] uppercase font-semibold text-gray-400 block">
+                      Account Created
+                    </span>
+                    <span className="font-mono text-[#1b1a18]">
+                      {new Date(person.created_at).toLocaleDateString("en-GB", {
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric",
+                      })}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Action Buttons */}
+            <div className="pt-3 border-t border-gray-100 flex items-center gap-2">
               <button
                 type="button"
-                onClick={handleLogoutPrompt}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl text-xs font-semibold transition-all active:scale-98"
+                onClick={handleEditClick}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 bg-[#1b4d8f] hover:bg-[#143d73] text-white rounded-xl text-xs font-semibold transition-all active:scale-98 shadow-2xs cursor-pointer"
               >
-                <LogOut size={14} />
-                <span>Sign Out</span>
+                <Edit3 size={14} />
+                <span>Edit Profile</span>
               </button>
-            )}
+
+              {onLogout && (
+                <button
+                  type="button"
+                  onClick={handleLogoutPrompt}
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl text-xs font-semibold transition-all active:scale-98 cursor-pointer"
+                >
+                  <LogOut size={14} />
+                  <span>Sign Out</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* --- Excel Export Section with Two Buttons --- */}
+          <div className="bg-white p-4 rounded-2xl border border-black/10 shadow-2xs space-y-3">
+            <div className="flex items-center gap-2 border-b pb-2">
+              <FileSpreadsheet size={16} className="text-[#1b4d8f]" />
+              <h4 className="text-xs font-bold text-[#1b4d8f] uppercase tracking-wider">
+                Export Scientist Reports (.xlsx)
+              </h4>
+            </div>
+
+            <p className="text-[11.5px] text-[#5d5b56] leading-relaxed">
+              Download individual Microsoft Excel spreadsheets containing your instrument inventory or loan/issue record history.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+              {/* Button 1: Download Instruments */}
+              <button
+                type="button"
+                onClick={handleDownloadInstruments}
+                disabled={isDownloadingInstruments}
+                className="flex items-center justify-center gap-2 py-2.5 px-3 bg-[#eef3fa] hover:bg-[#e0eaf6] text-[#1b4d8f] border border-[#1b4d8f]/30 rounded-xl text-xs font-semibold transition-all active:scale-98 cursor-pointer disabled:opacity-50"
+              >
+                {isDownloadingInstruments ? (
+                  <Loader2 size={15} className="animate-spin text-[#1b4d8f]" />
+                ) : (
+                  <>
+                    <PackageCheck size={15} className="text-[#1b4d8f]" />
+                    <span>Download Instruments</span>
+                    <Download size={13} className="ml-auto opacity-70" />
+                  </>
+                )}
+              </button>
+
+              {/* Button 2: Download Issue Records */}
+              <button
+                type="button"
+                onClick={handleDownloadIssueRecords}
+                disabled={isDownloadingIssues}
+                className="flex items-center justify-center gap-2 py-2.5 px-3 bg-[#eef8f5] hover:bg-[#dbf0ea] text-[#12695a] border border-[#12695a]/30 rounded-xl text-xs font-semibold transition-all active:scale-98 cursor-pointer disabled:opacity-50"
+              >
+                {isDownloadingIssues ? (
+                  <Loader2 size={15} className="animate-spin text-[#12695a]" />
+                ) : (
+                  <>
+                    <ClipboardList size={15} className="text-[#12695a]" />
+                    <span>Download Issue Records</span>
+                    <Download size={13} className="ml-auto opacity-70" />
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       ) : (
@@ -509,7 +645,7 @@ export default function ProfileScreen({
                       setSelectedPhotoFile(null);
                       setFormData((prev) => ({ ...prev, photo_path: null }));
                     }}
-                    className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 shadow-xs hover:bg-red-600"
+                    className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 shadow-xs hover:bg-red-600 cursor-pointer"
                   >
                     <X size={10} />
                   </button>
@@ -524,7 +660,7 @@ export default function ProfileScreen({
                 <button
                   type="button"
                   onClick={startCamera}
-                  className="flex-1 bg-[#1b4d8f] text-white text-[11px] font-medium py-2 px-2.5 rounded-xl flex items-center justify-center gap-1 active:scale-95 transition-all shadow-2xs"
+                  className="flex-1 bg-[#1b4d8f] text-white text-[11px] font-medium py-2 px-2.5 rounded-xl flex items-center justify-center gap-1 active:scale-95 transition-all shadow-2xs cursor-pointer"
                 >
                   <Camera size={13} />
                   <span>Camera</span>
@@ -535,7 +671,7 @@ export default function ProfileScreen({
                   onClick={() =>
                     fileInputRef.current && fileInputRef.current.click()
                   }
-                  className="flex-1 bg-gray-100 hover:bg-gray-200 text-[#1b1a18] border border-black/10 text-[11px] font-medium py-2 px-2.5 rounded-xl flex items-center justify-center gap-1 active:scale-95 transition-all"
+                  className="flex-1 bg-gray-100 hover:bg-gray-200 text-[#1b1a18] border border-black/10 text-[11px] font-medium py-2 px-2.5 rounded-xl flex items-center justify-center gap-1 active:scale-95 transition-all cursor-pointer"
                 >
                   <Upload size={13} />
                   <span>Upload</span>
@@ -647,14 +783,14 @@ export default function ProfileScreen({
                 setSelectedPhotoFile(null);
                 setIsEditing(false);
               }}
-              className="flex-1 py-2.5 rounded-xl text-xs font-medium border border-gray-300 text-gray-700 active:scale-98 transition-all disabled:opacity-50"
+              className="flex-1 py-2.5 rounded-xl text-xs font-medium border border-gray-300 text-gray-700 active:scale-98 transition-all disabled:opacity-50 cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-[#1b4d8f] text-white active:scale-98 shadow-2xs transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+              className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-[#1b4d8f] text-white active:scale-98 shadow-2xs transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
             >
               {isSubmitting ? (
                 <Loader2 size={14} className="animate-spin" />
@@ -692,7 +828,7 @@ export default function ProfileScreen({
                     actionType: null,
                   })
                 }
-                className="flex-1 py-2 rounded-xl text-xs font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 active:scale-98 transition-all"
+                className="flex-1 py-2 rounded-xl text-xs font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 active:scale-98 transition-all cursor-pointer"
               >
                 Cancel
               </button>
@@ -700,7 +836,7 @@ export default function ProfileScreen({
               <button
                 type="button"
                 onClick={handleConfirmAction}
-                className={`flex-1 py-2 rounded-xl text-xs font-bold text-white active:scale-98 transition-all shadow-xs ${
+                className={`flex-1 py-2 rounded-xl text-xs font-bold text-white active:scale-98 transition-all shadow-xs cursor-pointer ${
                   confirmDialog.actionType === "LOGOUT"
                     ? "bg-red-600 hover:bg-red-700"
                     : "bg-[#1b4d8f] hover:bg-[#143d73]"
@@ -725,7 +861,7 @@ export default function ProfileScreen({
               <button
                 type="button"
                 onClick={stopCamera}
-                className="p-1 rounded-full bg-white/20 hover:bg-white/30 text-white transition-all"
+                className="p-1 rounded-full bg-white/20 hover:bg-white/30 text-white transition-all cursor-pointer"
               >
                 <X size={16} />
               </button>
@@ -745,14 +881,14 @@ export default function ProfileScreen({
               <button
                 type="button"
                 onClick={stopCamera}
-                className="bg-white/20 hover:bg-white/30 text-white text-xs px-4 py-2 rounded-xl transition-all font-medium"
+                className="bg-white/20 hover:bg-white/30 text-white text-xs px-4 py-2 rounded-xl transition-all font-medium cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={takePhoto}
-                className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-all border-4 border-[#1b4d8f]"
+                className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-all border-4 border-[#1b4d8f] cursor-pointer"
               >
                 <div className="w-8 h-8 bg-[#1b4d8f] rounded-full" />
               </button>
