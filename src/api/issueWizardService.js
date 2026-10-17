@@ -25,10 +25,12 @@ export const getMyStaffMembers = async () => {
 };
 
 /**
- * Scan QR Code string (assetId)
+ * Scan QR Code string (assetId) using Query Parameter to safely handle slashes in asset IDs
  */
 export const scanInstrumentByAssetId = async (assetId) => {
-  const response = await axiosClient.get(`/instruments/scan/${encodeURIComponent(assetId)}`);
+  const response = await axiosClient.get('/instruments/scan', {
+    params: { assetId: assetId.trim() },
+  });
   return response.data;
 };
 

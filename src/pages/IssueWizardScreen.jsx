@@ -110,60 +110,196 @@ export default function IssueWizardScreen({
   }, []);
 
   useEffect(() => {
-    if (isQrScannerOpen) {
-      const scanner = new Html5QrcodeScanner(
-        "qr-reader-container",
-        {
-          fps: 10,
-          qrbox: { width: 220, height: 220 },
-          aspectRatio: 1.0,
-        },
-        false
-      );
+    if (!isQrScannerOpen) return;
 
-      qrScannerRef.current = scanner;
+    const scanner = new Html5QrcodeScanner(
+      "qr-reader-container",
+      {
+        fps: 10,
+        qrbox: { width: 220, height: 220 },
+        aspectRatio: 1.0,
+      },
+      false
+    );
 
-      scanner.render(
-        async (decodedText) => {
-          scanner.clear().catch(() => {});
+    qrScannerRef.current = scanner;
+
+    let scanHandled = false;
+
+    scanner.render(
+      async (decodedText) => {
+        if (scanHandled) return;
+        scanHandled = true;
+
+        try {
+          await scanner.clear().catch(() => {});
           setIsQrScannerOpen(false);
+          setIsScanningApi(true);
+
+          const scannedText = decodedText.trim();
+
+          if (onShowToast) {
+            onShowToast("QR scanned. Reading instrument details...");
+          }
+
+          // -----------------------------------------
+          // 1. Read QR JSON
+          // -----------------------------------------
+          let qrData;
 
           try {
-            setIsScanningApi(true);
-            if (onShowToast) onShowToast(`Scanned Tag: ${decodedText}. Fetching details...`);
+            qrData = JSON.parse(scannedText);
+          } catch (parseError) {
+            console.error("Invalid QR JSON:", parseError);
 
-            const scannedInstrument = await scanInstrumentByAssetId(decodedText.trim());
-
-            if (scannedInstrument) {
-              setSelectedInstrument(scannedInstrument);
-              setIssueQuantity(1);
-              if (onShowToast) {
-                onShowToast(
-                  `Instrument Matched: ${scannedInstrument.name} (${scannedInstrument.asset_id || scannedInstrument.assetId})`
-                );
-              }
-              setCurrentStep(2);
-            } else {
-              if (onShowToast) onShowToast("Instrument not found for scanned QR tag.");
-            }
-          } catch (err) {
             if (onShowToast) {
-              onShowToast("Backend scan failed: Instrument not found in inventory.");
+              onShowToast(
+                "Invalid QR code. Instrument information could not be read."
+              );
             }
-          } finally {
-            setIsScanningApi(false);
-          }
-        },
-        () => {}
-      );
 
-      return () => {
-        if (qrScannerRef.current) {
-          qrScannerRef.current.clear().catch(() => {});
+            return;
+          }
+
+          // -----------------------------------------
+          // 2. Get Asset ID from QR JSON
+          // -----------------------------------------
+          const assetId = qrData?.assetId;
+
+          if (!assetId) {
+            if (onShowToast) {
+              onShowToast(
+                "Invalid QR code: Asset ID was not found."
+              );
+            }
+
+            return;
+          }
+
+          if (onShowToast) {
+            onShowToast(
+              `Asset ID ${assetId} found. Fetching instrument...`
+            );
+          }
+
+          // -----------------------------------------
+          // 3. Fetch instrument from backend
+          // -----------------------------------------
+          const scannedInstrument =
+            await scanInstrumentByAssetId(assetId);
+
+          if (!scannedInstrument) {
+            if (onShowToast) {
+              onShowToast(
+                `Instrument ${assetId} was not found.`
+              );
+            }
+
+            return;
+          }
+
+          // -----------------------------------------
+          // 4. Get backend Asset ID
+          // -----------------------------------------
+          const scannedAssetId =
+            scannedInstrument.asset_id ||
+            scannedInstrument.assetId;
+
+          if (!scannedAssetId) {
+            if (onShowToast) {
+              onShowToast(
+                "Instrument was found, but its Asset ID is missing."
+              );
+            }
+
+            return;
+          }
+
+          // -----------------------------------------
+          // 5. Find instrument in logged-in
+          //    scientist's inventory
+          // -----------------------------------------
+          const inventoryInstrument = availableInstruments.find(
+            (item) => {
+              const inventoryAssetId =
+                item.asset_id ||
+                item.assetId;
+
+              return (
+                inventoryAssetId &&
+                inventoryAssetId.trim().toLowerCase() ===
+                  scannedAssetId.trim().toLowerCase()
+              );
+            }
+          );
+
+          if (!inventoryInstrument) {
+            if (onShowToast) {
+              onShowToast(
+                `Instrument ${scannedAssetId} is not available in your inventory.`
+              );
+            }
+
+            return;
+          }
+
+          // -----------------------------------------
+          // 6. Check instrument availability
+          // -----------------------------------------
+          const isAvailable =
+            inventoryInstrument.status === "AVAILABLE" ||
+            inventoryInstrument.status === "Available";
+
+          if (!isAvailable) {
+            if (onShowToast) {
+              onShowToast(
+                `Instrument ${scannedAssetId} is not currently available for issue.`
+              );
+            }
+
+            return;
+          }
+
+          // -----------------------------------------
+          // 7. Select the actual inventory instrument
+          // -----------------------------------------
+          setSelectedInstrument(inventoryInstrument);
+          setIssueQuantity(1);
+          setInstrumentSearchQuery("");
+
+          // -----------------------------------------
+          // 8. Move directly to Person page
+          // -----------------------------------------
+          if (onShowToast) {
+            onShowToast(
+              `Instrument Matched: ${inventoryInstrument.name || qrData.equipment} (${scannedAssetId})`
+            );
+          }
+
+          setCurrentStep(2);
+
+        } catch (err) {
+          console.error("QR instrument scan error:", err);
+
+          if (onShowToast) {
+            onShowToast(
+              "QR scan failed: Instrument could not be found in your inventory."
+            );
+          }
+        } finally {
+          setIsScanningApi(false);
         }
-      };
-    }
-  }, [isQrScannerOpen]);
+      },
+      () => {}
+    );
+
+    return () => {
+      if (qrScannerRef.current) {
+        qrScannerRef.current.clear().catch(() => {});
+        qrScannerRef.current = null;
+      }
+    };
+  }, [isQrScannerOpen, availableInstruments]);
 
   const filteredInstruments = availableInstruments.filter((inst) => {
     const q = instrumentSearchQuery.toLowerCase().trim();
@@ -446,7 +582,7 @@ export default function IssueWizardScreen({
               <h3 className="text-xs font-bold text-[#1b4d8f]">
                 Scan physical QR label
               </h3>
-              <p className="text-[10.5px] text-[#5d5b56] max-w-[220px] mx-auto leading-tight">
+              <p className="text-[10.5px] text-[#5d5b56] max-w-55 mx-auto leading-tight">
                 Scan the QR code printed on the instrument to automatically fetch asset details.
               </p>
               <button
@@ -809,7 +945,7 @@ export default function IssueWizardScreen({
 
                   {isStaffDropdownOpen && (
                     <div className="w-full bg-white border border-gray-200 rounded-xl shadow-xs overflow-hidden p-1 flex flex-col">
-                      <div className="max-h-[120px] overflow-y-auto space-y-0.5 custom-scrollbar">
+                      <div className="max-h-30 overflow-y-auto space-y-0.5 custom-scrollbar">
                         {filteredStaffList.length === 0 ? (
                           <div className="p-2 text-[11px] text-gray-400 text-center">
                             No matching staff found. Enter details below.
@@ -1109,7 +1245,7 @@ export default function IssueWizardScreen({
               </button>
             </div>
 
-            <div className="overflow-hidden rounded-2xl bg-black min-h-[220px]">
+            <div className="overflow-hidden rounded-2xl bg-black min-h-55">
               <div id="qr-reader-container" className="w-full" />
             </div>
 
