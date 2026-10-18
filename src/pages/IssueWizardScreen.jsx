@@ -66,11 +66,11 @@ export default function IssueWizardScreen({
 
   const [issueDate, setIssueDate] = useState(getTodayFormatted());
   const [expectedReturn, setExpectedReturn] = useState(
-    getFourteenDaysLaterFormatted()
+    getFourteenDaysLaterFormatted(),
   );
   const [purpose, setPurpose] = useState("");
   const [conditionOut, setConditionOut] = useState(
-    "Complete with case and accessories"
+    "Complete with case and accessories",
   );
 
   const [isCameraOpen, setIsCameraOpen] = useState(false);
@@ -89,7 +89,7 @@ export default function IssueWizardScreen({
         ]);
 
         const availableOnly = (Array.isArray(instRes) ? instRes : []).filter(
-          (item) => item.status === "AVAILABLE" || item.status === "Available"
+          (item) => item.status === "AVAILABLE" || item.status === "Available",
         );
         setAvailableInstruments(availableOnly);
         setScientists(Array.isArray(sciRes) ? sciRes : []);
@@ -98,7 +98,7 @@ export default function IssueWizardScreen({
         if (onShowToast) {
           onShowToast(
             "Failed to load inventory/scientists: " +
-              (err.response?.data || err.message)
+              (err.response?.data || err.message),
           );
         }
       } finally {
@@ -119,7 +119,7 @@ export default function IssueWizardScreen({
         qrbox: { width: 220, height: 220 },
         aspectRatio: 1.0,
       },
-      false
+      false,
     );
 
     qrScannerRef.current = scanner;
@@ -154,7 +154,7 @@ export default function IssueWizardScreen({
 
             if (onShowToast) {
               onShowToast(
-                "Invalid QR code. Instrument information could not be read."
+                "Invalid QR code. Instrument information could not be read.",
               );
             }
 
@@ -168,31 +168,24 @@ export default function IssueWizardScreen({
 
           if (!assetId) {
             if (onShowToast) {
-              onShowToast(
-                "Invalid QR code: Asset ID was not found."
-              );
+              onShowToast("Invalid QR code: Asset ID was not found.");
             }
 
             return;
           }
 
           if (onShowToast) {
-            onShowToast(
-              `Asset ID ${assetId} found. Fetching instrument...`
-            );
+            onShowToast(`Asset ID ${assetId} found. Fetching instrument...`);
           }
 
           // -----------------------------------------
           // 3. Fetch instrument from backend
           // -----------------------------------------
-          const scannedInstrument =
-            await scanInstrumentByAssetId(assetId);
+          const scannedInstrument = await scanInstrumentByAssetId(assetId);
 
           if (!scannedInstrument) {
             if (onShowToast) {
-              onShowToast(
-                `Instrument ${assetId} was not found.`
-              );
+              onShowToast(`Instrument ${assetId} was not found.`);
             }
 
             return;
@@ -202,14 +195,11 @@ export default function IssueWizardScreen({
           // 4. Get backend Asset ID
           // -----------------------------------------
           const scannedAssetId =
-            scannedInstrument.asset_id ||
-            scannedInstrument.assetId;
+            scannedInstrument.asset_id || scannedInstrument.assetId;
 
           if (!scannedAssetId) {
             if (onShowToast) {
-              onShowToast(
-                "Instrument was found, but its Asset ID is missing."
-              );
+              onShowToast("Instrument was found, but its Asset ID is missing.");
             }
 
             return;
@@ -219,24 +209,20 @@ export default function IssueWizardScreen({
           // 5. Find instrument in logged-in
           //    scientist's inventory
           // -----------------------------------------
-          const inventoryInstrument = availableInstruments.find(
-            (item) => {
-              const inventoryAssetId =
-                item.asset_id ||
-                item.assetId;
+          const inventoryInstrument = availableInstruments.find((item) => {
+            const inventoryAssetId = item.asset_id || item.assetId;
 
-              return (
-                inventoryAssetId &&
-                inventoryAssetId.trim().toLowerCase() ===
-                  scannedAssetId.trim().toLowerCase()
-              );
-            }
-          );
+            return (
+              inventoryAssetId &&
+              inventoryAssetId.trim().toLowerCase() ===
+                scannedAssetId.trim().toLowerCase()
+            );
+          });
 
           if (!inventoryInstrument) {
             if (onShowToast) {
               onShowToast(
-                `Instrument ${scannedAssetId} is not available in your inventory.`
+                `Instrument ${scannedAssetId} is not available in your inventory.`,
               );
             }
 
@@ -253,7 +239,7 @@ export default function IssueWizardScreen({
           if (!isAvailable) {
             if (onShowToast) {
               onShowToast(
-                `Instrument ${scannedAssetId} is not currently available for issue.`
+                `Instrument ${scannedAssetId} is not currently available for issue.`,
               );
             }
 
@@ -272,25 +258,24 @@ export default function IssueWizardScreen({
           // -----------------------------------------
           if (onShowToast) {
             onShowToast(
-              `Instrument Matched: ${inventoryInstrument.name || qrData.equipment} (${scannedAssetId})`
+              `Instrument Matched: ${inventoryInstrument.name || qrData.equipment} (${scannedAssetId})`,
             );
           }
 
           setCurrentStep(2);
-
         } catch (err) {
           console.error("QR instrument scan error:", err);
 
           if (onShowToast) {
             onShowToast(
-              "QR scan failed: Instrument could not be found in your inventory."
+              "QR scan failed: Instrument could not be found in your inventory.",
             );
           }
         } finally {
           setIsScanningApi(false);
         }
       },
-      () => {}
+      () => {},
     );
 
     return () => {
@@ -334,14 +319,14 @@ export default function IssueWizardScreen({
     Math.ceil(filteredInstruments.length / ITEMS_PER_PAGE) || 1;
   const paginatedInstruments = filteredInstruments.slice(
     (instrumentPage - 1) * ITEMS_PER_PAGE,
-    instrumentPage * ITEMS_PER_PAGE
+    instrumentPage * ITEMS_PER_PAGE,
   );
 
   const totalScientistPages =
     Math.ceil(filteredScientists.length / ITEMS_PER_PAGE) || 1;
   const paginatedScientists = filteredScientists.slice(
     (scientistPage - 1) * ITEMS_PER_PAGE,
-    scientistPage * ITEMS_PER_PAGE
+    scientistPage * ITEMS_PER_PAGE,
   );
 
   useEffect(() => {
@@ -413,7 +398,7 @@ export default function IssueWizardScreen({
     if (!selectedInstrument) {
       if (onShowToast)
         onShowToast(
-          "Validation Error: Please select or scan an instrument first."
+          "Validation Error: Please select or scan an instrument first.",
         );
       return;
     }
@@ -422,7 +407,7 @@ export default function IssueWizardScreen({
     if (issueQuantity < 1 || issueQuantity > availableQty) {
       if (onShowToast)
         onShowToast(
-          `Validation Error: Please select a valid quantity between 1 and ${availableQty}.`
+          `Validation Error: Please select a valid quantity between 1 and ${availableQty}.`,
         );
       return;
     }
@@ -443,14 +428,14 @@ export default function IssueWizardScreen({
     if (!issueDate || !expectedReturn) {
       if (onShowToast)
         onShowToast(
-          "Validation Error: Issue date and expected return date are required."
+          "Validation Error: Issue date and expected return date are required.",
         );
       return;
     }
     if (!capturedPhoto) {
       if (onShowToast)
         onShowToast(
-          "Validation Error: Instrument photo is required before proceeding."
+          "Validation Error: Instrument photo is required before proceeding.",
         );
       return;
     }
@@ -461,7 +446,7 @@ export default function IssueWizardScreen({
     if (!capturedPhoto) {
       if (onShowToast)
         onShowToast(
-          "Validation Error: Please capture an instrument photo before issuing."
+          "Validation Error: Please capture an instrument photo before issuing.",
         );
       return;
     }
@@ -489,7 +474,7 @@ export default function IssueWizardScreen({
         : "";
       if (onShowToast) {
         onShowToast(
-          `Issued ${issueQuantity} unit(s) successfully. Confirmation mail sent to ${selectedScientist.name}${staffText}.`
+          `Issued ${issueQuantity} unit(s) successfully. Confirmation mail sent to ${selectedScientist.name}${staffText}.`,
         );
       }
 
@@ -556,16 +541,24 @@ export default function IssueWizardScreen({
             />
           </div>
           <div className="grid grid-cols-4 text-[10.5px] font-medium text-gray-500 text-center">
-            <span className={currentStep === 1 ? "font-bold text-[#1b4d8f]" : ""}>
+            <span
+              className={currentStep === 1 ? "font-bold text-[#1b4d8f]" : ""}
+            >
               Instrument
             </span>
-            <span className={currentStep === 2 ? "font-bold text-[#1b4d8f]" : ""}>
+            <span
+              className={currentStep === 2 ? "font-bold text-[#1b4d8f]" : ""}
+            >
               Person
             </span>
-            <span className={currentStep === 3 ? "font-bold text-[#1b4d8f]" : ""}>
+            <span
+              className={currentStep === 3 ? "font-bold text-[#1b4d8f]" : ""}
+            >
               Dates
             </span>
-            <span className={currentStep === 4 ? "font-bold text-[#12695a]" : ""}>
+            <span
+              className={currentStep === 4 ? "font-bold text-[#12695a]" : ""}
+            >
               Confirm
             </span>
           </div>
@@ -583,7 +576,8 @@ export default function IssueWizardScreen({
                 Scan physical QR label
               </h3>
               <p className="text-[10.5px] text-[#5d5b56] max-w-55 mx-auto leading-tight">
-                Scan the QR code printed on the instrument to automatically fetch asset details.
+                Scan the QR code printed on the instrument to automatically
+                fetch asset details.
               </p>
               <button
                 type="button"
@@ -668,7 +662,8 @@ export default function IssueWizardScreen({
                             {item.name}
                           </h4>
                           <p className="font-mono text-[10px] text-[#7a7872] mt-0.5 truncate">
-                            Asset ID: {item.asset_id || item.assetId} · In Stock: {maxQuantity}
+                            Asset ID: {item.asset_id || item.assetId} · In
+                            Stock: {maxQuantity}
                           </p>
                         </div>
                         {isSelected && (
@@ -693,11 +688,22 @@ export default function IssueWizardScreen({
                               max={maxQuantity}
                               value={issueQuantity}
                               onChange={(e) => {
-                                const val = parseInt(e.target.value, 10);
-                                if (!isNaN(val)) {
-                                  setIssueQuantity(Math.max(1, Math.min(maxQuantity, val)));
+                                const rawVal = e.target.value;
+                                if (rawVal === "") {
+                                  setIssueQuantity("");
                                 } else {
+                                  const val = parseInt(rawVal, 10);
+                                  if (!isNaN(val)) {
+                                    setIssueQuantity(val);
+                                  }
+                                }
+                              }}
+                              onBlur={() => {
+                                const val = parseInt(issueQuantity, 10);
+                                if (isNaN(val) || val < 1) {
                                   setIssueQuantity(1);
+                                } else if (val > maxQuantity) {
+                                  setIssueQuantity(maxQuantity);
                                 }
                               }}
                               className="w-16 bg-white text-[12px] font-semibold text-center py-1 border border-black/20 rounded-lg focus:outline-none focus:border-[#1b4d8f]"
@@ -1114,7 +1120,8 @@ export default function IssueWizardScreen({
                 <div className="mt-2 p-2 bg-red-50/60 rounded-xl border border-dashed border-[#f5c2c2] text-[#8f2318] flex items-center gap-2 text-[11px]">
                   <AlertCircle size={15} className="shrink-0 text-red-500" />
                   <span>
-                    A live camera photo of the instrument is required to proceed.
+                    A live camera photo of the instrument is required to
+                    proceed.
                   </span>
                 </div>
               )}
@@ -1134,8 +1141,7 @@ export default function IssueWizardScreen({
               <div className="flex justify-between">
                 <span className="text-[#7a7872]">Asset ID</span>
                 <span className="font-mono font-medium text-[#1b1a18]">
-                  {selectedInstrument?.asset_id ||
-                    selectedInstrument?.assetId}
+                  {selectedInstrument?.asset_id || selectedInstrument?.assetId}
                 </span>
               </div>
               <div className="flex justify-between">

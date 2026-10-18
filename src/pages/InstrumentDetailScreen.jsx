@@ -278,20 +278,6 @@ export default function InstrumentDetailScreen({
     : null;
 
   /* =========================================================
-     QR URL
-  ========================================================= */
-
-  const rawQrPath =
-    instrument.qrPhoto ||
-    instrument.qr_photo;
-
-  const qrUrl = rawQrPath
-    ? rawQrPath.startsWith("http")
-      ? rawQrPath
-      : `http://localhost:8080${rawQrPath}`
-    : null;
-
-  /* =========================================================
      QR PAYLOAD
   ========================================================= */
 
@@ -367,7 +353,7 @@ export default function InstrumentDetailScreen({
   });
 
   /* =========================================================
-     QR DOWNLOAD
+     QR DOWNLOAD (Option A: Always Canvas)
   ========================================================= */
 
   const handleDownloadQr = async () => {
@@ -377,30 +363,7 @@ export default function InstrumentDetailScreen({
         "_"
       );
 
-      if (qrUrl) {
-        const response = await fetch(qrUrl);
-
-        const blob = await response.blob();
-
-        const blobUrl =
-          window.URL.createObjectURL(blob);
-
-        const link =
-          document.createElement("a");
-
-        link.href = blobUrl;
-
-        link.download =
-          `QR_${cleanAssetId}.png`;
-
-        document.body.appendChild(link);
-
-        link.click();
-
-        document.body.removeChild(link);
-
-        window.URL.revokeObjectURL(blobUrl);
-      } else if (qrCanvasRef.current) {
+      if (qrCanvasRef.current) {
         const canvas =
           qrCanvasRef.current.querySelector(
             "canvas"
@@ -473,11 +436,6 @@ export default function InstrumentDetailScreen({
 
       setIsCameraOpen(true);
 
-      /*
-       * Give React time to render the video element.
-       * This is important because the camera is rendered
-       * conditionally.
-       */
       setTimeout(() => {
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
@@ -587,11 +545,6 @@ export default function InstrumentDetailScreen({
         0.9
       );
 
-    /*
-     * IMPORTANT:
-     * Return flow uses capturedPhoto.
-     * Edit flow uses selectedPhotoFile.
-     */
     if (showReturnModal) {
       setCapturedPhoto(dataUrl);
     } else if (isEditing) {
@@ -634,15 +587,9 @@ export default function InstrumentDetailScreen({
       try {
         setIsLoadingRecord(true);
 
-        /*
-         * Fetch exactly like ReceiveScreen.
-         */
         const records =
           await getActiveIssueRecords();
 
-        /*
-         * Only active/open issue records.
-         */
         const openRecords =
           (records || []).filter(
             (record) =>
@@ -651,10 +598,6 @@ export default function InstrumentDetailScreen({
               !record.state
           );
 
-        /*
-         * Find the issue record belonging
-         * to this exact instrument.
-         */
         const matchingRecord =
           openRecords.find((record) => {
             const recInstrumentId =
@@ -690,9 +633,6 @@ export default function InstrumentDetailScreen({
           return;
         }
 
-        /*
-         * Reset return modal state.
-         */
         setActiveRecord(
           matchingRecord
         );
@@ -723,9 +663,6 @@ export default function InstrumentDetailScreen({
 
   /* =========================================================
      CONFIRM RETURN
-     
-     THIS IS COPIED LOGICALLY FROM THE WORKING
-     ReceiveScreen.
   ========================================================= */
 
   const handleConfirmReturn =
@@ -740,9 +677,6 @@ export default function InstrumentDetailScreen({
         return;
       }
 
-      /*
-       * Mandatory photo guard.
-       */
       if (!capturedPhoto) {
         if (onShowToast) {
           onShowToast(
@@ -753,9 +687,6 @@ export default function InstrumentDetailScreen({
         return;
       }
 
-      /*
-       * Get actual IssueRecord ID.
-       */
       const recordId =
         activeRecord.id ||
         activeRecord._id;
@@ -773,10 +704,6 @@ export default function InstrumentDetailScreen({
       try {
         setIsReturning(true);
 
-        /*
-         * Build multipart request exactly
-         * like ReceiveScreen.
-         */
         const formData =
           new FormData();
 
@@ -785,10 +712,6 @@ export default function InstrumentDetailScreen({
           conditionIn
         );
 
-        /*
-         * Convert captured base64 image
-         * into actual binary Blob.
-         */
         const photoBlob =
           dataURLtoBlob(
             capturedPhoto
@@ -812,22 +735,6 @@ export default function InstrumentDetailScreen({
           "return_condition.jpg"
         );
 
-        console.log(
-          "Submitting return:",
-          {
-            recordId,
-            conditionIn,
-            photoType: photoBlob.type,
-            photoSize: photoBlob.size,
-          }
-        );
-
-        /*
-         * IMPORTANT:
-         *
-         * Same endpoint and same request
-         * structure as working ReceiveScreen.
-         */
         await axiosClient.put(
           `/issue-records/${recordId}/return/photo`,
           formData,
@@ -839,9 +746,6 @@ export default function InstrumentDetailScreen({
           }
         );
 
-        /*
-         * Success.
-         */
         if (onShowToast) {
           onShowToast(
             `Received back. Instrument status set to ${
@@ -852,9 +756,6 @@ export default function InstrumentDetailScreen({
           );
         }
 
-        /*
-         * Close return modal.
-         */
         stopCamera();
 
         setShowReturnModal(false);
@@ -865,9 +766,6 @@ export default function InstrumentDetailScreen({
 
         setConditionIn("GOOD");
 
-        /*
-         * Go back to previous screen.
-         */
         if (onBack) {
           onBack();
         }
@@ -1755,7 +1653,7 @@ export default function InstrumentDetailScreen({
         </>
       ) : (
         /* ===================================================
-           EDIT MODE
+            EDIT MODE
         =================================================== */
 
         <form
@@ -2198,9 +2096,6 @@ export default function InstrumentDetailScreen({
 
       {/* =====================================================
           RECEIVE / RETURN MODAL
-          
-          IMPORTANT:
-          Camera is INSIDE this modal just like ReceiveScreen.
       ===================================================== */}
 
       {showReturnModal && (
@@ -2304,9 +2199,7 @@ export default function InstrumentDetailScreen({
 
             </div>
 
-            {/* =================================================
-                PHOTO
-            ================================================= */}
+            {/* PHOTO */}
 
             <div className="space-y-1.5 pt-1">
 
@@ -2426,9 +2319,7 @@ export default function InstrumentDetailScreen({
 
             </div>
 
-            {/* =================================================
-                ACTION BUTTONS
-            ================================================= */}
+            {/* ACTION BUTTONS */}
 
             <div className="flex items-center gap-2 pt-2">
 
@@ -2583,7 +2474,7 @@ export default function InstrumentDetailScreen({
       )}
 
       {/* =====================================================
-          QR MODAL
+          QR MODAL (Option A: Dynamic Client Canvas Render)
       ===================================================== */}
 
       {showQrModal && (
@@ -2634,28 +2525,18 @@ export default function InstrumentDetailScreen({
               }
               className="p-4 bg-[#f8fafc] border-2 border-dashed border-[#1b4d8f]/30 rounded-2xl flex items-center justify-center shadow-inner"
             >
-
-              {qrUrl ? (
-                <img
-                  src={qrUrl}
-                  alt={`QR Code for ${assetId}`}
-                  className="w-44 h-44 object-contain"
-                />
-              ) : (
-                <QRCodeCanvas
-                  value={
-                    qrPayload
-                  }
-                  size={180}
-                  bgColor="#FFFFFF"
-                  fgColor="#1b4d8f"
-                  level="M"
-                  includeMargin={
-                    true
-                  }
-                />
-              )}
-
+              <QRCodeCanvas
+                value={
+                  qrPayload
+                }
+                size={180}
+                bgColor="#FFFFFF"
+                fgColor="#1b4d8f"
+                level="M"
+                includeMargin={
+                  true
+                }
+              />
             </div>
 
             <button
@@ -2769,9 +2650,6 @@ export default function InstrumentDetailScreen({
 
       {/* =====================================================
           EDIT CAMERA MODAL
-          
-          This is only for EDIT mode.
-          Return camera is handled INSIDE return modal.
       ===================================================== */}
 
       {isCameraOpen &&
