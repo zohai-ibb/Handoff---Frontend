@@ -36,7 +36,7 @@ export default function Footer({ currentTab = 'Home', onTabChange }) {
                     isActive
                       ? 'bg-[#1b4d8f] text-white ring-4 ring-[#dce7f4] scale-105'
                       : 'bg-[#1b4d8f] text-white hover:bg-[#153e75] active:scale-95'
-                  }`}
+                  }`} 
                 >
                   <Icon size={24} strokeWidth={2.2} />
                 </div>
