@@ -6,7 +6,7 @@ import {
 } from "../api/instrumentService";
 import { isRecordOverdue } from "../utils/dateUtils";
 
-const PAGE_SIZE = 5;
+const PAGE_SIZE = 10;
 
 export default function ItemsScreen({ onNavigate, onSelectInstrument }) {
   const [searchQuery, setSearchQuery] = useState("");
@@ -207,7 +207,8 @@ export default function ItemsScreen({ onNavigate, onSelectInstrument }) {
                 const photoUrl = photoPath
                   ? photoPath.startsWith("http")
                     ? photoPath
-                    : `http://localhost:8080${photoPath}`
+                    // : `http://localhost:8080${photoPath}`
+                    : `http://192.168.1.34:8080${photoPath}`
                   : null;
 
                 return (

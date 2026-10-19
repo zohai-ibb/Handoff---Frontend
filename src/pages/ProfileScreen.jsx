@@ -26,7 +26,8 @@ export default function ProfileScreen({
   onShowToast,
   onUpdateUser,
 }) {
-  const BASE_URL = "http://localhost:8080";
+  // const BASE_URL = "http://localhost:8080";
+  const BASE_URL = "http://192.168.1.34:8080";
 
   // State initialized with authenticated user data
   const [person, setPerson] = useState({

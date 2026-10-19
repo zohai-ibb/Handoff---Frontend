@@ -4,7 +4,7 @@ import axiosClient from "../api/axiosClient";
 import { getActiveIssueRecords } from "../api/instrumentService";
 import { isRecordOverdue } from "../utils/dateUtils";
 
-const PAGE_SIZE = 5;
+const PAGE_SIZE = 10;
 
 export default function DueScreen({ onBack, onShowToast }) {
   const [loans, setLoans] = useState([]);
@@ -265,7 +265,8 @@ export default function DueScreen({ onBack, onShowToast }) {
                 const photoUrl = photoPath
                   ? photoPath.startsWith("http")
                     ? photoPath
-                    : `http://localhost:8080${photoPath}`
+                    // : `http://localhost:8080${photoPath}`
+                    : `http://192.168.1.34:8080${photoPath}`
                   : null;
 
                 return (
@@ -453,7 +454,7 @@ export default function DueScreen({ onBack, onShowToast }) {
               </p>
 
               <div className="pt-2 space-y-1">
-                <label className="block text-[11px] font-semibold text-gray-700 flex items-center gap-1">
+                <label className="text-[11px] font-semibold text-gray-700 flex items-center gap-1">
                   <Calendar size={13} /> Select New Return Due Date:
                 </label>
                 <input

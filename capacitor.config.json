@@ -1,0 +1,9 @@
+{
+  "appId": "com.cbri.apeeg",
+  "appName": "APEEG Instrument Register",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "http",
+    "cleartext": true
+  }
+}

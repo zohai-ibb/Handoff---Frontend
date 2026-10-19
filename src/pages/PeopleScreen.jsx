@@ -21,7 +21,7 @@ export default function PeopleScreen({ onShowToast }) {
   const [activeTab, setActiveTab] = useState('scientists');
 
   // Pagination States (3 items per page)
-  const ITEMS_PER_PAGE = 3;
+  const ITEMS_PER_PAGE = 5;
   const [scientistPage, setScientistPage] = useState(1);
   const [staffPage, setStaffPage] = useState(1);
 

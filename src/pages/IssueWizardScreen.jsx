@@ -44,7 +44,7 @@ export default function IssueWizardScreen({
 
   const [instrumentPage, setInstrumentPage] = useState(1);
   const [scientistPage, setScientistPage] = useState(1);
-  const ITEMS_PER_PAGE = 3;
+  const ITEMS_PER_PAGE = 5;
 
   const [loadingData, setLoadingData] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);

@@ -1,7 +1,13 @@
 import axios from 'axios';
 
 // Base backend API URL
-const BASE_URL = 'http://localhost:8080/api';
+// const BASE_URL = 'http://localhost:8080/api';
+
+// 10.0.2.2 routes directly to localhost on the host PC from the AVD emulator
+// const BASE_URL = 'http://10.0.2.2:8080/api';
+
+
+const BASE_URL = 'http://192.168.1.34:8080/api';
 
 const axiosClient = axios.create({
   baseURL: BASE_URL,

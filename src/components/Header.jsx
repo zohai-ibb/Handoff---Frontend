@@ -5,7 +5,7 @@ export default function Header({ userPhotoUrl = null, user = null, onProfileClic
   const [isOpen, setIsOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const dropdownRef = useRef(null);
-  const BASE_URL = 'http://localhost:8080';
+  const BASE_URL = 'http://192.168.1.34:8080'; // Replace with your active local IP
 
   // Helper to format full image URL
   const getPhotoSrc = (url) => {
@@ -40,18 +40,17 @@ export default function Header({ userPhotoUrl = null, user = null, onProfileClic
   };
 
   return (
-    <header className="sticky top-0 left-0 right-0 bg-[#1b4d8f] text-white px-4 py-3 flex items-center justify-between shadow-md z-50 border-none outline-none overflow-visible">
+    <header className="sticky top-0 left-0 right-0 w-full bg-[#1b4d8f] text-white px-3.5 py-2 flex items-center justify-between shadow-md z-50 border-none outline-none overflow-visible min-h-14">
       {/* --- Left Side: Logo Icon & App Title --- */}
-      <div className="flex items-center gap-2.5">
-        <div className="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center shadow-xs">
-          {/* Updated App Logo Icon */}
-          <Package className="w-5 h-5 text-white" />
+      <div className="flex items-center gap-2">
+        <div className="w-7 h-7 rounded-lg bg-white/15 flex items-center justify-center shadow-xs shrink-0">
+          <Package className="w-4 h-4 text-white" />
         </div>
         <div className="flex flex-col">
-          <span className="text-base font-bold tracking-wide leading-tight">
+          <span className="text-md font-bold tracking-wide leading-tight">
             HandOff
           </span>
-          <span className="text-[9px] font-mono tracking-wider uppercase text-white/70">
+          <span className="text-[10.5px] font-mono tracking-wider uppercase text-white/70">
             APEEG · CBRI ROORKEE
           </span>
         </div>
@@ -63,7 +62,7 @@ export default function Header({ userPhotoUrl = null, user = null, onProfileClic
           <button 
             type="button"
             onClick={() => setIsOpen((prev) => !prev)}
-            className="w-9 h-9 rounded-full bg-white/20 border-2 border-white/40 flex items-center justify-center overflow-hidden hover:bg-white/30 transition-all active:scale-95 cursor-pointer focus:outline-none shadow-xs"
+            className="w-8 h-8 rounded-full bg-white/20 border-2 border-white/40 flex items-center justify-center overflow-hidden hover:bg-white/30 transition-all active:scale-95 cursor-pointer focus:outline-none shadow-xs"
             aria-label="User Profile Options"
           >
             {userPhotoUrl ? (
@@ -73,15 +72,15 @@ export default function Header({ userPhotoUrl = null, user = null, onProfileClic
                 className="w-full h-full object-cover" 
               />
             ) : (
-              <UserCircle className="w-6 h-6 text-white" />
+              <UserCircle className="w-5 h-5 text-white" />
             )}
           </button>
 
           {/* Popup Menu */}
           {isOpen && (
-            <div className="absolute right-0 mt-2 w-52 bg-white text-[#1b1a18] rounded-2xl shadow-xl border border-gray-100 py-1.5 z-50 animate-fade-in">
+            <div className="absolute right-0 mt-1.5 w-48 bg-white text-[#1b1a18] rounded-2xl shadow-xl border border-gray-100 py-1.5 z-50 animate-fade-in">
               {user?.name && (
-                <div className="px-4 py-2.5 border-b border-gray-100 bg-gray-50/50 rounded-t-2xl">
+                <div className="px-3.5 py-2 border-b border-gray-100 bg-gray-50/50 rounded-t-2xl">
                   <p className="text-xs font-bold text-[#1b1a18] truncate">{user.name}</p>
                   <p className="text-[10px] text-gray-500 truncate mt-0.5">{user.email}</p>
                 </div>
@@ -93,18 +92,18 @@ export default function Header({ userPhotoUrl = null, user = null, onProfileClic
                   setIsOpen(false);
                   if (onProfileClick) onProfileClick();
                 }}
-                className="w-full text-left px-4 py-2.5 text-xs font-medium text-gray-700 hover:bg-gray-100/80 flex items-center gap-2.5 transition-colors cursor-pointer"
+                className="w-full text-left px-3.5 py-2 text-xs font-medium text-gray-700 hover:bg-gray-100/80 flex items-center gap-2.5 transition-colors cursor-pointer"
               >
-                <UserCheck size={16} className="text-[#1b4d8f]" />
+                <UserCheck size={15} className="text-[#1b4d8f]" />
                 <span>Profile</span>
               </button>
 
               <button
                 type="button"
                 onClick={handleLogoutClick}
-                className="w-full text-left px-4 py-2.5 text-xs font-medium text-[#c92a2a] hover:bg-red-50 flex items-center gap-2.5 transition-colors border-t border-gray-100 cursor-pointer"
+                className="w-full text-left px-3.5 py-2 text-xs font-medium text-[#c92a2a] hover:bg-red-50 flex items-center gap-2.5 transition-colors border-t border-gray-100 cursor-pointer"
               >
-                <LogOut size={16} className="text-[#c92a2a]" />
+                <LogOut size={15} className="text-[#c92a2a]" />
                 <span>Logout</span>
               </button>
             </div>
@@ -115,23 +114,23 @@ export default function Header({ userPhotoUrl = null, user = null, onProfileClic
       {/* --- Logout Confirmation Modal --- */}
       {showLogoutConfirm && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-100 flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl p-5 max-w-xs w-full shadow-2xl border border-gray-200 space-y-3 text-[#1b1a18]">
-            <div className="flex items-center gap-2.5 text-[#1b4d8f]">
-              <AlertCircle size={20} className="shrink-0 text-[#1b4d8f]" />
-              <h3 className="text-sm font-bold text-[#1b1a18]">
+          <div className="bg-white rounded-2xl p-4 max-w-xs w-full shadow-2xl border border-gray-200 space-y-2.5 text-[#1b1a18]">
+            <div className="flex items-center gap-2 text-[#1b4d8f]">
+              <AlertCircle size={18} className="shrink-0 text-[#1b4d8f]" />
+              <h3 className="text-xs font-bold text-[#1b1a18]">
                 Confirm Sign Out
               </h3>
             </div>
 
-            <p className="text-xs text-[#5d5b56] leading-relaxed">
+            <p className="text-[11px] text-[#5d5b56] leading-relaxed">
               Are you sure you want to sign out of your account?
             </p>
 
-            <div className="flex items-center gap-2 pt-2">
+            <div className="flex items-center gap-2 pt-1">
               <button
                 type="button"
                 onClick={() => setShowLogoutConfirm(false)}
-                className="flex-1 py-2 rounded-xl text-xs font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 active:scale-98 transition-all cursor-pointer"
+                className="flex-1 py-1.5 rounded-xl text-xs font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 active:scale-98 transition-all cursor-pointer"
               >
                 Cancel
               </button>
@@ -139,7 +138,7 @@ export default function Header({ userPhotoUrl = null, user = null, onProfileClic
               <button
                 type="button"
                 onClick={handleConfirmLogout}
-                className="flex-1 py-2 rounded-xl text-xs font-bold text-white bg-red-600 hover:bg-red-700 active:scale-98 transition-all shadow-xs cursor-pointer"
+                className="flex-1 py-1.5 rounded-xl text-xs font-bold text-white bg-red-600 hover:bg-red-700 active:scale-98 transition-all shadow-xs cursor-pointer"
               >
                 Sign Out
               </button>

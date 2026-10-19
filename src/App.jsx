@@ -126,7 +126,7 @@ export default function App() {
     return (
       <div className="min-h-screen bg-[#f7f6f3] flex flex-col font-sans relative">
         <Header user={null} />
-        <main className="flex-1 p-4 pt-3 max-w-md mx-auto w-full">
+        <main className="flex-1 w-full max-w-none px-3.5 pt-3 pb-28 mx-auto no-scrollbar">
           {authView === "login" ? (
             <LoginScreen
               onLoginSuccess={handleAuthSuccess}

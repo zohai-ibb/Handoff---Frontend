@@ -274,7 +274,8 @@ export default function InstrumentDetailScreen({
   const photoUrl = rawPhotoPath
     ? rawPhotoPath.startsWith("http")
       ? `${rawPhotoPath}?t=${Date.now()}`
-      : `http://localhost:8080${rawPhotoPath}?t=${Date.now()}`
+      // : `http://localhost:8080${rawPhotoPath}?t=${Date.now()}`
+      : `http://192.168.1.34:8080${rawPhotoPath}?t=${Date.now()}`
     : null;
 
   /* =========================================================
@@ -1689,7 +1690,8 @@ export default function InstrumentDetailScreen({
                             "http"
                           )
                         ? editFormData.photoPath
-                        : `http://localhost:8080${editFormData.photoPath}`
+                        // : `http://localhost:8080${editFormData.photoPath}`
+                        : `http://192.168.1.34:8080${editFormData.photoPath}`
                     }
                     alt="Preview"
                     className="w-12 h-12 rounded-xl object-cover border border-[#1b4d8f]/30"
