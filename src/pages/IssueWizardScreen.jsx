@@ -11,6 +11,7 @@ import {
   ChevronRight,
   AlertCircle,
   QrCode,
+  Info,
 } from "lucide-react";
 import { Html5QrcodeScanner } from "html5-qrcode";
 import {
@@ -20,6 +21,9 @@ import {
   issueInstrumentApi,
 } from "../api/issueWizardService";
 import axiosClient from "../api/axiosClient";
+
+// Helper to format today's date in YYYY-MM-DD format for date input bounds
+const getTodayFormatted = () => new Date().toISOString().split("T")[0];
 
 export default function IssueWizardScreen({
   onBack,
@@ -66,11 +70,11 @@ export default function IssueWizardScreen({
 
   const [issueDate, setIssueDate] = useState(getTodayFormatted());
   const [expectedReturn, setExpectedReturn] = useState(
-    getFourteenDaysLaterFormatted(),
+    getFourteenDaysLaterFormatted()
   );
   const [purpose, setPurpose] = useState("");
   const [conditionOut, setConditionOut] = useState(
-    "Complete with case and accessories",
+    "Complete with case and accessories"
   );
 
   const [isCameraOpen, setIsCameraOpen] = useState(false);
@@ -89,7 +93,7 @@ export default function IssueWizardScreen({
         ]);
 
         const availableOnly = (Array.isArray(instRes) ? instRes : []).filter(
-          (item) => item.status === "AVAILABLE" || item.status === "Available",
+          (item) => item.status === "AVAILABLE" || item.status === "Available"
         );
         setAvailableInstruments(availableOnly);
         setScientists(Array.isArray(sciRes) ? sciRes : []);
@@ -98,7 +102,7 @@ export default function IssueWizardScreen({
         if (onShowToast) {
           onShowToast(
             "Failed to load inventory/scientists: " +
-              (err.response?.data || err.message),
+              (err.response?.data || err.message)
           );
         }
       } finally {
@@ -109,21 +113,64 @@ export default function IssueWizardScreen({
     fetchData();
   }, []);
 
+  // Custom styling for HTML5 QR scanner elements to ensure high visibility
   useEffect(() => {
     if (!isQrScannerOpen) return;
+
+    const styleEl = document.createElement("style");
+    styleEl.id = "qr-scanner-custom-style";
+    styleEl.innerHTML = `
+      #qr-reader-container {
+        border: none !important;
+      }
+      #qr-reader-container video {
+        border-radius: 1rem !important;
+        object-fit: cover !important;
+      }
+      #qr-reader-container select {
+        background-color: #1e293b !important;
+        color: #f8fafc !important;
+        border: 1px solid #475569 !important;
+        padding: 6px 12px !important;
+        border-radius: 8px !important;
+        font-size: 11px !important;
+        margin-top: 8px !important;
+        outline: none !important;
+        width: 100% !important;
+      }
+      #qr-reader-container button {
+        background-color: #2563eb !important;
+        color: #ffffff !important;
+        border: none !important;
+        padding: 6px 14px !important;
+        border-radius: 8px !important;
+        font-size: 11px !important;
+        font-weight: 600 !important;
+        margin-top: 6px !important;
+        cursor: pointer !important;
+      }
+      #qr-reader-container__dashboard_section_csr span {
+        color: #cbd5e1 !important;
+        font-size: 11px !important;
+      }
+      #qr-reader-container__status_span {
+        color: #94a3b8 !important;
+        font-size: 10px !important;
+      }
+    `;
+    document.head.appendChild(styleEl);
 
     const scanner = new Html5QrcodeScanner(
       "qr-reader-container",
       {
         fps: 10,
-        qrbox: { width: 220, height: 220 },
+        qrbox: { width: 200, height: 200 },
         aspectRatio: 1.0,
       },
-      false,
+      false
     );
 
     qrScannerRef.current = scanner;
-
     let scanHandled = false;
 
     scanner.render(
@@ -142,35 +189,24 @@ export default function IssueWizardScreen({
             onShowToast("QR scanned. Reading instrument details...");
           }
 
-          // -----------------------------------------
-          // 1. Read QR JSON
-          // -----------------------------------------
           let qrData;
-
           try {
             qrData = JSON.parse(scannedText);
           } catch (parseError) {
             console.error("Invalid QR JSON:", parseError);
-
             if (onShowToast) {
               onShowToast(
-                "Invalid QR code. Instrument information could not be read.",
+                "Invalid QR code. Instrument information could not be read."
               );
             }
-
             return;
           }
 
-          // -----------------------------------------
-          // 2. Get Asset ID from QR JSON
-          // -----------------------------------------
           const assetId = qrData?.assetId;
-
           if (!assetId) {
             if (onShowToast) {
               onShowToast("Invalid QR code: Asset ID was not found.");
             }
-
             return;
           }
 
@@ -178,22 +214,14 @@ export default function IssueWizardScreen({
             onShowToast(`Asset ID ${assetId} found. Fetching instrument...`);
           }
 
-          // -----------------------------------------
-          // 3. Fetch instrument from backend
-          // -----------------------------------------
           const scannedInstrument = await scanInstrumentByAssetId(assetId);
-
           if (!scannedInstrument) {
             if (onShowToast) {
               onShowToast(`Instrument ${assetId} was not found.`);
             }
-
             return;
           }
 
-          // -----------------------------------------
-          // 4. Get backend Asset ID
-          // -----------------------------------------
           const scannedAssetId =
             scannedInstrument.asset_id || scannedInstrument.assetId;
 
@@ -201,17 +229,11 @@ export default function IssueWizardScreen({
             if (onShowToast) {
               onShowToast("Instrument was found, but its Asset ID is missing.");
             }
-
             return;
           }
 
-          // -----------------------------------------
-          // 5. Find instrument in logged-in
-          //    scientist's inventory
-          // -----------------------------------------
           const inventoryInstrument = availableInstruments.find((item) => {
             const inventoryAssetId = item.asset_id || item.assetId;
-
             return (
               inventoryAssetId &&
               inventoryAssetId.trim().toLowerCase() ===
@@ -222,16 +244,12 @@ export default function IssueWizardScreen({
           if (!inventoryInstrument) {
             if (onShowToast) {
               onShowToast(
-                `Instrument ${scannedAssetId} is not available in your inventory.`,
+                `Instrument ${scannedAssetId} is not available in your inventory.`
               );
             }
-
             return;
           }
 
-          // -----------------------------------------
-          // 6. Check instrument availability
-          // -----------------------------------------
           const isAvailable =
             inventoryInstrument.status === "AVAILABLE" ||
             inventoryInstrument.status === "Available";
@@ -239,46 +257,41 @@ export default function IssueWizardScreen({
           if (!isAvailable) {
             if (onShowToast) {
               onShowToast(
-                `Instrument ${scannedAssetId} is not currently available for issue.`,
+                `Instrument ${scannedAssetId} is not currently available for issue.`
               );
             }
-
             return;
           }
 
-          // -----------------------------------------
-          // 7. Select the actual inventory instrument
-          // -----------------------------------------
           setSelectedInstrument(inventoryInstrument);
           setIssueQuantity(1);
           setInstrumentSearchQuery("");
 
-          // -----------------------------------------
-          // 8. Move directly to Person page
-          // -----------------------------------------
           if (onShowToast) {
             onShowToast(
-              `Instrument Matched: ${inventoryInstrument.name || qrData.equipment} (${scannedAssetId})`,
+              `Instrument Matched: ${inventoryInstrument.name || qrData.equipment} (${scannedAssetId})`
             );
           }
 
           setCurrentStep(2);
         } catch (err) {
           console.error("QR instrument scan error:", err);
-
           if (onShowToast) {
             onShowToast(
-              "QR scan failed: Instrument could not be found in your inventory.",
+              "QR scan failed: Instrument could not be found in your inventory."
             );
           }
         } finally {
           setIsScanningApi(false);
         }
       },
-      () => {},
+      () => {}
     );
 
     return () => {
+      const existingStyle = document.getElementById("qr-scanner-custom-style");
+      if (existingStyle) existingStyle.remove();
+
       if (qrScannerRef.current) {
         qrScannerRef.current.clear().catch(() => {});
         qrScannerRef.current = null;
@@ -319,14 +332,14 @@ export default function IssueWizardScreen({
     Math.ceil(filteredInstruments.length / ITEMS_PER_PAGE) || 1;
   const paginatedInstruments = filteredInstruments.slice(
     (instrumentPage - 1) * ITEMS_PER_PAGE,
-    instrumentPage * ITEMS_PER_PAGE,
+    instrumentPage * ITEMS_PER_PAGE
   );
 
   const totalScientistPages =
     Math.ceil(filteredScientists.length / ITEMS_PER_PAGE) || 1;
   const paginatedScientists = filteredScientists.slice(
     (scientistPage - 1) * ITEMS_PER_PAGE,
-    scientistPage * ITEMS_PER_PAGE,
+    scientistPage * ITEMS_PER_PAGE
   );
 
   useEffect(() => {
@@ -398,7 +411,7 @@ export default function IssueWizardScreen({
     if (!selectedInstrument) {
       if (onShowToast)
         onShowToast(
-          "Validation Error: Please select or scan an instrument first.",
+          "Validation Error: Please select or scan an instrument first."
         );
       return;
     }
@@ -407,7 +420,7 @@ export default function IssueWizardScreen({
     if (issueQuantity < 1 || issueQuantity > availableQty) {
       if (onShowToast)
         onShowToast(
-          `Validation Error: Please select a valid quantity between 1 and ${availableQty}.`,
+          `Validation Error: Please select a valid quantity between 1 and ${availableQty}.`
         );
       return;
     }
@@ -428,14 +441,14 @@ export default function IssueWizardScreen({
     if (!issueDate || !expectedReturn) {
       if (onShowToast)
         onShowToast(
-          "Validation Error: Issue date and expected return date are required.",
+          "Validation Error: Issue date and expected return date are required."
         );
       return;
     }
     if (!capturedPhoto) {
       if (onShowToast)
         onShowToast(
-          "Validation Error: Instrument photo is required before proceeding.",
+          "Validation Error: Instrument photo is required before proceeding."
         );
       return;
     }
@@ -446,7 +459,7 @@ export default function IssueWizardScreen({
     if (!capturedPhoto) {
       if (onShowToast)
         onShowToast(
-          "Validation Error: Please capture an instrument photo before issuing.",
+          "Validation Error: Please capture an instrument photo before issuing."
         );
       return;
     }
@@ -474,7 +487,7 @@ export default function IssueWizardScreen({
         : "";
       if (onShowToast) {
         onShowToast(
-          `Issued ${issueQuantity} unit(s) successfully. Confirmation mail sent to ${selectedScientist.name}${staffText}.`,
+          `Issued ${issueQuantity} unit(s) successfully. Confirmation mail sent to ${selectedScientist.name}${staffText}.`
         );
       }
 
@@ -575,7 +588,7 @@ export default function IssueWizardScreen({
               <h3 className="text-xs font-bold text-[#1b4d8f]">
                 Scan physical QR label
               </h3>
-              <p className="text-[10.5px] text-[#5d5b56] max-w-55 mx-auto leading-tight">
+              <p className="text-[10.5px] text-[#5d5b56] max-w-[220px] mx-auto leading-tight">
                 Scan the QR code printed on the instrument to automatically
                 fetch asset details.
               </p>
@@ -951,7 +964,7 @@ export default function IssueWizardScreen({
 
                   {isStaffDropdownOpen && (
                     <div className="w-full bg-white border border-gray-200 rounded-xl shadow-xs overflow-hidden p-1 flex flex-col">
-                      <div className="max-h-30 overflow-y-auto space-y-0.5 custom-scrollbar">
+                      <div className="max-h-[120px] overflow-y-auto space-y-0.5 custom-scrollbar">
                         {filteredStaffList.length === 0 ? (
                           <div className="p-2 text-[11px] text-gray-400 text-center">
                             No matching staff found. Enter details below.
@@ -1035,6 +1048,7 @@ export default function IssueWizardScreen({
               <input
                 type="date"
                 value={issueDate}
+                min={getTodayFormatted()}
                 onChange={(e) => setIssueDate(e.target.value)}
                 className="w-full bg-white text-[12.5px] p-2.5 rounded-xl border border-black/15 focus:outline-none focus:border-[#1b4d8f]"
               />
@@ -1047,6 +1061,7 @@ export default function IssueWizardScreen({
               <input
                 type="date"
                 value={expectedReturn}
+                min={getTodayFormatted()}
                 onChange={(e) => setExpectedReturn(e.target.value)}
                 className="w-full bg-white text-[12.5px] p-2.5 rounded-xl border border-black/15 focus:outline-none focus:border-[#1b4d8f]"
               />
@@ -1234,37 +1249,55 @@ export default function IssueWizardScreen({
         )}
       </div>
 
+      {/* Redesigned User-Friendly QR Scanner Popup Screen */}
       {isQrScannerOpen && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in">
-          <div className="w-full max-w-sm bg-white rounded-3xl p-4 shadow-2xl border border-black/10 space-y-3">
-            <div className="flex items-center justify-between border-b pb-2">
-              <h3 className="text-xs font-bold text-[#1b4d8f] flex items-center gap-1.5">
-                <QrCode size={16} />
-                Scan Asset QR Sticker
-              </h3>
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-sm bg-slate-900 text-white rounded-3xl p-5 shadow-2xl border border-slate-700/60 flex flex-col gap-4">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-blue-600/20 text-blue-400 border border-blue-500/30">
+                  <QrCode size={18} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-100">
+                    Scan Instrument QR Code
+                  </h3>
+                  <p className="text-[10px] text-slate-400">
+                    Point camera at the printed asset label
+                  </p>
+                </div>
+              </div>
               <button
                 type="button"
                 onClick={() => setIsQrScannerOpen(false)}
-                className="p-1 rounded-full hover:bg-gray-100 text-gray-500 cursor-pointer"
+                className="p-1.5 rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                aria-label="Close scanner"
               >
-                <X size={16} />
+                <X size={18} />
               </button>
             </div>
 
-            <div className="overflow-hidden rounded-2xl bg-black min-h-55">
+            {/* Scanner Area Container */}
+            <div className="relative overflow-hidden rounded-2xl bg-slate-950 border border-slate-800 p-2 min-h-[250px] flex items-center justify-center">
               <div id="qr-reader-container" className="w-full" />
             </div>
 
-            <p className="text-[10.5px] text-[#5d5b56] text-center">
-              Align the QR label on the instrument inside the box.
-            </p>
+            {/* Helper Text */}
+            <div className="flex items-center gap-2 bg-slate-800/60 rounded-xl p-2.5 text-slate-300 text-[11px] border border-slate-700/50">
+              <Info size={16} className="text-blue-400 shrink-0" />
+              <span>
+                Position the QR code inside the viewfinder window to automatically fill details.
+              </span>
+            </div>
 
+            {/* Modal Footer / Action Button */}
             <button
               type="button"
               onClick={() => setIsQrScannerOpen(false)}
-              className="w-full py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-xl transition-all cursor-pointer"
+              className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl transition-all cursor-pointer border border-slate-700 text-center"
             >
-              Cancel Scanning
+              Cancel
             </button>
           </div>
         </div>

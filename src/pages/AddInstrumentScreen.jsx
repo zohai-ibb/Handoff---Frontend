@@ -39,6 +39,9 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
   // Off-screen canvas ref for capturing generated QR image
   const qrCanvasRef = useRef(null);
 
+  // Helper to format today's date in YYYY-MM-DD format for date input bounds
+  const getTodayFormatted = () => new Date().toISOString().split("T")[0];
+
   // Construct filtered QR payload matching the 8 requested fields
   const qrPayload = JSON.stringify(
     {
@@ -395,6 +398,7 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
           />
         </div>
 
+        {/* Calibration Valid Until (Disallows past dates) */}
         <div className="space-y-1">
           <label className="text-[11.5px] font-semibold text-[#5d5b56]">
             Calibration valid until
@@ -402,6 +406,7 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
           <input
             type="date"
             name="calibrationValidity"
+            min={getTodayFormatted()}
             value={formData.calibrationValidity}
             onChange={handleChange}
             className="w-full bg-white text-[13px] p-3 rounded-xl border border-black/15 focus:outline-none focus:border-[#1b4d8f] focus:ring-1 focus:ring-[#1b4d8f] transition-all"
@@ -409,6 +414,7 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
           />
         </div>
 
+        {/* Purchase Date (Disallows future dates) */}
         <div className="space-y-1">
           <label className="text-[11.5px] font-semibold text-[#5d5b56]">
             Purchase Date
@@ -416,6 +422,7 @@ export default function AddInstrumentScreen({ onBack, onShowToast }) {
           <input
             type="date"
             name="purchaseDate"
+            max={getTodayFormatted()}
             value={formData.purchaseDate}
             onChange={handleChange}
             className="w-full bg-white text-[13px] p-3 rounded-xl border border-black/15 focus:outline-none focus:border-[#1b4d8f] focus:ring-1 focus:ring-[#1b4d8f] transition-all"

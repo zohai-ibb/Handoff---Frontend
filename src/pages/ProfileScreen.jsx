@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { downloadFileToDevice } from "../utils/fileDownloader";
 import {
   User,
   Mail,
@@ -104,17 +105,22 @@ export default function ProfileScreen({
       }
 
       const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
       const cleanName = (person.name || "Scientist").replace(/\s+/g, "_");
-      a.download = `${cleanName}_Instruments_${new Date().toISOString().split("T")[0]}.xlsx`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
+      const fileName = `${cleanName}_Instruments_${new Date().toISOString().split("T")[0]}.xlsx`;
 
-      if (onShowToast) onShowToast("Instruments Excel report downloaded!");
+      const result = await downloadFileToDevice(
+        blob,
+        fileName,
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      );
+
+      if (onShowToast) {
+        onShowToast(
+          result.isNative
+            ? "Saved Instruments Excel report to Documents folder!"
+            : "Instruments Excel report downloaded!"
+        );
+      }
     } catch (err) {
       if (onShowToast) onShowToast(err.message || "Error downloading report.");
     } finally {
@@ -144,17 +150,22 @@ export default function ProfileScreen({
       }
 
       const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
       const cleanName = (person.name || "Scientist").replace(/\s+/g, "_");
-      a.download = `${cleanName}_Issue_Records_${new Date().toISOString().split("T")[0]}.xlsx`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
+      const fileName = `${cleanName}_Issue_Records_${new Date().toISOString().split("T")[0]}.xlsx`;
 
-      if (onShowToast) onShowToast("Issue records Excel report downloaded!");
+      const result = await downloadFileToDevice(
+        blob,
+        fileName,
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      );
+
+      if (onShowToast) {
+        onShowToast(
+          result.isNative
+            ? "Saved Issue records Excel report to Documents folder!"
+            : "Issue records Excel report downloaded!"
+        );
+      }
     } catch (err) {
       if (onShowToast) onShowToast(err.message || "Error downloading report.");
     } finally {

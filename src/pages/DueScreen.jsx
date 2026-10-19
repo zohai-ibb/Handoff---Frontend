@@ -1,10 +1,21 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { ArrowLeft, Search, Image as ImageIcon, Calendar, RefreshCw, X, Mail } from "lucide-react";
+import {
+  ArrowLeft,
+  Search,
+  Image as ImageIcon,
+  Calendar,
+  RefreshCw,
+  X,
+  Mail,
+} from "lucide-react";
 import axiosClient from "../api/axiosClient";
 import { getActiveIssueRecords } from "../api/instrumentService";
 import { isRecordOverdue } from "../utils/dateUtils";
 
 const PAGE_SIZE = 10;
+
+// Helper to format today's date in YYYY-MM-DD format for date input bounds
+const getTodayFormatted = () => new Date().toISOString().split("T")[0];
 
 export default function DueScreen({ onBack, onShowToast }) {
   const [loans, setLoans] = useState([]);
@@ -108,21 +119,22 @@ export default function DueScreen({ onBack, onShowToast }) {
         confirmReminderItem.staffName ||
         confirmReminderItem.staff_name ||
         "Borrower";
-      const instrumentName = confirmReminderItem.instrument?.name || "Instrument";
+      const instrumentName =
+        confirmReminderItem.instrument?.name || "Instrument";
 
       // Dispatch request to backend
       await axiosClient.post(`/issue-records/${recordId}/send-reminder`);
 
       if (onShowToast) {
         onShowToast(
-          `Reminder email dispatched to ${borrowerName} for ${instrumentName}.`
+          `Reminder email dispatched to ${borrowerName} for ${instrumentName}.`,
         );
       }
       setConfirmReminderItem(null);
     } catch (err) {
       if (onShowToast) {
         onShowToast(
-          err.response?.data?.message || "Failed to dispatch reminder email."
+          err.response?.data?.message || "Failed to dispatch reminder email.",
         );
       }
     } finally {
@@ -161,7 +173,7 @@ export default function DueScreen({ onBack, onShowToast }) {
         onShowToast(
           `Reissued ${
             reissueItem.instrument?.name || "Instrument"
-          } to ${borrowerName} until ${newDueDate}.`
+          } to ${borrowerName} until ${newDueDate}.`,
         );
       }
 
@@ -193,7 +205,9 @@ export default function DueScreen({ onBack, onShowToast }) {
           >
             <ArrowLeft size={18} className="text-[#1b4d8f]" />
           </button>
-          <h2 className="text-base font-bold text-[#1b4d8f]">Overdue Tracker</h2>
+          <h2 className="text-base font-bold text-[#1b4d8f]">
+            Overdue Tracker
+          </h2>
         </div>
 
         <p className="text-[12px] text-[#5d5b56] leading-relaxed">
@@ -204,10 +218,14 @@ export default function DueScreen({ onBack, onShowToast }) {
               <span className="font-bold text-[#c92a2a]">
                 {loans.length} overdue item(s)
               </span>{" "}
-              require immediate attention. Send reminders or reissue with a new return date.
+              require immediate attention. Send reminders or reissue with a new
+              return date.
             </>
           ) : (
-            <>All issued items are within their return schedules. Nothing overdue.</>
+            <>
+              All issued items are within their return schedules. Nothing
+              overdue.
+            </>
           )}
         </p>
 
@@ -236,7 +254,9 @@ export default function DueScreen({ onBack, onShowToast }) {
         )}
 
         {isLoading ? (
-          <p className="text-xs text-gray-400 py-2">Loading overdue tracker...</p>
+          <p className="text-xs text-gray-400 py-2">
+            Loading overdue tracker...
+          </p>
         ) : filteredLoans.length === 0 ? (
           <div className="bg-[#ffffff] p-6 rounded-2xl border border-black/10 text-center space-y-1">
             <h4 className="text-[13px] font-semibold text-[#12695a]">
@@ -265,8 +285,8 @@ export default function DueScreen({ onBack, onShowToast }) {
                 const photoUrl = photoPath
                   ? photoPath.startsWith("http")
                     ? photoPath
-                    // : `http://localhost:8080${photoPath}`
-                    : `http://192.168.1.34:8080${photoPath}`
+                    : // : `http://localhost:8080${photoPath}`
+                      `http://192.168.1.34:8080${photoPath}`
                   : null;
 
                 return (
@@ -341,7 +361,9 @@ export default function DueScreen({ onBack, onShowToast }) {
               <div className="flex items-center justify-between pt-2 text-[12px] text-[#5d5b56]">
                 <button
                   disabled={currentPage === 1}
-                  onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                  onClick={() =>
+                    setCurrentPage((prev) => Math.max(1, prev - 1))
+                  }
                   className="px-3 py-1.5 bg-white border border-gray-300 rounded-xl font-medium shadow-xs disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 transition-all cursor-pointer"
                 >
                   Prev
@@ -351,7 +373,9 @@ export default function DueScreen({ onBack, onShowToast }) {
                 </span>
                 <button
                   disabled={currentPage === totalPages}
-                  onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                  onClick={() =>
+                    setCurrentPage((prev) => Math.min(totalPages, prev + 1))
+                  }
                   className="px-3 py-1.5 bg-white border border-gray-300 rounded-xl font-medium shadow-xs disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 transition-all cursor-pointer"
                 >
                   Next
@@ -383,7 +407,9 @@ export default function DueScreen({ onBack, onShowToast }) {
               <p>Are you sure you want to send a return reminder email?</p>
               <div className="bg-gray-50 p-2.5 rounded-xl border border-gray-200 space-y-1">
                 <p>
-                  <span className="font-semibold text-gray-800">Borrower Scientist:</span>{" "}
+                  <span className="font-semibold text-gray-800">
+                    Borrower Scientist:
+                  </span>{" "}
                   <span className="font-bold text-[#1b4d8f]">
                     {confirmReminderItem.borrowerScientist?.name ||
                       confirmReminderItem.borrower_scientist?.name ||
@@ -393,7 +419,9 @@ export default function DueScreen({ onBack, onShowToast }) {
                   </span>
                 </p>
                 <p>
-                  <span className="font-semibold text-gray-800">Instrument:</span>{" "}
+                  <span className="font-semibold text-gray-800">
+                    Instrument:
+                  </span>{" "}
                   <span className="font-bold text-[#1b1a18]">
                     {confirmReminderItem.instrument?.name || "Instrument"}
                   </span>
@@ -460,7 +488,7 @@ export default function DueScreen({ onBack, onShowToast }) {
                 <input
                   type="date"
                   value={newDueDate}
-                  min={new Date().toISOString().split("T")[0]}
+                  min={getTodayFormatted()}
                   onChange={(e) => setNewDueDate(e.target.value)}
                   className="w-full bg-gray-50 border border-gray-300 rounded-xl p-2 text-xs focus:outline-none focus:border-[#1b4d8f]"
                 />

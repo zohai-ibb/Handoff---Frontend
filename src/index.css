@@ -1,13 +1,13 @@
 @import "tailwindcss";
 /* Base Root Font-Size Scaling for Mobile Screens */
 html {
-  font-size: 18px; /* Increased by 1px from previous 17px */
+  font-size: 16px; /* Increased by 1px from previous 17px */
   -webkit-text-size-adjust: 100%;
 }
 
 @media (max-width: 640px) {
   html {
-    font-size: 19px; /* Increased by 1px from previous 18px */
+    font-size: 16px; /* Increased by 1px from previous 17px */
   }
 }
 
