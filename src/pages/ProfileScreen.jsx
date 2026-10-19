@@ -1,36 +1,40 @@
-import React, { useState, useRef, useEffect } from "react";
-import { downloadFileToDevice } from "../utils/fileDownloader";
+import React, { useState, useEffect } from "react";
 import {
   User,
   Mail,
   Phone,
-  Building,
-  Calendar,
   Edit3,
   CheckCircle2,
-  Camera,
-  X,
-  Upload,
   LogOut,
   Loader2,
   AlertCircle,
-  FileSpreadsheet,
+  Eye,
+  Clock,
+  CheckCircle,
+  ImageIcon,
   Download,
-  PackageCheck,
-  ClipboardList,
+  X,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
+
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
+
+const PAGE_SIZE = 5;
 
 export default function ProfileScreen({
   user,
-  onBack,
   onLogout,
   onShowToast,
   onUpdateUser,
 }) {
-  // const BASE_URL = "http://localhost:8080";
   const BASE_URL = "http://192.168.1.34:8080";
 
-  // State initialized with authenticated user data
+  // =========================================================
+  // PERSON DATA
+  // =========================================================
+
   const [person, setPerson] = useState({
     id: user?.id || "",
     name: user?.name || "",
@@ -43,29 +47,47 @@ export default function ProfileScreen({
   });
 
   const [isEditing, setIsEditing] = useState(false);
-  const [formData, setFormData] = useState({ ...person });
-  const [selectedPhotoFile, setSelectedPhotoFile] = useState(null);
+
+  const [formData, setFormData] = useState({
+    ...person,
+  });
+
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Individual Excel Download Loading States
-  const [isDownloadingInstruments, setIsDownloadingInstruments] = useState(false);
-  const [isDownloadingIssues, setIsDownloadingIssues] = useState(false);
+  // =========================================================
+  // ISSUE RECORDS
+  // =========================================================
 
-  // Confirmation Dialog Modal State
+  const [issueRecordsList, setIssueRecordsList] = useState([]);
+
+  const [previewLoading, setPreviewLoading] = useState(false);
+
+  const [selectedIssuePreview, setSelectedIssuePreview] =
+    useState(null);
+
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // =========================================================
+  // PDF STATES
+  // =========================================================
+
+  const [pdfGenerating, setPdfGenerating] = useState(false);
+
+  // =========================================================
+  // CONFIRMATION DIALOG
+  // =========================================================
+
   const [confirmDialog, setConfirmDialog] = useState({
     isOpen: false,
     title: "",
     message: "",
-    actionType: null, // 'SAVE' | 'LOGOUT'
+    actionType: null,
   });
 
-  // Live Camera Controls
-  const [isCameraOpen, setIsCameraOpen] = useState(false);
-  const videoRef = useRef(null);
-  const mediaStreamRef = useRef(null);
-  const fileInputRef = useRef(null);
+  // =========================================================
+  // SYNC USER
+  // =========================================================
 
-  // Sync state if user prop updates
   useEffect(() => {
     if (user) {
       const updated = {
@@ -76,353 +98,240 @@ export default function ProfileScreen({
         department: user.department || "APEEG",
         photo_path: user.photo_path || null,
         is_active: user.is_active ?? true,
-        created_at: user.created_at || new Date().toISOString(),
+        created_at:
+          user.created_at || new Date().toISOString(),
       };
+
       setPerson(updated);
       setFormData(updated);
     }
   }, [user]);
 
-  // Download Handler 1: Authenticated Scientist Instruments Excel
-  const handleDownloadInstruments = async () => {
-    if (!person.id) {
-      if (onShowToast) onShowToast("Error: User ID missing.");
-      return;
+  // =========================================================
+  // FETCH ISSUE RECORDS
+  // =========================================================
+
+  useEffect(() => {
+    if (person.id) {
+      fetchScientistIssueRecords();
     }
+  }, [person.id]);
+
+  const fetchScientistIssueRecords = async () => {
+    setPreviewLoading(true);
+
+    const token = localStorage.getItem("token");
+
+    const headers = token
+      ? {
+          Authorization: `Bearer ${token}`,
+        }
+      : {};
 
     try {
-      setIsDownloadingInstruments(true);
-      const token = localStorage.getItem("token");
-      const response = await fetch(`${BASE_URL}/api/persons/${person.id}/export-instruments`, {
-        method: "GET",
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to download instruments Excel report.");
-      }
-
-      const blob = await response.blob();
-      const cleanName = (person.name || "Scientist").replace(/\s+/g, "_");
-      const fileName = `${cleanName}_Instruments_${new Date().toISOString().split("T")[0]}.xlsx`;
-
-      const result = await downloadFileToDevice(
-        blob,
-        fileName,
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      const response = await fetch(
+        `${BASE_URL}/api/issue-records/owner/${person.id}`,
+        {
+          headers,
+        }
       );
 
-      if (onShowToast) {
-        onShowToast(
-          result.isNative
-            ? "Saved Instruments Excel report to Documents folder!"
-            : "Instruments Excel report downloaded!"
-        );
+      if (response.ok) {
+        const issueData = await response.json();
+
+        const sortedData = [...(issueData || [])].reverse();
+
+        setIssueRecordsList(sortedData);
+
+        setCurrentPage(1);
       }
     } catch (err) {
-      if (onShowToast) onShowToast(err.message || "Error downloading report.");
+      console.error(
+        "Failed to load issue records:",
+        err
+      );
     } finally {
-      setIsDownloadingInstruments(false);
+      setPreviewLoading(false);
     }
   };
 
-  // Download Handler 2: Authenticated Scientist Issue Records Excel
-  const handleDownloadIssueRecords = async () => {
-    if (!person.id) {
-      if (onShowToast) onShowToast("Error: User ID missing.");
-      return;
+  // =========================================================
+  // IMAGE URL
+  // =========================================================
+
+  const resolvePhotoUrl = (photoPath) => {
+    if (!photoPath) return null;
+
+    if (photoPath.startsWith("data:")) {
+      return photoPath;
     }
 
-    try {
-      setIsDownloadingIssues(true);
-      const token = localStorage.getItem("token");
-      const response = await fetch(`${BASE_URL}/api/persons/${person.id}/export-issue-records`, {
-        method: "GET",
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      });
+    const fullPath = photoPath.startsWith("http")
+      ? photoPath
+      : `${BASE_URL}${photoPath}`;
 
-      if (!response.ok) {
-        throw new Error("Failed to download issue records Excel report.");
-      }
-
-      const blob = await response.blob();
-      const cleanName = (person.name || "Scientist").replace(/\s+/g, "_");
-      const fileName = `${cleanName}_Issue_Records_${new Date().toISOString().split("T")[0]}.xlsx`;
-
-      const result = await downloadFileToDevice(
-        blob,
-        fileName,
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-      );
-
-      if (onShowToast) {
-        onShowToast(
-          result.isNative
-            ? "Saved Issue records Excel report to Documents folder!"
-            : "Issue records Excel report downloaded!"
-        );
-      }
-    } catch (err) {
-      if (onShowToast) onShowToast(err.message || "Error downloading report.");
-    } finally {
-      setIsDownloadingIssues(false);
-    }
+    return `${fullPath}?t=${Date.now()}`;
   };
 
-  // Handle Edit Toggle
+  // =========================================================
+  // EDIT PROFILE
+  // =========================================================
+
   const handleEditClick = () => {
-    const cleanMobile = (person.mobile || "").replace(/\D/g, "").slice(-10);
-    setFormData({ ...person, mobile: cleanMobile });
-    setSelectedPhotoFile(null);
+    const cleanMobile = (person.mobile || "")
+      .replace(/\D/g, "")
+      .slice(-10);
+
+    setFormData({
+      ...person,
+      mobile: cleanMobile,
+    });
+
     setIsEditing(true);
   };
 
-  // Handle Form Input Changes
   const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    
+    const {
+      name,
+      value,
+      type,
+      checked,
+    } = e.target;
+
     if (name === "mobile") {
-      const digitsOnly = value.replace(/\D/g, "").slice(0, 10);
       setFormData((prev) => ({
         ...prev,
-        mobile: digitsOnly,
+        mobile: value
+          .replace(/\D/g, "")
+          .slice(0, 10),
       }));
+
       return;
     }
 
     setFormData((prev) => ({
       ...prev,
-      [name]: type === "checkbox" ? checked : value,
+      [name]:
+        type === "checkbox"
+          ? checked
+          : value,
     }));
   };
 
-  // File Picker Handler
-  const handleFileChange = (e) => {
-    const file = e.target.files && e.target.files[0];
-    if (file) {
-      setSelectedPhotoFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData((prev) => ({
-          ...prev,
-          photo_path: reader.result,
-        }));
-      };
-      reader.readAsDataURL(file);
-      if (onShowToast) onShowToast("New photo selected!");
-    }
-  };
-
-  // Camera Handlers
-  const startCamera = async () => {
-    try {
-      setIsCameraOpen(true);
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user" },
-      });
-      mediaStreamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
-    } catch (err) {
-      if (onShowToast) onShowToast("Unable to access live camera.");
-      setIsCameraOpen(false);
-    }
-  };
-
-  const stopCamera = () => {
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
-      mediaStreamRef.current = null;
-    }
-    setIsCameraOpen(false);
-  };
-
-  const takePhoto = () => {
-    if (!videoRef.current) return;
-    const canvas = document.createElement("canvas");
-    canvas.width = videoRef.current.videoWidth || 640;
-    canvas.height = videoRef.current.videoHeight || 480;
-    const ctx = canvas.getContext("2d");
-    ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-
-    canvas.toBlob((blob) => {
-      if (blob) {
-        const file = new File([blob], `profile_${Date.now()}.jpg`, {
-          type: "image/jpeg",
-        });
-        setSelectedPhotoFile(file);
-        setFormData((prev) => ({
-          ...prev,
-          photo_path: canvas.toDataURL("image/jpeg"),
-        }));
-      }
-    }, "image/jpeg");
-
-    stopCamera();
-    if (onShowToast) onShowToast("Photo captured!");
-  };
-
-  useEffect(() => {
-    return () => stopCamera();
-  }, []);
-
-  // Open confirmation dialog prior to form submit
   const handleSavePrompt = (e) => {
     e.preventDefault();
 
-    if (formData.mobile && formData.mobile.length !== 10) {
+    if (
+      formData.mobile &&
+      formData.mobile.length !== 10
+    ) {
       if (onShowToast) {
-        onShowToast("Mobile number must be exactly 10 digits!");
+        onShowToast(
+          "Mobile number must be exactly 10 digits!"
+        );
       }
+
       return;
     }
 
     setConfirmDialog({
       isOpen: true,
       title: "Confirm Profile Update",
-      message: "Are you sure you want to save changes to your profile details?",
+      message:
+        "Are you sure you want to save changes to your profile details?",
       actionType: "SAVE",
     });
   };
 
-  // Open confirmation dialog prior to logout
-  const handleLogoutPrompt = () => {
-    setConfirmDialog({
-      isOpen: true,
-      title: "Confirm Sign Out",
-      message: "Are you sure you want to sign out of your account?",
-      actionType: "LOGOUT",
-    });
-  };
+  // =========================================================
+  // SAVE PROFILE
+  // =========================================================
 
-  // Confirmed action dispatcher
-  const handleConfirmAction = () => {
-    const { actionType } = confirmDialog;
-    setConfirmDialog({ isOpen: false, title: "", message: "", actionType: null });
-
-    if (actionType === "SAVE") {
-      executeSave();
-    } else if (actionType === "LOGOUT") {
-      if (onLogout) onLogout();
-    }
-  };
-
-  // Actual Save API Call
   const executeSave = async () => {
-    if (!person.id) {
-      if (onShowToast) onShowToast("Error: User ID missing.");
-      return;
-    }
+    if (!person.id) return;
 
     setIsSubmitting(true);
-    const token = localStorage.getItem("token");
+
+    const token =
+      localStorage.getItem("token");
+
     const headers = {
       "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(token
+        ? {
+            Authorization: `Bearer ${token}`,
+          }
+        : {}),
     };
 
-    const formattedMobile = formData.mobile ? `+91 ${formData.mobile}` : "";
-
     try {
-      const response = await fetch(`${BASE_URL}/api/persons/${person.id}`, {
-        method: "PUT",
-        headers,
-        body: JSON.stringify({
-          name: formData.name,
-          email: formData.email,
-          mobile: formattedMobile,
-          department: formData.department,
-          is_active: formData.is_active,
-        }),
-      });
+      const response = await fetch(
+        `${BASE_URL}/api/persons/${person.id}`,
+        {
+          method: "PUT",
+          headers,
+          body: JSON.stringify({
+            name: formData.name,
+            email: formData.email,
+            mobile: formData.mobile
+              ? `+91 ${formData.mobile}`
+              : "",
+            department: formData.department,
+            is_active: formData.is_active,
+          }),
+        }
+      );
 
       if (!response.ok) {
-        throw new Error("Failed to update profile details.");
-      }
-
-      let updatedPersonData = await response.json();
-
-      if (selectedPhotoFile) {
-        const photoFormData = new FormData();
-        photoFormData.append("photo", selectedPhotoFile);
-
-        const photoResponse = await fetch(
-          `${BASE_URL}/api/persons/${person.id}/photo`,
-          {
-            method: "POST",
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-            body: photoFormData,
-          }
+        throw new Error(
+          "Failed to update profile details."
         );
-
-        if (photoResponse.status === 413 || photoResponse.status === 500) {
-          const errorText = await photoResponse.text();
-          if (
-            errorText.includes("MaxUploadSizeExceededException") ||
-            photoResponse.status === 413
-          ) {
-            throw new Error(
-              "Image size is too large! Maximum allowed upload size is 10 MB."
-            );
-          }
-        }
-
-        if (!photoResponse.ok) {
-          throw new Error("Failed to upload profile photo.");
-        }
-
-        updatedPersonData = await photoResponse.json();
       }
+
+      const updatedPersonData =
+        await response.json();
 
       setPerson(updatedPersonData);
+
       setFormData(updatedPersonData);
+
       setIsEditing(false);
-      setSelectedPhotoFile(null);
 
       if (onUpdateUser) {
         onUpdateUser(updatedPersonData);
       }
 
       if (onShowToast) {
-        onShowToast("Profile updated successfully!");
+        onShowToast(
+          "Profile updated successfully!"
+        );
       }
     } catch (err) {
       if (onShowToast) {
-        onShowToast(err.message || "Error updating profile.");
+        onShowToast(
+          err.message ||
+            "Error updating profile."
+        );
       }
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Helper function to resolve image URL
-  const getPhotoUrl = (photoPath) => {
-    if (!photoPath) return null;
-    if (photoPath.startsWith("data:")) return photoPath;
+  // =========================================================
+  // AVATAR
+  // =========================================================
 
-    const fullPath = photoPath.startsWith("http")
-      ? photoPath
-      : `${BASE_URL}${photoPath}`;
-
-    return `${fullPath}?t=${new Date().getTime()}`;
-  };
-
-  const renderAvatar = (photoPath, name) => {
+  const renderAvatar = (
+    photoPath,
+    name
+  ) => {
     if (photoPath) {
       return (
         <img
-          src={getPhotoUrl(photoPath)}
+          src={resolvePhotoUrl(photoPath)}
           alt={name || "Avatar"}
           className="w-14 h-14 rounded-full object-cover shrink-0 border-2 border-[#1b4d8f]/20"
-          onError={(e) => {
-            e.target.onerror = null;
-            e.target.style.display = "none";
-          }}
         />
       );
     }
@@ -441,395 +350,1771 @@ export default function ProfileScreen({
     );
   };
 
+  // =========================================================
+  // GET RECORD VALUE
+  // =========================================================
+
+  const getRecordValue = (
+    rec,
+    camel,
+    snake,
+    fallback = ""
+  ) => {
+    return (
+      rec?.[camel] ??
+      rec?.[snake] ??
+      fallback
+    );
+  };
+
+  // =========================================================
+  // LOAD IMAGE AS DATA URL
+  // =========================================================
+
+  const imageToDataURL = async (
+    imageUrl
+  ) => {
+    if (!imageUrl) return null;
+
+    try {
+      const response = await fetch(
+        imageUrl,
+        {
+          cache: "no-cache",
+        }
+      );
+
+      if (!response.ok) {
+        return null;
+      }
+
+      const blob =
+        await response.blob();
+
+      return await new Promise(
+        (resolve) => {
+          const reader =
+            new FileReader();
+
+          reader.onloadend = () => {
+            resolve(reader.result);
+          };
+
+          reader.onerror = () => {
+            resolve(null);
+          };
+
+          reader.readAsDataURL(blob);
+        }
+      );
+    } catch (error) {
+      console.error(
+        "Image conversion failed:",
+        error
+      );
+
+      return null;
+    }
+  };
+
+  // =========================================================
+  // WAIT FOR IMAGE
+  // =========================================================
+
+  const waitForImage = (src) => {
+    return new Promise((resolve) => {
+      if (!src) {
+        resolve(null);
+        return;
+      }
+
+      const img =
+        new Image();
+
+      img.onload = () => resolve(img);
+
+      img.onerror = () =>
+        resolve(null);
+
+      img.src = src;
+    });
+  };
+
+  // =========================================================
+  // ADD IMAGE TO PDF
+  // =========================================================
+
+  const addImageToPDF = async (
+    pdf,
+    imageUrl,
+    x,
+    y,
+    width,
+    height
+  ) => {
+    if (!imageUrl) {
+      return;
+    }
+
+    try {
+      const dataUrl =
+        await imageToDataURL(
+          imageUrl
+        );
+
+      if (!dataUrl) {
+        return;
+      }
+
+      const img =
+        await waitForImage(
+          dataUrl
+        );
+
+      if (!img) {
+        return;
+      }
+
+      pdf.addImage(
+        dataUrl,
+        "JPEG",
+        x,
+        y,
+        width,
+        height
+      );
+    } catch (error) {
+      console.error(
+        "Could not add image to PDF:",
+        error
+      );
+    }
+  };
+
+  // =========================================================
+  // CREATE PDF
+  // =========================================================
+
+  const createIssuePDF = async (
+    records
+  ) => {
+    const pdf = new jsPDF({
+      orientation: "portrait",
+      unit: "mm",
+      format: "a4",
+    });
+
+    const pageWidth =
+      pdf.internal.pageSize.getWidth();
+
+    const pageHeight =
+      pdf.internal.pageSize.getHeight();
+
+    const margin = 12;
+
+    for (
+      let index = 0;
+      index < records.length;
+      index++
+    ) {
+      const rec = records[index];
+
+      if (index > 0) {
+        pdf.addPage();
+      }
+
+      // -----------------------------------------------------
+      // HEADER
+      // -----------------------------------------------------
+
+      pdf.setFont(
+        "helvetica",
+        "bold"
+      );
+
+      pdf.setFontSize(18);
+
+      pdf.setTextColor(
+        18,
+        105,
+        90
+      );
+
+      pdf.text(
+        "APEEG",
+        margin,
+        16
+      );
+
+      pdf.setFontSize(13);
+
+      pdf.setTextColor(
+        27,
+        77,
+        143
+      );
+
+      pdf.text(
+        "Instrument Issue & Condition Audit",
+        margin,
+        24
+      );
+
+      pdf.setDrawColor(
+        18,
+        105,
+        90
+      );
+
+      pdf.line(
+        margin,
+        28,
+        pageWidth - margin,
+        28
+      );
+
+      // -----------------------------------------------------
+      // INSTRUMENT
+      // -----------------------------------------------------
+
+      const instrumentName =
+        rec.instrument?.name ||
+        "Instrument";
+
+      const assetId =
+        rec.instrument?.assetId ||
+        rec.instrument?.asset_id ||
+        "N/A";
+
+      pdf.setTextColor(
+        27,
+        26,
+        24
+      );
+
+      pdf.setFontSize(14);
+
+      pdf.setFont(
+        "helvetica",
+        "bold"
+      );
+
+      pdf.text(
+        `${index + 1}. ${instrumentName}`,
+        margin,
+        39
+      );
+
+      pdf.setFontSize(10);
+
+      pdf.setFont(
+        "helvetica",
+        "normal"
+      );
+
+      pdf.text(
+        `Asset ID: ${assetId}`,
+        margin,
+        46
+      );
+
+      // -----------------------------------------------------
+      // DETAILS
+      // -----------------------------------------------------
+
+      let y = 56;
+
+      const borrower =
+        getRecordValue(
+          rec,
+          "borrowerScientist",
+          "borrower_scientist",
+          {}
+        );
+
+      const borrowerName =
+        borrower?.name || "N/A";
+
+      const staffName =
+        getRecordValue(
+          rec,
+          "staffName",
+          "staff_name",
+          "Direct Issue"
+        );
+
+      const staffEmail =
+        getRecordValue(
+          rec,
+          "staffEmail",
+          "staff_email",
+          "N/A"
+        );
+
+      const issueDate =
+        getRecordValue(
+          rec,
+          "issueDate",
+          "issue_date",
+          "N/A"
+        );
+
+      const dueDate =
+        getRecordValue(
+          rec,
+          "dueDate",
+          "due_date",
+          "N/A"
+        );
+
+      const actualReturnDate =
+        getRecordValue(
+          rec,
+          "actualReturnDate",
+          "actual_return_date",
+          "Pending"
+        );
+
+      const state =
+        rec.state || "OPEN";
+
+      const purpose =
+        rec.purpose ||
+        "N/A";
+
+      const details = [
+        [
+          "Borrower Scientist",
+          borrowerName,
+        ],
+        [
+          "Handling Staff Member",
+          `${staffName} (${staffEmail})`,
+        ],
+        [
+          "Issue Date",
+          issueDate,
+        ],
+        [
+          "Due Return Date",
+          dueDate,
+        ],
+        [
+          "Actual Return Date",
+          actualReturnDate,
+        ],
+        [
+          "Status",
+          state,
+        ],
+        [
+          "Purpose / Work",
+          purpose,
+        ],
+      ];
+
+      pdf.setFontSize(9.5);
+
+      details.forEach(
+        ([label, value]) => {
+          pdf.setFont(
+            "helvetica",
+            "bold"
+          );
+
+          pdf.setTextColor(
+            85,
+            85,
+            85
+          );
+
+          pdf.text(
+            `${label}:`,
+            margin,
+            y
+          );
+
+          pdf.setFont(
+            "helvetica",
+            "normal"
+          );
+
+          pdf.setTextColor(
+            30,
+            30,
+            30
+          );
+
+          const wrapped =
+            pdf.splitTextToSize(
+              String(value),
+              pageWidth -
+                margin * 2 -
+                45
+            );
+
+          pdf.text(
+            wrapped,
+            margin + 45,
+            y
+          );
+
+          y +=
+            Math.max(
+              6,
+              wrapped.length * 4.5
+            );
+        }
+      );
+
+      // -----------------------------------------------------
+      // CONDITION AUDIT TITLE
+      // -----------------------------------------------------
+
+      y += 5;
+
+      pdf.setFont(
+        "helvetica",
+        "bold"
+      );
+
+      pdf.setFontSize(11);
+
+      pdf.setTextColor(
+        18,
+        105,
+        90
+      );
+
+      pdf.text(
+        "Physical Condition Photos Audit",
+        margin,
+        y
+      );
+
+      y += 7;
+
+      // -----------------------------------------------------
+      // PHOTOS
+      // -----------------------------------------------------
+
+      const checkoutPath =
+        rec.condition_photo_path ||
+        rec.conditionPhotoPath;
+
+      const returnPath =
+        rec.condition_in_photo_path ||
+        rec.conditionInPhotoPath;
+
+      const checkoutUrl =
+        resolvePhotoUrl(
+          checkoutPath
+        );
+
+      const returnUrl =
+        resolvePhotoUrl(
+          returnPath
+        );
+
+      const photoWidth = 88;
+
+      const photoHeight = 60;
+
+      // Checkout box
+      pdf.setDrawColor(
+        200,
+        200,
+        200
+      );
+
+      pdf.rect(
+        margin,
+        y,
+        photoWidth,
+        78
+      );
+
+      pdf.setFont(
+        "helvetica",
+        "bold"
+      );
+
+      pdf.setFontSize(9);
+
+      pdf.setTextColor(
+        50,
+        50,
+        50
+      );
+
+      pdf.text(
+        "Checkout Photo",
+        margin + 4,
+        y + 7
+      );
+
+      if (checkoutUrl) {
+        await addImageToPDF(
+          pdf,
+          checkoutUrl,
+          margin + 4,
+          y + 11,
+          photoWidth - 8,
+          photoHeight
+        );
+      } else {
+        pdf.setFont(
+          "helvetica",
+          "italic"
+        );
+
+        pdf.setFontSize(8);
+
+        pdf.setTextColor(
+          130,
+          130,
+          130
+        );
+
+        pdf.text(
+          "No checkout photo",
+          margin + 4,
+          y + 40
+        );
+      }
+
+      const conditionOut =
+        getRecordValue(
+          rec,
+          "conditionOut",
+          "condition_out",
+          "N/A"
+        );
+
+      pdf.setFont(
+        "helvetica",
+        "normal"
+      );
+
+      pdf.setFontSize(7.5);
+
+      pdf.setTextColor(
+        50,
+        50,
+        50
+      );
+
+      const conditionOutText =
+        pdf.splitTextToSize(
+          `Condition: ${conditionOut}`,
+          photoWidth - 8
+        );
+
+      pdf.text(
+        conditionOutText,
+        margin + 4,
+        y + 70
+      );
+
+      // Return box
+      const secondX =
+        margin +
+        photoWidth +
+        8;
+
+      pdf.rect(
+        secondX,
+        y,
+        photoWidth,
+        78
+      );
+
+      pdf.setFont(
+        "helvetica",
+        "bold"
+      );
+
+      pdf.setFontSize(9);
+
+      pdf.setTextColor(
+        18,
+        105,
+        90
+      );
+
+      pdf.text(
+        "Check-in Photo",
+        secondX + 4,
+        y + 7
+      );
+
+      if (returnUrl) {
+        await addImageToPDF(
+          pdf,
+          returnUrl,
+          secondX + 4,
+          y + 11,
+          photoWidth - 8,
+          photoHeight
+        );
+      } else {
+        pdf.setFont(
+          "helvetica",
+          "italic"
+        );
+
+        pdf.setFontSize(8);
+
+        pdf.setTextColor(
+          130,
+          130,
+          130
+        );
+
+        pdf.text(
+          state === "RETURNED"
+            ? "No return photo"
+            : "Pending return",
+          secondX + 4,
+          y + 40
+        );
+      }
+
+      const conditionIn =
+        getRecordValue(
+          rec,
+          "conditionIn",
+          "condition_in",
+          "N/A"
+        );
+
+      pdf.setFont(
+        "helvetica",
+        "normal"
+      );
+
+      pdf.setFontSize(7.5);
+
+      pdf.setTextColor(
+        50,
+        50,
+        50
+      );
+
+      const conditionInText =
+        pdf.splitTextToSize(
+          `Condition: ${conditionIn}`,
+          photoWidth - 8
+        );
+
+      pdf.text(
+        conditionInText,
+        secondX + 4,
+        y + 70
+      );
+
+      // -----------------------------------------------------
+      // FOOTER
+      // -----------------------------------------------------
+
+      pdf.setFontSize(7);
+
+      pdf.setTextColor(
+        120,
+        120,
+        120
+      );
+
+      pdf.text(
+        `Generated from APEEG • ${new Date().toLocaleString()}`,
+        margin,
+        pageHeight - 8
+      );
+
+      pdf.text(
+        `Page ${index + 1} of ${records.length}`,
+        pageWidth - margin - 25,
+        pageHeight - 8
+      );
+    }
+
+    return pdf;
+  };
+
+  // =========================================================
+  // DOWNLOAD PDF
+  // =========================================================
+
+  const downloadPDF = async (
+    recordsToDownload,
+    closeModal = false
+  ) => {
+    const records = Array.isArray(
+      recordsToDownload
+    )
+      ? recordsToDownload
+      : [recordsToDownload];
+
+    if (!records.length) {
+      if (onShowToast) {
+        onShowToast(
+          "No issue records available to download."
+        );
+      }
+
+      return;
+    }
+
+    if (pdfGenerating) {
+      return;
+    }
+
+    setPdfGenerating(true);
+
+    try {
+      if (onShowToast) {
+        onShowToast(
+          "Preparing PDF..."
+        );
+      }
+
+      const pdf =
+        await createIssuePDF(
+          records
+        );
+
+      const timestamp =
+        new Date()
+          .toISOString()
+          .replace(
+            /[:.]/g,
+            "-"
+          );
+
+      const filename =
+        records.length === 1
+          ? `APEEG_Issue_Record_${timestamp}.pdf`
+          : `APEEG_Issue_Audit_${timestamp}.pdf`;
+
+      // =====================================================
+      // CAPACITOR ANDROID
+      // =====================================================
+
+      const isCapacitor =
+        typeof window !==
+          "undefined" &&
+        window.Capacitor &&
+        window.Capacitor.isNativePlatform &&
+        window.Capacitor.isNativePlatform();
+
+      if (isCapacitor) {
+        try {
+          const {
+            Filesystem,
+            Directory,
+          } = await import(
+            "@capacitor/filesystem"
+          );
+
+          const base64 =
+            pdf.output(
+              "datauristring"
+            );
+
+          const cleanBase64 =
+            base64.split(",")[1];
+
+          /*
+           * Documents is the safe Capacitor
+           * native directory.
+           *
+           * On Android this is stored in
+           * the application's accessible
+           * Documents area.
+           */
+          await Filesystem.writeFile(
+            {
+              path: `APEEG/${filename}`,
+              data: cleanBase64,
+              directory:
+                Directory.Documents,
+              recursive: true,
+            }
+          );
+
+          if (onShowToast) {
+            onShowToast(
+              "PDF downloaded successfully!"
+            );
+          }
+
+          if (closeModal) {
+            setSelectedIssuePreview(
+              null
+            );
+          }
+
+          return;
+        } catch (nativeError) {
+          console.error(
+            "Native PDF save failed:",
+            nativeError
+          );
+
+          /*
+           * If native storage fails,
+           * fall back to normal browser
+           * download.
+           */
+        }
+      }
+
+      // =====================================================
+      // NORMAL BROWSER / MOBILE BROWSER
+      // =====================================================
+
+      pdf.save(filename);
+
+      if (onShowToast) {
+        onShowToast(
+          "PDF downloaded successfully!"
+        );
+      }
+
+      if (closeModal) {
+        setSelectedIssuePreview(
+          null
+        );
+      }
+    } catch (error) {
+      console.error(
+        "PDF generation failed:",
+        error
+      );
+
+      if (onShowToast) {
+        onShowToast(
+          "Unable to download PDF. Please try again."
+        );
+      }
+    } finally {
+      setPdfGenerating(false);
+    }
+  };
+
+  // =========================================================
+  // PAGINATION
+  // =========================================================
+
+  const totalPages =
+    Math.ceil(
+      issueRecordsList.length /
+        PAGE_SIZE
+    ) || 1;
+
+  const startIndex =
+    (currentPage - 1) *
+    PAGE_SIZE;
+
+  const slicedRecords =
+    issueRecordsList.slice(
+      startIndex,
+      startIndex + PAGE_SIZE
+    );
+
+  // =========================================================
+  // RENDER
+  // =========================================================
+
   return (
-    <div className="space-y-4 font-sans text-[#1b1a18] animate-fade-in relative">
-      {/* --- Header Title --- */}
+    <div className="space-y-4 font-sans text-[#1b1a18] animate-fade-in relative pb-8">
+
+      {/* =====================================================
+          HEADER
+      ===================================================== */}
+
       <div className="flex items-center justify-between">
-        <h2 className="text-base font-bold text-[#1b4d8f]">User Profile</h2>
+        <h2 className="text-base font-bold text-[#1b4d8f]">
+          User Profile
+        </h2>
       </div>
 
-      {/* --- Avatar & Key Info Card --- */}
+      {/* =====================================================
+          PROFILE CARD
+      ===================================================== */}
+
       <div className="bg-white p-4 rounded-2xl border border-black/10 shadow-2xs flex items-center gap-3.5">
-        {renderAvatar(person.photo_path, person.name)}
+        {renderAvatar(
+          person.photo_path,
+          person.name
+        )}
 
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             <h3 className="text-base font-bold text-[#1b1a18] truncate leading-tight">
-              {person.name || "Scientist Profile"}
+              {person.name ||
+                "Scientist Profile"}
             </h3>
+
             {person.is_active && (
               <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-semibold px-1.5 py-0.5 rounded-md flex items-center gap-0.5">
-                <CheckCircle2 size={10} /> Active
+                <CheckCircle2
+                  size={10}
+                />
+                Active
               </span>
             )}
           </div>
+
           <p className="text-xs text-[#5d5b56] mt-0.5 font-medium">
-            {person.department || "APEEG"} Department
+            {person.department ||
+              "APEEG"}{" "}
+            Department
           </p>
+
           <p className="text-[11px] font-mono text-gray-400 mt-0.5 truncate">
             {person.email}
           </p>
         </div>
       </div>
 
-      {/* --- View Mode --- */}
+      {/* =====================================================
+          VIEW MODE
+      ===================================================== */}
+
       {!isEditing ? (
         <div className="space-y-4">
+
+          {/* PERSON DETAILS */}
+
           <div className="bg-white p-4 rounded-2xl border border-black/10 shadow-2xs space-y-3">
+
             <h4 className="text-xs font-bold text-[#1b4d8f] uppercase tracking-wider border-b pb-2">
               Person Details
             </h4>
 
             <div className="space-y-2.5 text-xs">
+
               <div className="flex items-center gap-2.5 text-[#5d5b56]">
-                <User size={15} className="text-[#1b4d8f] shrink-0" />
+                <User
+                  size={15}
+                  className="text-[#1b4d8f] shrink-0"
+                />
+
                 <div>
                   <span className="text-[10px] uppercase font-semibold text-gray-400 block">
                     Name
                   </span>
+
                   <span className="font-semibold text-[#1b1a18]">
-                    {person.name || "N/A"}
+                    {person.name ||
+                      "N/A"}
                   </span>
                 </div>
               </div>
 
               <div className="flex items-center gap-2.5 text-[#5d5b56]">
-                <Mail size={15} className="text-[#1b4d8f] shrink-0" />
+                <Mail
+                  size={15}
+                  className="text-[#1b4d8f] shrink-0"
+                />
+
                 <div>
                   <span className="text-[10px] uppercase font-semibold text-gray-400 block">
                     Official Email
                   </span>
+
                   <span className="font-mono text-[#1b1a18]">
-                    {person.email || "N/A"}
+                    {person.email ||
+                      "N/A"}
                   </span>
                 </div>
               </div>
 
               <div className="flex items-center gap-2.5 text-[#5d5b56]">
-                <Phone size={15} className="text-[#1b4d8f] shrink-0" />
+                <Phone
+                  size={15}
+                  className="text-[#1b4d8f] shrink-0"
+                />
+
                 <div>
                   <span className="text-[10px] uppercase font-semibold text-gray-400 block">
                     Mobile Number
                   </span>
+
                   <span className="text-[#1b1a18]">
-                    {person.mobile || "Not set"}
+                    {person.mobile ||
+                      "Not set"}
                   </span>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2.5 text-[#5d5b56]">
-                <Building size={15} className="text-[#1b4d8f] shrink-0" />
-                <div>
-                  <span className="text-[10px] uppercase font-semibold text-gray-400 block">
-                    Department
-                  </span>
-                  <span className="text-[#1b1a18]">
-                    {person.department || "APEEG"}
-                  </span>
-                </div>
-              </div>
-
-              {person.created_at && (
-                <div className="flex items-center gap-2.5 text-[#5d5b56]">
-                  <Calendar size={15} className="text-[#1b4d8f] shrink-0" />
-                  <div>
-                    <span className="text-[10px] uppercase font-semibold text-gray-400 block">
-                      Account Created
-                    </span>
-                    <span className="font-mono text-[#1b1a18]">
-                      {new Date(person.created_at).toLocaleDateString("en-GB", {
-                        day: "2-digit",
-                        month: "short",
-                        year: "numeric",
-                      })}
-                    </span>
-                  </div>
-                </div>
-              )}
             </div>
 
-            {/* Action Buttons */}
             <div className="pt-3 border-t border-gray-100 flex items-center gap-2">
+
               <button
                 type="button"
-                onClick={handleEditClick}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 bg-[#1b4d8f] hover:bg-[#143d73] text-white rounded-xl text-xs font-semibold transition-all active:scale-98 shadow-2xs cursor-pointer"
+                onClick={
+                  handleEditClick
+                }
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 bg-[#1b4d8f] hover:bg-[#143d73] text-white rounded-xl text-xs font-semibold transition-all shadow-2xs cursor-pointer"
               >
                 <Edit3 size={14} />
-                <span>Edit Profile</span>
+                <span>
+                  Edit Profile
+                </span>
               </button>
 
               {onLogout && (
                 <button
                   type="button"
-                  onClick={handleLogoutPrompt}
-                  className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl text-xs font-semibold transition-all active:scale-98 cursor-pointer"
+                  onClick={() =>
+                    setConfirmDialog({
+                      isOpen: true,
+                      title: "Sign Out",
+                      message:
+                        "Are you sure you want to sign out?",
+                      actionType:
+                        "LOGOUT",
+                    })
+                  }
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl text-xs font-semibold transition-all cursor-pointer"
                 >
-                  <LogOut size={14} />
-                  <span>Sign Out</span>
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* --- Excel Export Section with Two Buttons --- */}
-          <div className="bg-white p-4 rounded-2xl border border-black/10 shadow-2xs space-y-3">
-            <div className="flex items-center gap-2 border-b pb-2">
-              <FileSpreadsheet size={16} className="text-[#1b4d8f]" />
-              <h4 className="text-xs font-bold text-[#1b4d8f] uppercase tracking-wider">
-                Export Scientist Reports (.xlsx)
-              </h4>
-            </div>
-
-            <p className="text-[11.5px] text-[#5d5b56] leading-relaxed">
-              Download individual Microsoft Excel spreadsheets containing your instrument inventory or loan/issue record history.
-            </p>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-              {/* Button 1: Download Instruments */}
-              <button
-                type="button"
-                onClick={handleDownloadInstruments}
-                disabled={isDownloadingInstruments}
-                className="flex items-center justify-center gap-2 py-2.5 px-3 bg-[#eef3fa] hover:bg-[#e0eaf6] text-[#1b4d8f] border border-[#1b4d8f]/30 rounded-xl text-xs font-semibold transition-all active:scale-98 cursor-pointer disabled:opacity-50"
-              >
-                {isDownloadingInstruments ? (
-                  <Loader2 size={15} className="animate-spin text-[#1b4d8f]" />
-                ) : (
-                  <>
-                    <PackageCheck size={15} className="text-[#1b4d8f]" />
-                    <span>Download Instruments</span>
-                    <Download size={13} className="ml-auto opacity-70" />
-                  </>
-                )}
-              </button>
-
-              {/* Button 2: Download Issue Records */}
-              <button
-                type="button"
-                onClick={handleDownloadIssueRecords}
-                disabled={isDownloadingIssues}
-                className="flex items-center justify-center gap-2 py-2.5 px-3 bg-[#eef8f5] hover:bg-[#dbf0ea] text-[#12695a] border border-[#12695a]/30 rounded-xl text-xs font-semibold transition-all active:scale-98 cursor-pointer disabled:opacity-50"
-              >
-                {isDownloadingIssues ? (
-                  <Loader2 size={15} className="animate-spin text-[#12695a]" />
-                ) : (
-                  <>
-                    <ClipboardList size={15} className="text-[#12695a]" />
-                    <span>Download Issue Records</span>
-                    <Download size={13} className="ml-auto opacity-70" />
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : (
-        /* --- Edit Form Mode --- */
-        <form
-          onSubmit={handleSavePrompt}
-          className="bg-white p-4 rounded-2xl border border-black/10 shadow-2xs space-y-3.5 animate-fade-in"
-        >
-          <h4 className="text-xs font-bold text-[#1b4d8f] uppercase tracking-wider border-b pb-2">
-            Edit Scientist Profile
-          </h4>
-
-          {/* Photo Section */}
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-semibold text-[#5d5b56] block">
-              Profile Photo
-            </label>
-            <div className="flex items-center gap-3">
-              {formData.photo_path ? (
-                <div className="relative shrink-0">
-                  <img
-                    src={
-                      formData.photo_path.startsWith("data:")
-                        ? formData.photo_path
-                        : `${BASE_URL}${formData.photo_path}`
-                    }
-                    alt="Preview"
-                    className="w-12 h-12 rounded-full object-cover border border-[#1b4d8f]/30"
+                  <LogOut
+                    size={14}
                   />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedPhotoFile(null);
-                      setFormData((prev) => ({ ...prev, photo_path: null }));
-                    }}
-                    className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 shadow-xs hover:bg-red-600 cursor-pointer"
-                  >
-                    <X size={10} />
-                  </button>
-                </div>
-              ) : (
-                <div className="w-12 h-12 rounded-full bg-gray-100 border border-dashed border-gray-300 flex items-center justify-center text-gray-400 shrink-0">
-                  <User size={20} />
-                </div>
+
+                  <span>
+                    Sign Out
+                  </span>
+                </button>
               )}
 
-              <div className="flex items-center gap-2 flex-1">
-                <button
-                  type="button"
-                  onClick={startCamera}
-                  className="flex-1 bg-[#1b4d8f] text-white text-[11px] font-medium py-2 px-2.5 rounded-xl flex items-center justify-center gap-1 active:scale-95 transition-all shadow-2xs cursor-pointer"
-                >
-                  <Camera size={13} />
-                  <span>Camera</span>
-                </button>
+            </div>
+          </div>
+
+          {/* =================================================
+              ISSUE RECORD AUDIT
+          ================================================= */}
+
+          <div className="bg-white p-4 rounded-2xl border border-black/10 shadow-2xs space-y-3">
+
+            <div className="flex items-center justify-between border-b pb-2 gap-2">
+
+              <div className="flex items-center gap-2 min-w-0">
+                <Eye
+                  size={16}
+                  className="text-[#12695a] shrink-0"
+                />
+
+                <h4 className="text-xs font-bold text-[#12695a] uppercase tracking-wider truncate">
+                  Issue Records Audit
+                </h4>
+              </div>
+
+              <div className="flex items-center gap-1.5 shrink-0">
+
+                <span className="text-[10px] font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                  {
+                    issueRecordsList.length
+                  }{" "}
+                  Records
+                </span>
 
                 <button
                   type="button"
                   onClick={() =>
-                    fileInputRef.current && fileInputRef.current.click()
+                    downloadPDF(
+                      issueRecordsList
+                    )
                   }
-                  className="flex-1 bg-gray-100 hover:bg-gray-200 text-[#1b1a18] border border-black/10 text-[11px] font-medium py-2 px-2.5 rounded-xl flex items-center justify-center gap-1 active:scale-95 transition-all cursor-pointer"
+                  disabled={
+                    issueRecordsList.length ===
+                      0 ||
+                    pdfGenerating
+                  }
+                  className="flex items-center gap-1 bg-[#12695a] hover:bg-[#0e5246] text-white text-[10.5px] font-semibold px-2.5 py-1 rounded-lg transition-all active:scale-95 disabled:opacity-40 cursor-pointer shadow-2xs"
                 >
-                  <Upload size={13} />
-                  <span>Upload</span>
+                  {pdfGenerating ? (
+                    <Loader2
+                      size={12}
+                      className="animate-spin"
+                    />
+                  ) : (
+                    <Download
+                      size={12}
+                    />
+                  )}
+
+                  <span>
+                    {pdfGenerating
+                      ? "Creating..."
+                      : "Download PDF"}
+                  </span>
                 </button>
 
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleFileChange}
-                  accept="image/*"
-                  className="hidden"
-                />
               </div>
             </div>
+
+            <p className="text-[11.5px] text-[#5d5b56] leading-relaxed">
+              Displaying latest issue records first. Tap any record to inspect its checkout and return condition photos.
+            </p>
+
+            {previewLoading ? (
+              <div className="py-6 flex items-center justify-center text-xs text-gray-400 gap-2">
+
+                <Loader2
+                  size={16}
+                  className="animate-spin text-[#12695a]"
+                />
+
+                <span>
+                  Loading issue history...
+                </span>
+
+              </div>
+            ) : (
+              <div className="space-y-2">
+
+                {issueRecordsList.length ===
+                0 ? (
+                  <p className="text-xs text-gray-400 text-center py-4">
+                    No issue records logged yet.
+                  </p>
+                ) : (
+                  <>
+                    <div className="space-y-2">
+
+                      {slicedRecords.map(
+                        (rec) => (
+                          <div
+                            key={
+                              rec.id ||
+                              rec._id
+                            }
+                            onClick={() =>
+                              setSelectedIssuePreview(
+                                rec
+                              )
+                            }
+                            className="p-2.5 rounded-xl border border-gray-200 bg-gray-50/50 hover:bg-[#eef8f5]/50 transition-all flex items-center gap-3 cursor-pointer group"
+                          >
+
+                            <div className="flex -space-x-2 shrink-0">
+
+                              <div className="w-9 h-9 rounded-lg overflow-hidden bg-gray-200 border border-white shadow-xs flex items-center justify-center">
+
+                                {rec.condition_photo_path ||
+                                rec.conditionPhotoPath ? (
+                                  <img
+                                    src={resolvePhotoUrl(
+                                      rec.condition_photo_path ||
+                                        rec.conditionPhotoPath
+                                    )}
+                                    alt="Checkout condition"
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <ImageIcon
+                                    size={14}
+                                    className="text-gray-400"
+                                  />
+                                )}
+
+                              </div>
+
+                              {(rec.condition_in_photo_path ||
+                                rec.conditionInPhotoPath) && (
+                                <div className="w-9 h-9 rounded-lg overflow-hidden bg-emerald-100 border border-white shadow-xs">
+
+                                  <img
+                                    src={resolvePhotoUrl(
+                                      rec.condition_in_photo_path ||
+                                        rec.conditionInPhotoPath
+                                    )}
+                                    alt="Return condition"
+                                    className="w-full h-full object-cover"
+                                  />
+
+                                </div>
+                              )}
+
+                            </div>
+
+                            <div className="min-w-0 flex-1">
+
+                              <div className="flex items-center justify-between gap-1">
+
+                                <h5 className="text-xs font-bold text-[#1b1a18] truncate group-hover:text-[#12695a]">
+                                  {rec
+                                    .instrument
+                                    ?.name ||
+                                    "Instrument Loan"}
+                                </h5>
+
+                                <span
+                                  className={`text-[9.5px] font-bold px-1.5 py-0.2 rounded ${
+                                    rec.state ===
+                                    "RETURNED"
+                                      ? "bg-emerald-100 text-emerald-800"
+                                      : "bg-amber-100 text-amber-800"
+                                  }`}
+                                >
+                                  {rec.state ||
+                                    "OPEN"}
+                                </span>
+
+                              </div>
+
+                              <p className="text-[10.5px] text-gray-500 truncate">
+
+                                Borrower:{" "}
+
+                                <span className="font-semibold text-gray-700">
+                                  {rec
+                                    .borrowerScientist
+                                    ?.name ||
+                                    rec
+                                      .borrower_scientist
+                                      ?.name ||
+                                    "N/A"}
+                                </span>
+
+                              </p>
+
+                            </div>
+
+                            <Eye
+                              size={14}
+                              className="text-gray-400 group-hover:text-[#12695a] shrink-0"
+                            />
+
+                          </div>
+                        )
+                      )}
+
+                    </div>
+
+                    {/* PAGINATION */}
+
+                    {totalPages > 1 && (
+                      <div className="flex items-center justify-between pt-2 border-t border-gray-100 text-[12px] text-[#5d5b56]">
+
+                        <button
+                          type="button"
+                          disabled={
+                            currentPage ===
+                            1
+                          }
+                          onClick={() =>
+                            setCurrentPage(
+                              (prev) =>
+                                Math.max(
+                                  1,
+                                  prev - 1
+                                )
+                            )
+                          }
+                          className="flex items-center gap-1 px-3 py-1.5 bg-white border border-gray-300 rounded-xl font-medium shadow-2xs disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 transition-all cursor-pointer"
+                        >
+                          <ChevronLeft
+                            size={14}
+                          />
+                          <span>
+                            Prev
+                          </span>
+                        </button>
+
+                        <span className="font-semibold text-[11px]">
+                          Page{" "}
+                          {currentPage}{" "}
+                          of{" "}
+                          {totalPages}
+                        </span>
+
+                        <button
+                          type="button"
+                          disabled={
+                            currentPage ===
+                            totalPages
+                          }
+                          onClick={() =>
+                            setCurrentPage(
+                              (prev) =>
+                                Math.min(
+                                  totalPages,
+                                  prev + 1
+                                )
+                            )
+                          }
+                          className="flex items-center gap-1 px-3 py-1.5 bg-white border border-gray-300 rounded-xl font-medium shadow-2xs disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 transition-all cursor-pointer"
+                        >
+                          <span>
+                            Next
+                          </span>
+
+                          <ChevronRight
+                            size={14}
+                          />
+                        </button>
+
+                      </div>
+                    )}
+
+                  </>
+                )}
+
+              </div>
+            )}
+
           </div>
 
-          {/* Name Field */}
+        </div>
+      ) : (
+        /* ===================================================
+           EDIT FORM
+        =================================================== */
+
+        <form
+          onSubmit={
+            handleSavePrompt
+          }
+          className="bg-white p-4 rounded-2xl border border-black/10 shadow-2xs space-y-3.5"
+        >
+
+          <h4 className="text-xs font-bold text-[#1b4d8f] uppercase tracking-wider border-b pb-2">
+            Edit Profile
+          </h4>
+
           <div className="space-y-1">
+
             <label className="text-[11px] font-semibold text-[#5d5b56]">
               Full Name
             </label>
+
             <input
               type="text"
               name="name"
-              value={formData.name}
-              onChange={handleChange}
-              placeholder="e.g. Dr. Kishor S. Kulkarni"
-              required
-              className="w-full bg-white text-xs p-2.5 rounded-xl border border-black/15 focus:outline-none focus:border-[#1b4d8f]"
+              value={
+                formData.name
+              }
+              onChange={
+                handleChange
+              }
+              className="w-full bg-white text-xs p-2.5 rounded-xl border border-black/15 focus:outline-none"
             />
+
           </div>
 
-          {/* Email Field (Disabled) */}
           <div className="space-y-1">
-            <label className="text-[11px] font-semibold text-[#5d5b56]">
-              Official Email
-            </label>
-            <input
-              type="email"
-              name="email"
-              value={formData.email}
-              disabled
-              readOnly
-              className="w-full bg-gray-100 text-gray-500 text-xs p-2.5 rounded-xl border border-black/10 focus:outline-none cursor-not-allowed opacity-75 font-mono"
-            />
-          </div>
 
-          {/* Mobile Field (+91 Fixed Label & 10 Digits Limit) */}
-          <div className="space-y-1">
             <label className="text-[11px] font-semibold text-[#5d5b56]">
               Mobile Number (10 digits)
             </label>
-            <div className="flex items-center rounded-xl border border-black/15 overflow-hidden bg-white focus-within:border-[#1b4d8f]">
-              <span className="px-3 py-2.5 bg-gray-100 border-r border-black/15 text-xs font-semibold text-gray-600 select-none">
-                +91
-              </span>
-              <input
-                type="text"
-                name="mobile"
-                value={formData.mobile}
-                onChange={handleChange}
-                maxLength={10}
-                placeholder="9876543210"
-                className="w-full text-xs p-2.5 bg-transparent focus:outline-none"
-              />
-            </div>
-          </div>
 
-          {/* Department Field */}
-          <div className="space-y-1">
-            <label className="text-[11px] font-semibold text-[#5d5b56]">
-              Department
-            </label>
             <input
               type="text"
-              name="department"
-              value={formData.department}
-              onChange={handleChange}
-              placeholder="e.g. APEEG"
-              className="w-full bg-white text-xs p-2.5 rounded-xl border border-black/15 focus:outline-none focus:border-[#1b4d8f]"
+              name="mobile"
+              value={
+                formData.mobile
+              }
+              onChange={
+                handleChange
+              }
+              maxLength={10}
+              className="w-full text-xs p-2.5 border border-black/15 rounded-xl focus:outline-none"
             />
+
           </div>
 
-          {/* Active Status Checkbox */}
-          <div className="flex items-center gap-2 pt-1">
-            <input
-              type="checkbox"
-              id="is_active"
-              name="is_active"
-              checked={formData.is_active}
-              onChange={handleChange}
-              className="w-4 h-4 text-[#1b4d8f] rounded focus:ring-0 cursor-pointer"
-            />
-            <label
-              htmlFor="is_active"
-              className="text-xs font-medium text-[#1b1a18] cursor-pointer"
-            >
-              Account Active Status (is_active)
-            </label>
-          </div>
+          <div className="flex gap-2 pt-2">
 
-          {/* Form Action Buttons */}
-          <div className="flex items-center gap-2 pt-2">
             <button
               type="button"
-              disabled={isSubmitting}
-              onClick={() => {
-                setFormData({ ...person });
-                setSelectedPhotoFile(null);
-                setIsEditing(false);
-              }}
-              className="flex-1 py-2.5 rounded-xl text-xs font-medium border border-gray-300 text-gray-700 active:scale-98 transition-all disabled:opacity-50 cursor-pointer"
+              onClick={() =>
+                setIsEditing(false)
+              }
+              className="flex-1 py-2.5 rounded-xl text-xs border border-gray-300 text-gray-700"
             >
               Cancel
             </button>
+
             <button
               type="submit"
-              disabled={isSubmitting}
-              className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-[#1b4d8f] text-white active:scale-98 shadow-2xs transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+              disabled={
+                isSubmitting
+              }
+              className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-[#1b4d8f] text-white flex items-center justify-center gap-2"
             >
               {isSubmitting ? (
-                <Loader2 size={14} className="animate-spin" />
+                <Loader2
+                  size={14}
+                  className="animate-spin"
+                />
               ) : (
-                <span>Save Changes</span>
+                <span>
+                  Save Changes
+                </span>
               )}
             </button>
+
           </div>
+
         </form>
       )}
 
-      {/* Confirmation Dialog Box Modal */}
+      {/* =====================================================
+          ISSUE RECORD DETAIL MODAL
+      ===================================================== */}
+
+      {selectedIssuePreview && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in">
+
+          <div className="bg-white rounded-3xl max-w-sm w-full overflow-hidden shadow-2xl border border-gray-200 flex flex-col max-h-[90vh]">
+
+            {/* HEADER */}
+
+            <div className="p-3.5 border-b flex items-center justify-between bg-[#12695a] text-white">
+
+              <div className="min-w-0 pr-2">
+
+                <h3 className="text-xs font-bold truncate">
+                  {selectedIssuePreview
+                    .instrument
+                    ?.name ||
+                    "Issue Record Detail"}
+                </h3>
+
+                <p className="text-[10px] opacity-80 font-mono">
+                  Asset ID:{" "}
+                  {selectedIssuePreview
+                    .instrument
+                    ?.assetId ||
+                    selectedIssuePreview
+                      .instrument
+                      ?.asset_id ||
+                    "N/A"}
+                </p>
+
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setSelectedIssuePreview(
+                    null
+                  )
+                }
+                className="p-1 rounded-full hover:bg-white/20 text-white cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+
+            </div>
+
+            {/* BODY */}
+
+            <div className="p-4 overflow-y-auto space-y-3.5 flex-1 text-xs">
+
+              {/* PHOTOS */}
+
+              <div className="space-y-1.5">
+
+                <span className="text-[11px] font-bold text-[#12695a] uppercase tracking-wider block">
+                  Condition Photos Audit
+                </span>
+
+                <div className="grid grid-cols-2 gap-2">
+
+                  {/* CHECKOUT */}
+
+                  <div className="space-y-1">
+
+                    <span className="text-[10px] font-semibold text-gray-500 flex items-center gap-1">
+                      <Clock size={10} />
+                      Checkout Photo
+                    </span>
+
+                    <div className="h-28 rounded-xl overflow-hidden bg-gray-100 border border-gray-200 relative">
+
+                      {selectedIssuePreview.condition_photo_path ||
+                      selectedIssuePreview.conditionPhotoPath ? (
+                        <img
+                          src={resolvePhotoUrl(
+                            selectedIssuePreview.condition_photo_path ||
+                              selectedIssuePreview.conditionPhotoPath
+                          )}
+                          alt="Checkout condition"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-400 text-[10px] italic">
+                          No photo captured
+                        </div>
+                      )}
+
+                    </div>
+
+                    <p className="text-[10px] text-gray-600 italic bg-gray-50 p-1.5 rounded-lg border border-gray-100">
+
+                      "
+                      {selectedIssuePreview.conditionOut ||
+                        selectedIssuePreview.condition_out ||
+                        "Good condition"}
+                      "
+
+                    </p>
+
+                  </div>
+
+                  {/* CHECK-IN */}
+
+                  <div className="space-y-1">
+
+                    <span className="text-[10px] font-semibold text-emerald-700 flex items-center gap-1">
+                      <CheckCircle
+                        size={10}
+                      />
+                      Check-in Photo
+                    </span>
+
+                    <div className="h-28 rounded-xl overflow-hidden bg-emerald-50/50 border border-emerald-200 relative">
+
+                      {selectedIssuePreview.condition_in_photo_path ||
+                      selectedIssuePreview.conditionInPhotoPath ? (
+                        <img
+                          src={resolvePhotoUrl(
+                            selectedIssuePreview.condition_in_photo_path ||
+                              selectedIssuePreview.conditionInPhotoPath
+                          )}
+                          alt="Return condition"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex flex-col items-center justify-center text-gray-400 text-[10px] italic p-1 text-center">
+                          {selectedIssuePreview.state ===
+                          "RETURNED"
+                            ? "No return photo"
+                            : "Pending return"}
+                        </div>
+                      )}
+
+                    </div>
+
+                    <p className="text-[10px] text-emerald-900 italic bg-emerald-50 p-1.5 rounded-lg border border-emerald-100">
+
+                      "
+                      {selectedIssuePreview.conditionIn ||
+                        selectedIssuePreview.condition_in ||
+                        "Pending return"}
+                      "
+
+                    </p>
+
+                  </div>
+
+                </div>
+
+              </div>
+
+              {/* DETAILS */}
+
+              <div className="space-y-2 bg-gray-50 p-3 rounded-2xl border border-gray-200 text-xs">
+
+                <div className="flex justify-between gap-3">
+                  <span className="text-gray-500">
+                    Borrower Scientist:
+                  </span>
+
+                  <span className="font-semibold text-gray-800 text-right">
+                    {selectedIssuePreview
+                      .borrowerScientist
+                      ?.name ||
+                      selectedIssuePreview
+                        .borrower_scientist
+                        ?.name ||
+                      "N/A"}
+                  </span>
+                </div>
+
+                <div className="flex justify-between gap-3">
+                  <span className="text-gray-500">
+                    Handling Staff Member:
+                  </span>
+
+                  <span className="text-gray-800 text-right">
+                    {selectedIssuePreview.staffName ||
+                      selectedIssuePreview.staff_name ||
+                      "Direct issue"}
+                  </span>
+                </div>
+
+                {(selectedIssuePreview.staffEmail ||
+                  selectedIssuePreview.staff_email) && (
+                  <div className="flex justify-between gap-3">
+
+                    <span className="text-gray-500">
+                      Staff Email:
+                    </span>
+
+                    <span className="font-mono text-gray-700 text-right break-all">
+                      {selectedIssuePreview.staffEmail ||
+                        selectedIssuePreview.staff_email}
+                    </span>
+
+                  </div>
+                )}
+
+                <div className="flex justify-between gap-3">
+
+                  <span className="text-gray-500">
+                    Issue Date:
+                  </span>
+
+                  <span className="font-mono text-gray-800">
+                    {selectedIssuePreview.issueDate ||
+                      selectedIssuePreview.issue_date ||
+                      "N/A"}
+                  </span>
+
+                </div>
+
+                <div className="flex justify-between gap-3">
+
+                  <span className="text-gray-500">
+                    Due Return Date:
+                  </span>
+
+                  <span className="font-mono text-gray-800">
+                    {selectedIssuePreview.dueDate ||
+                      selectedIssuePreview.due_date ||
+                      "N/A"}
+                  </span>
+
+                </div>
+
+                {(selectedIssuePreview.actualReturnDate ||
+                  selectedIssuePreview.actual_return_date) && (
+                  <div className="flex justify-between gap-3">
+
+                    <span className="text-gray-500">
+                      Actual Returned Date:
+                    </span>
+
+                    <span className="font-mono text-emerald-700 font-semibold">
+                      {selectedIssuePreview.actualReturnDate ||
+                        selectedIssuePreview.actual_return_date}
+                    </span>
+
+                  </div>
+                )}
+
+                <div className="pt-1 border-t border-gray-200">
+
+                  <span className="text-gray-500 block text-[10px] uppercase font-bold">
+                    Purpose / Activity:
+                  </span>
+
+                  <p className="text-gray-700 mt-0.5">
+                    {selectedIssuePreview.purpose ||
+                      "Testing and study"}
+                  </p>
+
+                </div>
+
+              </div>
+
+            </div>
+
+            {/* FOOTER */}
+
+            <div className="p-3 border-t bg-gray-50 flex gap-2">
+
+              <button
+                type="button"
+                disabled={
+                  pdfGenerating
+                }
+                onClick={() =>
+                  downloadPDF(
+                    selectedIssuePreview,
+                    true
+                  )
+                }
+                className="flex-1 py-2 bg-[#12695a] hover:bg-[#0e5246] disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+
+                {pdfGenerating ? (
+                  <Loader2
+                    size={14}
+                    className="animate-spin"
+                  />
+                ) : (
+                  <Download
+                    size={14}
+                  />
+                )}
+
+                <span>
+                  {pdfGenerating
+                    ? "Creating PDF..."
+                    : "Download PDF"}
+                </span>
+
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setSelectedIssuePreview(
+                    null
+                  )
+                }
+                className="py-2 px-4 border border-gray-300 text-gray-700 rounded-xl text-xs font-medium cursor-pointer"
+              >
+                Close
+              </button>
+
+            </div>
+
+          </div>
+
+        </div>
+      )}
+
+      {/* =====================================================
+          CONFIRMATION DIALOG
+      ===================================================== */}
+
       {confirmDialog.isOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-[60] flex items-center justify-center p-4">
+
           <div className="bg-white rounded-2xl p-5 max-w-xs w-full shadow-2xl border border-gray-200 space-y-3">
-            <div className="flex items-center gap-2.5 text-[#1b4d8f]">
-              <AlertCircle size={20} className="shrink-0 text-[#1b4d8f]" />
+
+            <div className="flex items-center gap-2.5">
+
+              <AlertCircle
+                size={20}
+                className="shrink-0 text-[#1b4d8f]"
+              />
+
               <h3 className="text-sm font-bold text-[#1b1a18]">
-                {confirmDialog.title}
+                {
+                  confirmDialog.title
+                }
               </h3>
+
             </div>
 
             <p className="text-xs text-[#5d5b56] leading-relaxed">
-              {confirmDialog.message}
+              {
+                confirmDialog.message
+              }
             </p>
 
             <div className="flex items-center gap-2 pt-2">
+
               <button
                 type="button"
                 onClick={() =>
@@ -837,77 +2122,61 @@ export default function ProfileScreen({
                     isOpen: false,
                     title: "",
                     message: "",
-                    actionType: null,
+                    actionType:
+                      null,
                   })
                 }
-                className="flex-1 py-2 rounded-xl text-xs font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 active:scale-98 transition-all cursor-pointer"
+                className="flex-1 py-2 rounded-xl text-xs font-medium border border-gray-300 text-gray-700"
               >
                 Cancel
               </button>
 
               <button
                 type="button"
-                onClick={handleConfirmAction}
-                className={`flex-1 py-2 rounded-xl text-xs font-bold text-white active:scale-98 transition-all shadow-xs cursor-pointer ${
-                  confirmDialog.actionType === "LOGOUT"
-                    ? "bg-red-600 hover:bg-red-700"
-                    : "bg-[#1b4d8f] hover:bg-[#143d73]"
+                onClick={() => {
+                  const action =
+                    confirmDialog.actionType;
+
+                  setConfirmDialog({
+                    isOpen: false,
+                    title: "",
+                    message: "",
+                    actionType:
+                      null,
+                  });
+
+                  if (
+                    action ===
+                    "SAVE"
+                  ) {
+                    executeSave();
+                  }
+
+                  if (
+                    action ===
+                      "LOGOUT" &&
+                    onLogout
+                  ) {
+                    onLogout();
+                  }
+                }}
+                className={`flex-1 py-2 rounded-xl text-xs font-bold text-white ${
+                  confirmDialog.actionType ===
+                  "LOGOUT"
+                    ? "bg-red-600"
+                    : "bg-[#1b4d8f]"
                 }`}
               >
                 Okay
               </button>
+
             </div>
+
           </div>
+
         </div>
       )}
 
-      {/* Live Camera Viewfinder Modal */}
-      {isCameraOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in">
-          <div className="w-full max-w-sm h-[70vh] bg-black rounded-3xl overflow-hidden flex flex-col justify-between p-3.5 shadow-2xl border border-white/20">
-            <div className="flex items-center justify-between text-white pb-1">
-              <h3 className="text-xs font-bold flex items-center gap-1.5">
-                <Camera size={14} className="text-[#1b4d8f]" />
-                Capture Profile Photo
-              </h3>
-              <button
-                type="button"
-                onClick={stopCamera}
-                className="p-1 rounded-full bg-white/20 hover:bg-white/30 text-white transition-all cursor-pointer"
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            <div className="relative flex-1 bg-black rounded-2xl overflow-hidden flex items-center justify-center my-2">
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                className="w-full h-full object-cover transform -scale-x-100"
-              />
-              <div className="absolute inset-0 border-2 border-white/20 rounded-2xl pointer-events-none" />
-            </div>
-
-            <div className="pt-1 pb-1 flex items-center justify-center gap-4">
-              <button
-                type="button"
-                onClick={stopCamera}
-                className="bg-white/20 hover:bg-white/30 text-white text-xs px-4 py-2 rounded-xl transition-all font-medium cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={takePhoto}
-                className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-all border-4 border-[#1b4d8f] cursor-pointer"
-              >
-                <div className="w-8 h-8 bg-[#1b4d8f] rounded-full" />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
