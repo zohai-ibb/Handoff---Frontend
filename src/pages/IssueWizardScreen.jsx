@@ -588,7 +588,7 @@ export default function IssueWizardScreen({
               <h3 className="text-xs font-bold text-[#1b4d8f]">
                 Scan physical QR label
               </h3>
-              <p className="text-[10.5px] text-[#5d5b56] max-w-[220px] mx-auto leading-tight">
+              <p className="text-[10.5px] text-[#5d5b56] max-w-55 mx-auto leading-tight">
                 Scan the QR code printed on the instrument to automatically
                 fetch asset details.
               </p>
@@ -964,7 +964,7 @@ export default function IssueWizardScreen({
 
                   {isStaffDropdownOpen && (
                     <div className="w-full bg-white border border-gray-200 rounded-xl shadow-xs overflow-hidden p-1 flex flex-col">
-                      <div className="max-h-[120px] overflow-y-auto space-y-0.5 custom-scrollbar">
+                      <div className="max-h-30 overflow-y-auto space-y-0.5 custom-scrollbar">
                         {filteredStaffList.length === 0 ? (
                           <div className="p-2 text-[11px] text-gray-400 text-center">
                             No matching staff found. Enter details below.
@@ -1279,7 +1279,7 @@ export default function IssueWizardScreen({
             </div>
 
             {/* Scanner Area Container */}
-            <div className="relative overflow-hidden rounded-2xl bg-slate-950 border border-slate-800 p-2 min-h-[250px] flex items-center justify-center">
+            <div className="relative overflow-hidden rounded-2xl bg-slate-950 border border-slate-800 p-2 min-h-62.5 flex items-center justify-center">
               <div id="qr-reader-container" className="w-full" />
             </div>
 

@@ -17,7 +17,7 @@ export default function Footer({ currentTab = 'Home', onTabChange }) {
   ];
 
   return (
-    <footer className="fixed bottom-0 left-0 right-0 w-full bg-white/95 backdrop-blur-md border-t border-gray-200/80 px-3 shadow-lg z-50 h-[62px]">
+    <footer className="fixed bottom-0 left-0 right-0 w-full bg-white/95 backdrop-blur-md border-t border-gray-200/80 px-3 shadow-lg z-50 h-15.5">
       <div className="max-w-md mx-auto flex items-center justify-between h-full relative">
         {tabs.map((tab) => {
           const Icon = tab.icon;

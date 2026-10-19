@@ -1575,7 +1575,7 @@ export default function ProfileScreen({
 
       {/* Confirmation Dialog */}
       {confirmDialog.isOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-[60] flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl p-5 max-w-xs w-full shadow-2xl border border-gray-200 space-y-3">
             <div className="flex items-center gap-2.5">
               <AlertCircle size={20} className="shrink-0 text-[#1b4d8f]" />
