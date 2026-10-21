@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { API_BASE_URL } from "../api/config";
 
 // Base backend API URL
 // const BASE_URL = 'http://localhost:8080/api';
@@ -7,10 +8,10 @@ import axios from 'axios';
 // const BASE_URL = 'http://10.0.2.2:8080/api';
 
 
-const BASE_URL = 'http://192.168.1.34:8080/api';
+// const BASE_URL = 'http://192.168.31.126:8080/api';
 
 const axiosClient = axios.create({
-  baseURL: BASE_URL,
+  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },

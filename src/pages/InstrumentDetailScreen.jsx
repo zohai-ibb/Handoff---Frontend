@@ -29,6 +29,7 @@ import {
 import { QRCodeCanvas } from "qrcode.react";
 import axiosClient from "../api/axiosClient";
 import { getActiveIssueRecords } from "../api/instrumentService";
+import { SERVER_BASE_URL } from "../api/config";
 
 /* =========================================================
    HELPER
@@ -273,12 +274,10 @@ export default function InstrumentDetailScreen({
   const rawPhotoPath = instrument.photoPath || instrument.photo_path;
 
   const photoUrl = rawPhotoPath
-    ? rawPhotoPath.startsWith("http")
+    ? rawPhotoPath.startsWith("http") || rawPhotoPath.startsWith("data:")
       ? `${rawPhotoPath}?t=${Date.now()}`
-      : // : `http://localhost:8080${rawPhotoPath}?t=${Date.now()}`
-        `http://192.168.1.34:8080${rawPhotoPath}?t=${Date.now()}`
+      : `${SERVER_BASE_URL}${rawPhotoPath.startsWith("/") ? rawPhotoPath : `/${rawPhotoPath}`}?t=${Date.now()}`
     : null;
-
   /* =========================================================
      QR PAYLOAD
   ========================================================= */
@@ -1496,12 +1495,12 @@ export default function InstrumentDetailScreen({
                 <div className="relative shrink-0">
                   <img
                     src={
-                      editFormData.photoPath.startsWith("data:")
-                        ? editFormData.photoPath
-                        : editFormData.photoPath.startsWith("http")
+                      !editFormData.photoPath
+                        ? null
+                        : editFormData.photoPath.startsWith("data:") ||
+                            editFormData.photoPath.startsWith("http")
                           ? editFormData.photoPath
-                          : // : `http://localhost:8080${editFormData.photoPath}`
-                            `http://192.168.1.34:8080${editFormData.photoPath}`
+                          : `${SERVER_BASE_URL}${editFormData.photoPath.startsWith("/") ? editFormData.photoPath : `/${editFormData.photoPath}`}`
                     }
                     alt="Preview"
                     className="w-12 h-12 rounded-xl object-cover border border-[#1b4d8f]/30"
@@ -2219,8 +2218,8 @@ export default function InstrumentDetailScreen({
       )}
       {qrToast && (
         <div className="fixed bottom-14 left-4 right-4 z-50 max-w-md mx-auto bg-[#1b1a18] text-white text-[12px] p-3 rounded-xl shadow-2xl border border-white/10 flex items-center justify-between">
-            <span>{qrToast}</span>
-          </div>
+          <span>{qrToast}</span>
+        </div>
       )}
     </div>
   );

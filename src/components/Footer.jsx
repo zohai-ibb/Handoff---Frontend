@@ -88,6 +88,7 @@ export default function Footer({ currentTab = 'Home', onTabChange }) {
           );
         })}
       </div>
+      {/* <div></div> */}
     </footer>
   );
 }

@@ -24,6 +24,7 @@ import {
 
 import jsPDF from "jspdf";
 import { downloadFileToDevice } from "../utils/fileDownloader";
+import { SERVER_BASE_URL } from "../api/config";
 
 const PAGE_SIZE = 5;
 
@@ -33,7 +34,7 @@ export default function ProfileScreen({
   onShowToast,
   onUpdateUser,
 }) {
-  const BASE_URL = "http://192.168.1.34:8080";
+  // const BASE_URL = "http://10.182.25.126:8080";
 
   // =========================================================
   // VIEW MODE SWITCH ("issues" | "instruments")
@@ -135,7 +136,7 @@ export default function ProfileScreen({
 
     try {
       const response = await fetch(
-        `${BASE_URL}/api/issue-records/owner/${person.id}`,
+        `${SERVER_BASE_URL}/api/issue-records/owner/${person.id}`,
         { headers }
       );
 
@@ -159,7 +160,7 @@ export default function ProfileScreen({
 
     try {
       const response = await fetch(
-        `${BASE_URL}/api/instruments/owner/${person.id}`,
+        `${SERVER_BASE_URL}/api/instruments/owner/${person.id}`,
         { headers }
       );
 
@@ -179,13 +180,16 @@ export default function ProfileScreen({
   // IMAGE URL & HELPERS
   // =========================================================
   const resolvePhotoUrl = (photoPath) => {
-    if (!photoPath) return null;
-    if (photoPath.startsWith("data:")) return photoPath;
-    const fullPath = photoPath.startsWith("http")
-      ? photoPath
-      : `${BASE_URL}${photoPath}`;
-    return `${fullPath}?t=${Date.now()}`;
-  };
+  if (!photoPath) return null;
+  if (photoPath.startsWith("data:")) return photoPath;
+
+  const formattedPath = photoPath.startsWith("/") ? photoPath : `/${photoPath}`;
+  const fullPath = photoPath.startsWith("http")
+    ? photoPath
+    : `${SERVER_BASE_URL}${formattedPath}`;
+
+  return `${fullPath}?t=${Date.now()}`;
+};
 
   const renderAvatar = (photoPath, name) => {
     if (photoPath) {
@@ -337,7 +341,7 @@ export default function ProfileScreen({
 
     try {
       // Step 1: Update details
-      const response = await fetch(`${BASE_URL}/api/persons/${person.id}`, {
+      const response = await fetch(`${SERVER_BASE_URL}/api/persons/${person.id}`, {
         method: "PUT",
         headers,
         body: JSON.stringify({
@@ -361,7 +365,7 @@ export default function ProfileScreen({
         photoFormData.append("photo", selectedPhotoFile);
 
         const photoResponse = await fetch(
-          `${BASE_URL}/api/persons/${person.id}/photo`,
+          `${SERVER_BASE_URL}/api/persons/${person.id}/photo`,
           {
             method: "POST",
             headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -768,7 +772,7 @@ export default function ProfileScreen({
     try {
       setIsDownloadingInstrumentsExcel(true);
       const token = localStorage.getItem("token");
-      const response = await fetch(`${BASE_URL}/api/persons/${person.id}/export-instruments`, {
+      const response = await fetch(`${SERVER_BASE_URL}/api/persons/${person.id}/export-instruments`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
 
@@ -806,7 +810,7 @@ export default function ProfileScreen({
     try {
       setIsDownloadingIssuesExcel(true);
       const token = localStorage.getItem("token");
-      const response = await fetch(`${BASE_URL}/api/persons/${person.id}/export-issue-records`, {
+      const response = await fetch(`${SERVER_BASE_URL}/api/persons/${person.id}/export-issue-records`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
 

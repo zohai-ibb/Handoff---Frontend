@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { SERVER_BASE_URL } from "../api/config"; //
 import { Search, Plus, Image as ImageIcon } from "lucide-react";
 import {
   getInstruments,
@@ -167,7 +168,7 @@ export default function ItemsScreen({ onNavigate, onSelectInstrument }) {
                 onClick={() => setActiveFilter(pill)}
                 className={`text-[11.5px] font-medium px-3 py-1 rounded-full whitespace-nowrap transition-all cursor-pointer ${
                   isSelected
-                    ? "bg-[#1b4d8f] text-white border border-[#1b4d8f]"
+                    ? " text-white border border-[#1b4d8f]"
                     : "bg-white text-[#3f3d39] border border-black/15 hover:border-gray-400"
                 }`}
               >
@@ -207,8 +208,7 @@ export default function ItemsScreen({ onNavigate, onSelectInstrument }) {
                 const photoUrl = photoPath
                   ? photoPath.startsWith("http")
                     ? photoPath
-                    // : `http://localhost:8080${photoPath}`
-                    : `http://192.168.1.34:8080${photoPath}`
+                    : `${SERVER_BASE_URL}${photoPath.startsWith('/') ? photoPath : `/${photoPath}`}`
                   : null;
 
                 return (

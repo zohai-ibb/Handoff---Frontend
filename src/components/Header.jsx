@@ -1,17 +1,18 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Package, UserCircle, LogOut, UserCheck, AlertCircle } from 'lucide-react';
+import { SERVER_BASE_URL } from "../api/config";
 
 export default function Header({ userPhotoUrl = null, user = null, onProfileClick, onLogout }) {
   const [isOpen, setIsOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const dropdownRef = useRef(null);
-  const BASE_URL = 'http://192.168.1.34:8080'; // Replace with your active local IP
+  // const BASE_URL = 'http://192.168.1.34:8080'; 
 
   // Helper to format full image URL
   const getPhotoSrc = (url) => {
     if (!url) return null;
     if (url.startsWith('http') || url.startsWith('data:')) return url;
-    return `${BASE_URL}${url}`;
+    return `${SERVER_BASE_URL}${url.startsWith('/') ? url : `/${url}`}`;
   };
 
   // Close dropdown menu when clicking outside

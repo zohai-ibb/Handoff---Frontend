@@ -11,6 +11,7 @@ import {
 import axiosClient from "../api/axiosClient";
 import { getActiveIssueRecords } from "../api/instrumentService";
 import { isRecordOverdue } from "../utils/dateUtils";
+import { SERVER_BASE_URL } from '../api/config';
 
 const PAGE_SIZE = 10;
 
@@ -283,10 +284,9 @@ export default function DueScreen({ onBack, onShowToast }) {
                 const photoPath =
                   item.instrument?.photoPath || item.instrument?.photo_path;
                 const photoUrl = photoPath
-                  ? photoPath.startsWith("http")
+                  ? photoPath.startsWith("http") || photoPath.startsWith("data:")
                     ? photoPath
-                    : // : `http://localhost:8080${photoPath}`
-                      `http://192.168.1.34:8080${photoPath}`
+                    : `${SERVER_BASE_URL}${photoPath.startsWith("/") ? photoPath : `/${photoPath}`}`
                   : null;
 
                 return (

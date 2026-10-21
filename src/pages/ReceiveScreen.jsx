@@ -11,6 +11,7 @@ import {
 import axiosClient from "../api/axiosClient";
 import { getActiveIssueRecords } from "../api/instrumentService";
 import { isRecordOverdue } from "../utils/dateUtils";
+import { SERVER_BASE_URL } from "../api/config";
 
 const PAGE_SIZE = 10;
 
@@ -53,7 +54,7 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
       // Only keep records that are active OPEN loans
       const openOnly = (data || []).filter(
         (record) =>
-          record.state === "OPEN" || record.state === "ISSUED" || !record.state
+          record.state === "OPEN" || record.state === "ISSUED" || !record.state,
       );
       setIssuedRecords(openOnly);
     } catch (err) {
@@ -161,7 +162,9 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
     // MANDATORY PHOTO GUARD: Do not allow return submission without capturing a photo
     if (!capturedPhoto) {
       if (onShowToast) {
-        onShowToast("Please capture a live photo of the instrument before proceeding.");
+        onShowToast(
+          "Please capture a live photo of the instrument before proceeding.",
+        );
       }
       return;
     }
@@ -184,18 +187,18 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
           headers: {
             "Content-Type": "multipart/form-data",
           },
-        }
+        },
       );
 
       setIssuedRecords((prev) =>
-        prev.filter((item) => (item.id || item._id) !== recordId)
+        prev.filter((item) => (item.id || item._id) !== recordId),
       );
 
       if (onShowToast) {
         onShowToast(
           `Received back. Instrument status set to ${
             conditionIn === "GOOD" ? "AVAILABLE" : "MAINTENANCE"
-          }.`
+          }.`,
         );
       }
 
@@ -206,7 +209,7 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
       if (onShowToast) {
         onShowToast(
           err.response?.data?.message ||
-            "Failed to record return in backend database."
+            "Failed to record return in backend database.",
         );
       }
     } finally {
@@ -219,7 +222,7 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
   const startIndex = (currentPage - 1) * PAGE_SIZE;
   const slicedRecords = filteredRecords.slice(
     startIndex,
-    startIndex + PAGE_SIZE
+    startIndex + PAGE_SIZE,
   );
 
   return (
@@ -239,8 +242,8 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
         </div>
 
         <p className="text-[12.5px] leading-relaxed text-[#5d5b56]">
-          Receiving an instrument closes the issue, records the return condition,
-          and restores equipment availability in the backend ledger.
+          Receiving an instrument closes the issue, records the return
+          condition, and restores equipment availability in the backend ledger.
         </p>
 
         {/* Search Bar Input */}
@@ -299,13 +302,15 @@ export default function ReceiveScreen({ onBack, onShowToast }) {
                   item.staff_name ||
                   "Borrower";
 
+                // Photo URL Resolution
                 const photoPath =
                   item.instrument?.photoPath || item.instrument?.photo_path;
+
                 const photoUrl = photoPath
-                  ? photoPath.startsWith("http")
+                  ? photoPath.startsWith("http") ||
+                    photoPath.startsWith("data:")
                     ? photoPath
-                    // : `http://localhost:8080${photoPath}`
-                    : `http://192.168.1.34:8080${photoPath}`
+                    : `${SERVER_BASE_URL}${photoPath.startsWith("/") ? photoPath : `/${photoPath}`}`
                   : null;
 
                 return (
