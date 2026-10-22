@@ -20,7 +20,7 @@ export default function PeopleScreen({ onShowToast }) {
   // Navigation Toggle State ('scientists' | 'staff')
   const [activeTab, setActiveTab] = useState('scientists');
 
-  // Pagination States (3 items per page)
+  // Pagination States (5 items per page)
   const ITEMS_PER_PAGE = 5;
   const [scientistPage, setScientistPage] = useState(1);
   const [staffPage, setStaffPage] = useState(1);
@@ -222,15 +222,28 @@ export default function PeopleScreen({ onShowToast }) {
     }
   };
 
+  // --- Sorting Lists by Holdings Count (Descending Order) ---
+  const sortedScientists = [...scientists].sort((a, b) => {
+    const holdingsA = getScientistHoldings(a).length;
+    const holdingsB = getScientistHoldings(b).length;
+    return holdingsB - holdingsA;
+  });
+
+  const sortedStaffList = [...savedStaffList].sort((a, b) => {
+    const holdingsA = getStaffHoldings(a).length;
+    const holdingsB = getStaffHoldings(b).length;
+    return holdingsB - holdingsA;
+  });
+
   // --- Pagination Slice Computation ---
-  const totalScientistPages = Math.ceil(scientists.length / ITEMS_PER_PAGE) || 1;
-  const paginatedScientists = scientists.slice(
+  const totalScientistPages = Math.ceil(sortedScientists.length / ITEMS_PER_PAGE) || 1;
+  const paginatedScientists = sortedScientists.slice(
     (scientistPage - 1) * ITEMS_PER_PAGE,
     scientistPage * ITEMS_PER_PAGE
   );
 
-  const totalStaffPages = Math.ceil(savedStaffList.length / ITEMS_PER_PAGE) || 1;
-  const paginatedStaff = savedStaffList.slice(
+  const totalStaffPages = Math.ceil(sortedStaffList.length / ITEMS_PER_PAGE) || 1;
+  const paginatedStaff = sortedStaffList.slice(
     (staffPage - 1) * ITEMS_PER_PAGE,
     staffPage * ITEMS_PER_PAGE
   );
@@ -274,8 +287,8 @@ export default function PeopleScreen({ onShowToast }) {
 
         <p className="text-[11.5px] text-[#5d5b56] px-0.5">
           {activeTab === 'scientists'
-            ? 'Scientist inventory custody & staff holding breakdown.'
-            : 'Project staff members currently holding active instruments.'}
+            ? 'Scientist inventory custody & staff holding breakdown (sorted by holdings).'
+            : 'Project staff members currently holding active instruments (sorted by holdings).'}
         </p>
       </div>
 
@@ -306,7 +319,6 @@ export default function PeopleScreen({ onShowToast }) {
         )}
       </div>
 
-
       {/* Main Content View */}
       {isLoading ? (
         <div className="flex-1 flex items-center justify-center py-10 text-gray-400 gap-2">
@@ -315,7 +327,7 @@ export default function PeopleScreen({ onShowToast }) {
         </div>
       ) : activeTab === 'scientists' ? (
         /* ==================== SCIENTISTS DIRECTORY LIST ==================== */
-        scientists.length === 0 ? (
+        sortedScientists.length === 0 ? (
           <div className="flex-1 bg-white p-6 rounded-2xl border border-black/10 flex flex-col items-center justify-center text-center space-y-2">
             <User className="w-8 h-8 text-gray-300" />
             <p className="text-xs text-gray-500 font-medium">No scientists in directory yet.</p>
@@ -446,7 +458,7 @@ export default function PeopleScreen({ onShowToast }) {
         )
       ) : (
         /* ==================== STAFF MEMBERS DIRECTORY LIST ==================== */
-        savedStaffList.length === 0 ? (
+        sortedStaffList.length === 0 ? (
           <div className="flex-1 bg-white p-6 rounded-2xl border border-black/10 flex flex-col items-center justify-center text-center space-y-2">
             <Users className="w-8 h-8 text-gray-300" />
             <p className="text-xs text-gray-500 font-medium">No saved staff members found.</p>
@@ -577,7 +589,6 @@ export default function PeopleScreen({ onShowToast }) {
         )
       )}
 
-      
       {/* Add Scientist Form Modal */}
       {isScientistModalOpen && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
