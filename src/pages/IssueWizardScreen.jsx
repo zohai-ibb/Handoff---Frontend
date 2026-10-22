@@ -1226,7 +1226,7 @@ export default function IssueWizardScreen({
 
                   {index < steps.length - 1 && (
                     <div
-                      className={`h-[2px] flex-1 mx-2 mb-5 rounded-full ${
+                      className={`h-0.5 flex-1 mx-2 mb-5 rounded-full ${
                         currentStep >
                         step.number
                           ? "bg-[#12695a]"
@@ -1254,7 +1254,7 @@ export default function IssueWizardScreen({
           <div className="space-y-3 animate-fade-in">
             {/* QR CARD */}
 
-            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#eef3fa] to-white border border-[#1b4d8f]/15 p-4 shadow-sm">
+            <div className="relative overflow-hidden rounded-3xl bg-linear-to-br from-[#eef3fa] to-white border border-[#1b4d8f]/15 p-4 shadow-sm">
               <div className="absolute -right-8 -top-8 w-24 h-24 rounded-full bg-[#1b4d8f]/5" />
 
               <div className="relative text-center">
@@ -1596,7 +1596,7 @@ export default function IssueWizardScreen({
           <div className="space-y-3 animate-fade-in">
             {/* SELECTED INSTRUMENT */}
 
-            <div className="bg-gradient-to-r from-[#1b4d8f] to-[#285f9f] text-white rounded-2xl p-3.5 shadow-md">
+            <div className="bg-linear-to-r from-[#1b4d8f] to-[#285f9f] text-white rounded-2xl p-3.5 shadow-md">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center shrink-0">
                   <Package size={19} />
@@ -2446,7 +2446,7 @@ export default function IssueWizardScreen({
           <div className="space-y-3 animate-fade-in">
             {/* SUCCESS STYLE HEADER */}
 
-            <div className="bg-gradient-to-br from-[#12695a] to-[#18816e] rounded-3xl p-5 text-white text-center shadow-md">
+            <div className="bg-linear-to-br from-[#12695a] to-[#18816e] rounded-3xl p-5 text-white text-center shadow-md">
               <div className="w-14 h-14 mx-auto rounded-2xl bg-white/15 flex items-center justify-center mb-2">
                 <CheckCircle2 size={29} />
               </div>
@@ -2632,7 +2632,7 @@ export default function IssueWizardScreen({
       ===================================================== */}
 
       {isQrScannerOpen && (
-        <div className="fixed inset-0 z-[100] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-100 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
           <div className="w-full max-w-sm bg-slate-900 rounded-3xl border border-slate-700 shadow-2xl overflow-hidden">
             <div className="p-4 border-b border-slate-800 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
@@ -2663,7 +2663,7 @@ export default function IssueWizardScreen({
             </div>
 
             <div className="p-4">
-              <div className="relative overflow-hidden rounded-2xl bg-black border border-slate-800 min-h-[270px] flex items-center justify-center">
+              <div className="relative overflow-hidden rounded-2xl bg-black border border-slate-800 min-h-67.5 flex items-center justify-center">
                 <div
                   id="qr-reader-container"
                   className="w-full"
@@ -2702,8 +2702,8 @@ export default function IssueWizardScreen({
       ===================================================== */}
 
       {isCameraOpen && (
-        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-3">
-          <div className="w-full max-w-sm h-[78vh] max-h-[700px] bg-black rounded-3xl overflow-hidden border border-white/15 shadow-2xl flex flex-col">
+        <div className="fixed inset-0 z-100 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3">
+          <div className="w-full max-w-sm h-[78vh] max-h-175 bg-black rounded-3xl overflow-hidden border border-white/15 shadow-2xl flex flex-col">
             <div className="px-4 py-3 flex items-center justify-between text-white shrink-0">
               <div>
                 <h3 className="text-sm font-bold flex items-center gap-2">
@@ -2763,7 +2763,7 @@ export default function IssueWizardScreen({
                 <div className="w-10 h-10 rounded-full bg-[#1b4d8f]" />
               </button>
 
-              <div className="w-[68px]" />
+              <div className="w-17" />
             </div>
           </div>
         </div>
@@ -2928,7 +2928,7 @@ function SummaryRow({
         </p>
 
         <p
-          className={`text-[10.5px] mt-0.5 break-words ${
+          className={`text-[10.5px] mt-0.5 wrap-break-word ${
             mono
               ? "font-mono"
               : highlight

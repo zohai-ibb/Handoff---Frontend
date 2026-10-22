@@ -234,7 +234,7 @@ export default function App() {
 
       {/* Toast Notification Banner */}
       {toast && (
-        <div className="fixed bottom-[72px] left-4 right-4 z-50 max-w-md mx-auto bg-[#1b1a18] text-white text-[12px] leading-relaxed rounded-xl p-3 shadow-2xl border border-white/10 animate-fade-in flex items-center justify-between">
+        <div className="fixed bottom-18 left-4 right-4 z-50 max-w-md mx-auto bg-[#1b1a18] text-white text-[12px] leading-relaxed rounded-xl p-3 shadow-2xl border border-white/10 animate-fade-in flex items-center justify-between">
           <span>{toast}</span>
         </div>
       )}
