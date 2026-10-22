@@ -22,9 +22,6 @@ import {
 } from "../api/issueWizardService";
 import axiosClient from "../api/axiosClient";
 
-// Helper to format today's date in YYYY-MM-DD format for date input bounds
-const getTodayFormatted = () => new Date().toISOString().split("T")[0];
-
 export default function IssueWizardScreen({
   onBack,
   onShowToast,
@@ -70,11 +67,11 @@ export default function IssueWizardScreen({
 
   const [issueDate, setIssueDate] = useState(getTodayFormatted());
   const [expectedReturn, setExpectedReturn] = useState(
-    getFourteenDaysLaterFormatted()
+    getFourteenDaysLaterFormatted(),
   );
   const [purpose, setPurpose] = useState("");
   const [conditionOut, setConditionOut] = useState(
-    "Complete with case and accessories"
+    "Complete with case and accessories",
   );
 
   const [isCameraOpen, setIsCameraOpen] = useState(false);
@@ -86,6 +83,7 @@ export default function IssueWizardScreen({
     const fetchData = async () => {
       try {
         setLoadingData(true);
+
         const [instRes, sciRes, staffRes] = await Promise.all([
           getMyInstruments(),
           getMyScientists(),
@@ -93,16 +91,67 @@ export default function IssueWizardScreen({
         ]);
 
         const availableOnly = (Array.isArray(instRes) ? instRes : []).filter(
-          (item) => item.status === "AVAILABLE" || item.status === "Available"
+          (item) => item.status === "AVAILABLE" || item.status === "Available",
         );
+
         setAvailableInstruments(availableOnly);
         setScientists(Array.isArray(sciRes) ? sciRes : []);
         setSavedStaffList(Array.isArray(staffRes.data) ? staffRes.data : []);
+
+        // ---------------------------------------------------------
+        // If Issue Wizard was opened from Instrument Detail,
+        // automatically select that instrument and go to Step 2.
+        // ---------------------------------------------------------
+        const storedInstrument = sessionStorage.getItem(
+          "apeeg_issue_selected_instrument",
+        );
+
+        if (storedInstrument) {
+          try {
+            const instrumentFromDetail = JSON.parse(storedInstrument);
+
+            const selectedFromInventory = availableOnly.find((item) => {
+              const itemId = item.id || item._id;
+              const storedId =
+                instrumentFromDetail.id || instrumentFromDetail._id;
+
+              const itemAssetId = item.asset_id || item.assetId;
+              const storedAssetId =
+                instrumentFromDetail.asset_id || instrumentFromDetail.assetId;
+
+              return (
+                (itemId && storedId && String(itemId) === String(storedId)) ||
+                (itemAssetId &&
+                  storedAssetId &&
+                  String(itemAssetId).toLowerCase() ===
+                    String(storedAssetId).toLowerCase())
+              );
+            });
+
+            if (selectedFromInventory) {
+              setSelectedInstrument(selectedFromInventory);
+              setIssueQuantity(1);
+              setInstrumentSearchQuery("");
+              setCurrentStep(2);
+            }
+
+            // Remove it so normal Issue Wizard opening
+            // continues to start from Step 1.
+            sessionStorage.removeItem("apeeg_issue_selected_instrument");
+          } catch (storageError) {
+            console.error(
+              "Failed to restore selected instrument:",
+              storageError,
+            );
+
+            sessionStorage.removeItem("apeeg_issue_selected_instrument");
+          }
+        }
       } catch (err) {
         if (onShowToast) {
           onShowToast(
             "Failed to load inventory/scientists: " +
-              (err.response?.data || err.message)
+              (err.response?.data || err.message),
           );
         }
       } finally {
@@ -167,7 +216,7 @@ export default function IssueWizardScreen({
         qrbox: { width: 200, height: 200 },
         aspectRatio: 1.0,
       },
-      false
+      false,
     );
 
     qrScannerRef.current = scanner;
@@ -196,7 +245,7 @@ export default function IssueWizardScreen({
             console.error("Invalid QR JSON:", parseError);
             if (onShowToast) {
               onShowToast(
-                "Invalid QR code. Instrument information could not be read."
+                "Invalid QR code. Instrument information could not be read.",
               );
             }
             return;
@@ -244,7 +293,7 @@ export default function IssueWizardScreen({
           if (!inventoryInstrument) {
             if (onShowToast) {
               onShowToast(
-                `Instrument ${scannedAssetId} is not available in your inventory.`
+                `Instrument ${scannedAssetId} is not available in your inventory.`,
               );
             }
             return;
@@ -257,7 +306,7 @@ export default function IssueWizardScreen({
           if (!isAvailable) {
             if (onShowToast) {
               onShowToast(
-                `Instrument ${scannedAssetId} is not currently available for issue.`
+                `Instrument ${scannedAssetId} is not currently available for issue.`,
               );
             }
             return;
@@ -269,7 +318,7 @@ export default function IssueWizardScreen({
 
           if (onShowToast) {
             onShowToast(
-              `Instrument Matched: ${inventoryInstrument.name || qrData.equipment} (${scannedAssetId})`
+              `Instrument Matched: ${inventoryInstrument.name || qrData.equipment} (${scannedAssetId})`,
             );
           }
 
@@ -278,14 +327,14 @@ export default function IssueWizardScreen({
           console.error("QR instrument scan error:", err);
           if (onShowToast) {
             onShowToast(
-              "QR scan failed: Instrument could not be found in your inventory."
+              "QR scan failed: Instrument could not be found in your inventory.",
             );
           }
         } finally {
           setIsScanningApi(false);
         }
       },
-      () => {}
+      () => {},
     );
 
     return () => {
@@ -332,14 +381,14 @@ export default function IssueWizardScreen({
     Math.ceil(filteredInstruments.length / ITEMS_PER_PAGE) || 1;
   const paginatedInstruments = filteredInstruments.slice(
     (instrumentPage - 1) * ITEMS_PER_PAGE,
-    instrumentPage * ITEMS_PER_PAGE
+    instrumentPage * ITEMS_PER_PAGE,
   );
 
   const totalScientistPages =
     Math.ceil(filteredScientists.length / ITEMS_PER_PAGE) || 1;
   const paginatedScientists = filteredScientists.slice(
     (scientistPage - 1) * ITEMS_PER_PAGE,
-    scientistPage * ITEMS_PER_PAGE
+    scientistPage * ITEMS_PER_PAGE,
   );
 
   useEffect(() => {
@@ -411,7 +460,7 @@ export default function IssueWizardScreen({
     if (!selectedInstrument) {
       if (onShowToast)
         onShowToast(
-          "Validation Error: Please select or scan an instrument first."
+          "Validation Error: Please select or scan an instrument first.",
         );
       return;
     }
@@ -420,7 +469,7 @@ export default function IssueWizardScreen({
     if (issueQuantity < 1 || issueQuantity > availableQty) {
       if (onShowToast)
         onShowToast(
-          `Validation Error: Please select a valid quantity between 1 and ${availableQty}.`
+          `Validation Error: Please select a valid quantity between 1 and ${availableQty}.`,
         );
       return;
     }
@@ -441,14 +490,14 @@ export default function IssueWizardScreen({
     if (!issueDate || !expectedReturn) {
       if (onShowToast)
         onShowToast(
-          "Validation Error: Issue date and expected return date are required."
+          "Validation Error: Issue date and expected return date are required.",
         );
       return;
     }
     if (!capturedPhoto) {
       if (onShowToast)
         onShowToast(
-          "Validation Error: Instrument photo is required before proceeding."
+          "Validation Error: Instrument photo is required before proceeding.",
         );
       return;
     }
@@ -459,7 +508,7 @@ export default function IssueWizardScreen({
     if (!capturedPhoto) {
       if (onShowToast)
         onShowToast(
-          "Validation Error: Please capture an instrument photo before issuing."
+          "Validation Error: Please capture an instrument photo before issuing.",
         );
       return;
     }
@@ -487,7 +536,7 @@ export default function IssueWizardScreen({
         : "";
       if (onShowToast) {
         onShowToast(
-          `Issued ${issueQuantity} unit(s) successfully. Confirmation mail sent to ${selectedScientist.name}${staffText}.`
+          `Issued ${issueQuantity} unit(s) successfully. Confirmation mail sent to ${selectedScientist.name}${staffText}.`,
         );
       }
 
@@ -1287,7 +1336,8 @@ export default function IssueWizardScreen({
             <div className="flex items-center gap-2 bg-slate-800/60 rounded-xl p-2.5 text-slate-300 text-[11px] border border-slate-700/50">
               <Info size={16} className="text-blue-400 shrink-0" />
               <span>
-                Position the QR code inside the viewfinder window to automatically fill details.
+                Position the QR code inside the viewfinder window to
+                automatically fill details.
               </span>
             </div>
 

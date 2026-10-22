@@ -185,13 +185,6 @@ export default function InstrumentDetailScreen({
      CURRENT HOLDER
   ========================================================= */
 
-  /* =========================================================
-   OWNER SCIENTIST
-   IMPORTANT:
-   This is ALWAYS the authenticated scientist / inventory owner.
-   It must NOT change when the instrument is issued.
-========================================================= */
-
   const getAuthenticatedScientist = () => {
     try {
       const storedPerson = localStorage.getItem("person");
@@ -218,18 +211,6 @@ export default function InstrumentDetailScreen({
     authenticatedScientist?.fullName ||
     authenticatedScientist?.full_name ||
     "N/A";
-
-  // const scientistName =
-  //   instrument?.scientistName ||
-  //   instrument?.scientist ||
-  //   instrument?.borrowerScientist?.name ||
-  //   instrument?.borrower_scientist?.name ||
-  //   (typeof instrument?.holder === "string"
-  //     ? instrument.holder
-  //     : instrument?.holder?.name) ||
-  //   instrument?.ownerScientist?.name ||
-  //   instrument?.owner_scientist?.name ||
-  //   "N/A";
 
   const staffName =
     instrument?.staffName ||
@@ -278,6 +259,7 @@ export default function InstrumentDetailScreen({
       ? `${rawPhotoPath}?t=${Date.now()}`
       : `${SERVER_BASE_URL}${rawPhotoPath.startsWith("/") ? rawPhotoPath : `/${rawPhotoPath}`}?t=${Date.now()}`
     : null;
+
   /* =========================================================
      QR PAYLOAD
   ========================================================= */
@@ -336,25 +318,8 @@ export default function InstrumentDetailScreen({
   });
 
   /* =========================================================
-     QR DOWNLOAD (Option A: Always Canvas)
+     QR DOWNLOAD
   ========================================================= */
-
-  /* =========================================================
-   QR DOWNLOAD
-   Creates one complete PNG:
-
-   ┌─────────────────────────────┐
-   │                             │
-   │          QR CODE            │
-   │                             │
-   │     Instrument Name         │
-   │     Owner: Scientist Name   │
-   │                             │
-   └─────────────────────────────┘
-
-   Owner ALWAYS means authenticated inventory owner.
-   Borrower/staff/status are NEVER included.
-========================================================= */
 
   const handleDownloadQrWithLabel = async () => {
     try {
@@ -376,10 +341,6 @@ export default function InstrumentDetailScreen({
 
       const fileName = `QR_${cleanAssetId}.png`;
 
-      /* -----------------------------------------------------
-       CANVAS SIZE
-    ----------------------------------------------------- */
-
       const qrSize = sourceCanvas.width;
 
       const horizontalPadding = 32;
@@ -394,10 +355,6 @@ export default function InstrumentDetailScreen({
 
       const height = topPadding + qrSize + textAreaHeight + bottomPadding;
 
-      /* -----------------------------------------------------
-       CREATE FINAL CANVAS
-    ----------------------------------------------------- */
-
       const compositeCanvas = document.createElement("canvas");
 
       compositeCanvas.width = width;
@@ -409,27 +366,15 @@ export default function InstrumentDetailScreen({
         throw new Error("Could not create canvas context.");
       }
 
-      /* -----------------------------------------------------
-       WHITE BACKGROUND
-    ----------------------------------------------------- */
-
       ctx.fillStyle = "#FFFFFF";
 
       ctx.fillRect(0, 0, width, height);
-
-      /* -----------------------------------------------------
-       OUTER BORDER
-    ----------------------------------------------------- */
 
       ctx.strokeStyle = "#1b4d8f";
 
       ctx.lineWidth = 4;
 
       ctx.strokeRect(6, 6, width - 12, height - 12);
-
-      /* -----------------------------------------------------
-       DRAW QR
-    ----------------------------------------------------- */
 
       ctx.imageSmoothingEnabled = false;
 
@@ -441,17 +386,9 @@ export default function InstrumentDetailScreen({
         qrSize,
       );
 
-      /* -----------------------------------------------------
-       TEXT SETTINGS
-    ----------------------------------------------------- */
-
       ctx.textAlign = "center";
 
       ctx.textBaseline = "middle";
-
-      /* -----------------------------------------------------
-       INSTRUMENT NAME
-    ----------------------------------------------------- */
 
       ctx.fillStyle = "#1b1a18";
 
@@ -461,7 +398,6 @@ export default function InstrumentDetailScreen({
 
       let displayInstrumentName = instrumentName;
 
-      /* Automatically shorten extremely long names */
       if (ctx.measureText(displayInstrumentName).width > maxTextWidth) {
         while (
           displayInstrumentName.length > 3 &&
@@ -479,10 +415,6 @@ export default function InstrumentDetailScreen({
       const instrumentTextY = topPadding + qrSize + 25;
 
       ctx.fillText(displayInstrumentName, width / 2, instrumentTextY);
-
-      /* -----------------------------------------------------
-       OWNER SCIENTIST
-    ----------------------------------------------------- */
 
       ctx.fillStyle = "#1b4d8f";
 
@@ -505,19 +437,11 @@ export default function InstrumentDetailScreen({
 
       ctx.fillText(displayOwner, width / 2, ownerTextY);
 
-      /* -----------------------------------------------------
-       CREATE PNG
-    ----------------------------------------------------- */
-
       const combinedBase64Image = compositeCanvas.toDataURL("image/png", 1.0);
 
       if (!combinedBase64Image || combinedBase64Image === "data:,") {
         throw new Error("Failed to generate QR image.");
       }
-
-      /* -----------------------------------------------------
-       SAVE IMAGE
-    ----------------------------------------------------- */
 
       const result = await downloadFileToDevice(
         combinedBase64Image,
@@ -540,6 +464,7 @@ export default function InstrumentDetailScreen({
       }
     }
   };
+
   /* =========================================================
      CAMERA
   ========================================================= */
@@ -1383,6 +1308,16 @@ export default function InstrumentDetailScreen({
                 <button
                   disabled={status !== "AVAILABLE"}
                   onClick={() => {
+                    if (status !== "AVAILABLE") {
+                      return;
+                    }
+
+                    // Pass this exact instrument to the Issue Wizard
+                    sessionStorage.setItem(
+                      "apeeg_issue_selected_instrument",
+                      JSON.stringify(instrument),
+                    );
+
                     if (onNavigate) {
                       onNavigate("Issue");
                     }
