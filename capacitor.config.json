@@ -1,6 +1,6 @@
 {
-  "appId": "com.cbri.apeeg",
-  "appName": "APEEG Instrument Register",
+  "appId": "in.res.cbri.yantradrishti",
+  "appName": "CSIR - Yantra Drishti",
   "webDir": "dist",
   "server": {
     "androidScheme": "http",

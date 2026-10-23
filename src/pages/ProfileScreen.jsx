@@ -49,7 +49,7 @@ export default function ProfileScreen({
     name: user?.name || "",
     email: user?.email || "",
     mobile: user?.mobile || "",
-    department: user?.department || "APEEG",
+    department: user?.department || "",
     photo_path: user?.photo_path || null,
     is_active: user?.is_active ?? true,
     created_at: user?.created_at || new Date().toISOString(),
@@ -109,7 +109,7 @@ export default function ProfileScreen({
         name: user.name || "",
         email: user.email || "",
         mobile: user.mobile || "",
-        department: user.department || "APEEG",
+        department: user.department || "",
         photo_path: user.photo_path || null,
         is_active: user.is_active ?? true,
         created_at: user.created_at || new Date().toISOString(),
@@ -455,7 +455,7 @@ export default function ProfileScreen({
       pdf.setFont("helvetica", "bold");
       pdf.setFontSize(18);
       pdf.setTextColor(18, 105, 90);
-      pdf.text("APEEG", margin, 16);
+      pdf.text("CSIR - Yantra Drishti", margin, 16);
 
       pdf.setFontSize(13);
       pdf.setTextColor(27, 77, 143);
@@ -578,7 +578,7 @@ export default function ProfileScreen({
       // Footer
       pdf.setFontSize(7);
       pdf.setTextColor(120, 120, 120);
-      pdf.text(`Generated from APEEG • ${new Date().toLocaleString()}`, margin, pageHeight - 8);
+      pdf.text(`Generated from CSIR - Yantra Drishti • ${new Date().toLocaleString()}`, margin, pageHeight - 8);
       pdf.text(`Page ${index + 1} of ${records.length}`, pageWidth - margin - 25, pageHeight - 8);
     }
 
@@ -602,7 +602,7 @@ export default function ProfileScreen({
       pdf.setFont("helvetica", "bold");
       pdf.setFontSize(18);
       pdf.setTextColor(27, 77, 143);
-      pdf.text("APEEG", margin, 16);
+      pdf.text("CSIR - Yantra Drishti", margin, 16);
 
       pdf.setFontSize(13);
       pdf.setTextColor(18, 105, 90);
@@ -707,7 +707,7 @@ export default function ProfileScreen({
       // Footer
       pdf.setFontSize(7);
       pdf.setTextColor(120, 120, 120);
-      pdf.text(`Generated from APEEG • ${new Date().toLocaleString()}`, margin, pageHeight - 8);
+      pdf.text(`Generated from CSIR - Yantra Drishti • ${new Date().toLocaleString()}`, margin, pageHeight - 8);
       pdf.text(`Page ${index + 1} of ${items.length}`, pageWidth - margin - 25, pageHeight - 8);
     }
 
@@ -737,8 +737,8 @@ export default function ProfileScreen({
 
       const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
       const filename = type === "issues"
-        ? (records.length === 1 ? `APEEG_Issue_Record_${timestamp}.pdf` : `APEEG_Issue_Audit_${timestamp}.pdf`)
-        : (records.length === 1 ? `APEEG_Instrument_${timestamp}.pdf` : `APEEG_Instruments_Catalog_${timestamp}.pdf`);
+        ? (records.length === 1 ? `CSIR - Yantra Drishti_Issue_Record_${timestamp}.pdf` : `CSIR - Yantra Drishti_Issue_Audit_${timestamp}.pdf`)
+        : (records.length === 1 ? `CSIR - Yantra Drishti_Instrument_${timestamp}.pdf` : `CSIR - Yantra Drishti_Instruments_Catalog_${timestamp}.pdf`);
 
       const pdfBlob = pdf.output("blob");
 

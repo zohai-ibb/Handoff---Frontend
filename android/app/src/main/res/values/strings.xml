@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">APEEG Instrument Register</string>
-    <string name="title_activity_main">APEEG Instrument Register</string>
+    <string name="app_name">CSIR - Yantra Drishti</string>
+    <string name="title_activity_main">CSIR - Yantra Drishti</string>
     <string name="package_name">com.cbri.apeeg</string>
     <string name="custom_url_scheme">com.cbri.apeeg</string>
 </resources>

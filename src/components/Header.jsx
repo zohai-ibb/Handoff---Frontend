@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Package, UserCircle, LogOut, UserCheck, AlertCircle } from 'lucide-react';
 import { SERVER_BASE_URL } from "../api/config";
+import appLogo from '../assets/whitelogo.png';
 
 export default function Header({ userPhotoUrl = null, user = null, onProfileClick, onLogout }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -44,15 +45,20 @@ export default function Header({ userPhotoUrl = null, user = null, onProfileClic
     <header className="sticky top-0 left-0 right-0 w-full bg-[#1b4d8f] text-white px-3.5 py-2 flex items-center justify-between shadow-md z-50 border-none outline-none overflow-visible min-h-14">
       {/* --- Left Side: Logo Icon & App Title --- */}
       <div className="flex items-center gap-2">
-        <div className="w-7 h-7 rounded-lg bg-white/15 flex items-center justify-center shadow-xs shrink-0">
-          <Package className="w-4 h-4 text-white" />
+        <div className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center shadow-xs shrink-0">
+          {/* <Package className="w-4 h-4 text-white" /> */}
+          <img  
+            src={appLogo} 
+            alt="CSIR Yantra Drishti Logo" 
+            className="w-full h-full object-contain rounded-lg"
+          />
         </div>
         <div className="flex flex-col">
           <span className="text-md font-bold tracking-wide leading-tight">
-            HandOff
+            CSIR - Yantra Drishti
           </span>
           <span className="text-[10.5px] font-mono tracking-wider uppercase text-white/70">
-            APEEG · CBRI ROORKEE
+            Instrument Management System
           </span>
         </div>
       </div>

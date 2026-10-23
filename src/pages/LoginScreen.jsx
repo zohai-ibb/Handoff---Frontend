@@ -1,7 +1,13 @@
-
 import React, { useState } from "react";
 import { loginUser } from "../api/authService";
-import { Lock, Mail, ArrowRight, ShieldCheck } from "lucide-react";
+import {
+  Lock,
+  Mail,
+  ArrowRight,
+  ShieldCheck,
+  Eye,
+  EyeOff,
+} from "lucide-react";
 
 export default function LoginScreen({
   onLoginSuccess,
@@ -9,6 +15,7 @@ export default function LoginScreen({
 }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -88,11 +95,11 @@ export default function LoginScreen({
 
         <div>
           <h1 className="text-xl font-bold text-[#1b4d8f]">
-            CSIR - CBRI
+            CSIR - Yantra Drishti
           </h1>
 
           <p className="text-[11px] font-mono tracking-wider uppercase text-[#7a7872] mt-0.5">
-            APEEG Instrument Register
+            Instrument Management System
           </p>
         </div>
       </div>
@@ -117,7 +124,7 @@ export default function LoginScreen({
           {/* Email Input */}
           <div className="space-y-1">
             <label className="text-[11px] font-semibold text-[#5d5b56]">
-              Official Email Address
+              Email Address*
             </label>
 
             <div className="relative">
@@ -128,7 +135,7 @@ export default function LoginScreen({
                   setEmail(e.target.value);
                   setError("");
                 }}
-                placeholder="e.g. kskulkarni@cbri.res.in"
+                placeholder="e.g. example@gmail.com"
                 className="w-full bg-white text-[12.5px] py-2.5 pl-9 pr-3 rounded-xl border border-black/15 focus:outline-none focus:border-[#1b4d8f]"
                 required
                 autoComplete="email"
@@ -144,27 +151,42 @@ export default function LoginScreen({
           {/* Password Input */}
           <div className="space-y-1">
             <label className="text-[11px] font-semibold text-[#5d5b56]">
-              Password
+              Password*
             </label>
 
             <div className="relative">
               <input
-                type="password"
+                type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => {
                   setPassword(e.target.value);
                   setError("");
                 }}
-                placeholder="••••••••"
-                className="w-full bg-white text-[12.5px] py-2.5 pl-9 pr-3 rounded-xl border border-black/15 focus:outline-none focus:border-[#1b4d8f]"
+                placeholder="Enter Password"
+                className="w-full bg-white text-[12.5px] py-2.5 pl-9 pr-10 rounded-xl border border-black/15 focus:outline-none focus:border-[#1b4d8f]"
                 required
                 autoComplete="current-password"
               />
 
+              {/* Lock Icon */}
               <Lock
                 size={16}
                 className="absolute left-3 top-3 text-gray-400 pointer-events-none"
               />
+
+              {/* Show / Hide Password Button */}
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-2.5 text-gray-400 hover:text-[#1b4d8f] transition-colors"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? (
+                  <EyeOff size={17} />
+                ) : (
+                  <Eye size={17} />
+                )}
+              </button>
             </div>
           </div>
 
