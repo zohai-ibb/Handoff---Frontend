@@ -36,6 +36,7 @@ import {
 import { addScientistApi } from "../api/peopleService";
 
 import axiosClient from "../api/axiosClient";
+import { SERVER_BASE_URL } from "../api/config";
 
 export default function IssueWizardScreen({
   onBack,
@@ -169,6 +170,26 @@ export default function IssueWizardScreen({
 
   const getAssetId = (item) => {
     return item?.asset_id || item?.assetId || "";
+  };
+
+  const getInstrumentPhotoUrl = (item) => {
+    const rawPath =
+      item?.photoPath ||
+      item?.photo_path ||
+      item?.imageUrl ||
+      item?.photoUrl ||
+      item?.photo;
+
+    if (!rawPath) return null;
+
+    if (rawPath.startsWith("http") || rawPath.startsWith("data:")) {
+      return `${rawPath}?t=${Date.now()}`;
+    }
+
+    const cleanBase = (SERVER_BASE_URL || "").replace(/\/+$/, "");
+    const cleanPath = rawPath.startsWith("/") ? rawPath : `/${rawPath}`;
+
+    return `${cleanBase}${cleanPath}`;
   };
 
   const getInitials = (name = "") => {
@@ -539,7 +560,6 @@ export default function IssueWizardScreen({
 
   /* =========================================================
      ADD SCIENTIST
-     Uses SAME API as PeopleScreen
   ========================================================= */
 
   const handleAddNewScientist = async (e) => {
@@ -559,10 +579,6 @@ export default function IssueWizardScreen({
       );
       return;
     }
-
-    /* -------------------------------------------------------
-       Prevent duplicate scientist
-    ------------------------------------------------------- */
 
     const existingScientist = scientists.find(
       (scientist) => {
@@ -676,10 +692,6 @@ export default function IssueWizardScreen({
       );
       return;
     }
-
-    /* -------------------------------------------------------
-       Prevent duplicate staff
-    ------------------------------------------------------- */
 
     const existingStaff = savedStaffList.find(
       (staff) => {
@@ -1150,10 +1162,7 @@ export default function IssueWizardScreen({
 
   return (
     <div className="relative h-full flex flex-col overflow-hidden bg-[#f7f8fb] text-[#1b1a18]">
-      {/* =====================================================
-          HEADER
-      ===================================================== */}
-
+      {/* HEADER */}
       <div className="shrink-0 px-1 pt-1 pb-3">
         <div className="flex items-center gap-2.5 mb-4">
           <button
@@ -1173,24 +1182,16 @@ export default function IssueWizardScreen({
               Complete the details below to issue an instrument
             </p>
           </div>
-
-          <div className="w-9 h-9 rounded-xl bg-[#1b4d8f] text-white flex items-center justify-center shadow-sm">
-            <Package size={17} />
-          </div>
         </div>
 
         {/* Stepper */}
-
         <div className="bg-white rounded-2xl border border-gray-200 p-3 shadow-sm">
           <div className="flex items-center">
             {steps.map((step, index) => {
               const Icon = step.icon;
 
-              const completed =
-                currentStep > step.number;
-
-              const active =
-                currentStep === step.number;
+              const completed = currentStep > step.number;
+              const active = currentStep === step.number;
 
               return (
                 <React.Fragment key={step.number}>
@@ -1227,8 +1228,7 @@ export default function IssueWizardScreen({
                   {index < steps.length - 1 && (
                     <div
                       className={`h-0.5 flex-1 mx-2 mb-5 rounded-full ${
-                        currentStep >
-                        step.number
+                        currentStep > step.number
                           ? "bg-[#12695a]"
                           : "bg-gray-200"
                       }`}
@@ -1241,19 +1241,12 @@ export default function IssueWizardScreen({
         </div>
       </div>
 
-      {/* =====================================================
-          CONTENT
-      ===================================================== */}
-
+      {/* CONTENT */}
       <div className="flex-1 overflow-y-auto custom-scrollbar px-1 pb-3">
-        {/* ===================================================
-            STEP 1
-        =================================================== */}
-
+        {/* STEP 1 */}
         {currentStep === 1 && (
           <div className="space-y-3 animate-fade-in">
             {/* QR CARD */}
-
             <div className="relative overflow-hidden rounded-3xl bg-linear-to-br from-[#eef3fa] to-white border border-[#1b4d8f]/15 p-4 shadow-sm">
               <div className="absolute -right-8 -top-8 w-24 h-24 rounded-full bg-[#1b4d8f]/5" />
 
@@ -1270,17 +1263,13 @@ export default function IssueWizardScreen({
                 </h3>
 
                 <p className="text-[10.5px] text-gray-500 max-w-xs mx-auto mt-1 leading-relaxed">
-                  Scan the QR label attached to the
-                  instrument and we will automatically
-                  select it for you.
+                  Scan the QR label attached to the instrument and we will automatically select it for you.
                 </p>
 
                 <button
                   type="button"
                   disabled={isScanningApi}
-                  onClick={() =>
-                    setIsQrScannerOpen(true)
-                  }
+                  onClick={() => setIsQrScannerOpen(true)}
                   className="mt-3 inline-flex items-center justify-center gap-2 bg-[#1b4d8f] hover:bg-[#143d73] text-white px-4 py-2 rounded-xl text-[11px] font-semibold shadow-sm active:scale-95 transition-all disabled:opacity-60"
                 >
                   {isScanningApi ? (
@@ -1302,19 +1291,15 @@ export default function IssueWizardScreen({
             </div>
 
             {/* DIVIDER */}
-
             <div className="flex items-center gap-3">
               <div className="h-px flex-1 bg-gray-200" />
-
               <span className="text-[10px] font-medium text-gray-400">
                 OR SELECT MANUALLY
               </span>
-
               <div className="h-px flex-1 bg-gray-200" />
             </div>
 
             {/* SEARCH */}
-
             <div className="relative">
               <Search
                 size={15}
@@ -1324,11 +1309,7 @@ export default function IssueWizardScreen({
               <input
                 type="text"
                 value={instrumentSearchQuery}
-                onChange={(e) =>
-                  setInstrumentSearchQuery(
-                    e.target.value,
-                  )
-                }
+                onChange={(e) => setInstrumentSearchQuery(e.target.value)}
                 placeholder="Search instrument or asset ID..."
                 className="w-full h-10 bg-white rounded-xl border border-gray-200 pl-9 pr-9 text-[11.5px] outline-none focus:border-[#1b4d8f] focus:ring-2 focus:ring-[#1b4d8f]/10 transition-all"
               />
@@ -1336,9 +1317,7 @@ export default function IssueWizardScreen({
               {instrumentSearchQuery && (
                 <button
                   type="button"
-                  onClick={() =>
-                    setInstrumentSearchQuery("")
-                  }
+                  onClick={() => setInstrumentSearchQuery("")}
                   className="absolute right-2.5 top-2.5 text-gray-400 hover:text-gray-700"
                 >
                   <X size={15} />
@@ -1347,10 +1326,8 @@ export default function IssueWizardScreen({
             </div>
 
             {/* INSTRUMENT LIST */}
-
             <div className="space-y-2">
-              {filteredInstruments.length ===
-              0 ? (
+              {filteredInstruments.length === 0 ? (
                 <div className="bg-white rounded-2xl border border-gray-200 p-7 text-center">
                   <div className="w-12 h-12 rounded-2xl bg-gray-100 mx-auto flex items-center justify-center mb-2">
                     <Package
@@ -1370,232 +1347,156 @@ export default function IssueWizardScreen({
                   </p>
                 </div>
               ) : (
-                paginatedInstruments.map(
-                  (item) => {
-                    const instId = getId(item);
+                paginatedInstruments.map((item) => {
+                  const instId = getId(item);
+                  const isSelected = String(getId(selectedInstrument)) === String(instId);
+                  const maxQuantity = Number(item?.quantity) || 1;
+                  const photoUrl = getInstrumentPhotoUrl(item);
 
-                    const isSelected =
-                      String(
-                        getId(
-                          selectedInstrument,
-                        ),
-                      ) === String(instId);
+                  return (
+                    <button
+                      type="button"
+                      key={instId}
+                      onClick={() => {
+                        setSelectedInstrument(item);
+                        setIssueQuantity(1);
+                      }}
+                      className={`w-full text-left bg-white rounded-2xl border p-3 transition-all ${
+                        isSelected
+                          ? "border-[#1b4d8f] ring-2 ring-[#1b4d8f]/10 bg-[#f7faff]"
+                          : "border-gray-200 hover:border-[#1b4d8f]/40"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 overflow-hidden border ${
+                            isSelected
+                              ? "border-[#1b4d8f] bg-[#1b4d8f]"
+                              : "border-gray-200 bg-[#eef3fa]"
+                          }`}
+                        >
+                          {photoUrl ? (
+                            <img
+                              src={photoUrl}
+                              alt={item?.name || "Instrument"}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                e.currentTarget.style.display = "none";
+                                if (e.currentTarget.nextSibling) {
+                                  e.currentTarget.nextSibling.style.display = "flex";
+                                }
+                              }}
+                            />
+                          ) : null}
 
-                    const maxQuantity =
-                      Number(item?.quantity) || 1;
-
-                    return (
-                      <button
-                        type="button"
-                        key={instId}
-                        onClick={() => {
-                          setSelectedInstrument(
-                            item,
-                          );
-                          setIssueQuantity(1);
-                        }}
-                        className={`w-full text-left bg-white rounded-2xl border p-3 transition-all ${
-                          isSelected
-                            ? "border-[#1b4d8f] ring-2 ring-[#1b4d8f]/10 bg-[#f7faff]"
-                            : "border-gray-200 hover:border-[#1b4d8f]/40"
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
                           <div
-                            className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                              isSelected
-                                ? "bg-[#1b4d8f] text-white"
-                                : "bg-[#eef3fa] text-[#1b4d8f]"
-                            }`}
+                            className={`w-full h-full flex items-center justify-center ${
+                              photoUrl ? "hidden" : "flex"
+                            } ${isSelected ? "text-white" : "text-[#1b4d8f]"}`}
                           >
-                            <Package
-                              size={18}
-                            />
+                            <Package size={20} />
                           </div>
-
-                          <div className="min-w-0 flex-1">
-                            <h4 className="text-[12.5px] font-bold truncate">
-                              {item?.name ||
-                                "Unnamed Instrument"}
-                            </h4>
-
-                            <p className="text-[9.5px] font-mono text-gray-500 mt-0.5 truncate">
-                              {getAssetId(item)}
-                            </p>
-                          </div>
-
-                          {isSelected && (
-                            <div className="w-6 h-6 rounded-full bg-[#1b4d8f] text-white flex items-center justify-center shrink-0">
-                              <Check
-                                size={13}
-                              />
-                            </div>
-                          )}
                         </div>
 
-                        <div className="flex items-center gap-2 mt-2.5">
-                          <span className="inline-flex items-center gap-1 text-[9.5px] font-medium bg-gray-100 text-gray-600 px-2 py-1 rounded-lg">
-                            <ShieldCheck
-                              size={11}
-                            />
-                            Available
-                          </span>
+                        <div className="min-w-0 flex-1">
+                          <h4 className="text-[12.5px] font-bold truncate">
+                            {item?.name || "Unnamed Instrument"}
+                          </h4>
 
-                          <span className="text-[9.5px] text-gray-400">
-                            {maxQuantity} in stock
-                          </span>
+                          <p className="text-[9.5px] font-mono text-gray-500 mt-0.5 truncate">
+                            {getAssetId(item)}
+                          </p>
                         </div>
 
-                        {isSelected &&
-                          maxQuantity > 1 && (
-                            <div
-                              onClick={(e) =>
-                                e.stopPropagation()
+                        {isSelected && (
+                          <div className="w-6 h-6 rounded-full bg-[#1b4d8f] text-white flex items-center justify-center shrink-0">
+                            <Check size={13} />
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 mt-2.5">
+                        <span className="text-[9.5px] text-gray-400">
+                          Quantity in stock: {maxQuantity}
+                        </span>
+                      </div>
+
+                      {isSelected && maxQuantity > 1 && (
+                        <div
+                          onClick={(e) => e.stopPropagation()}
+                          className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between"
+                        >
+                          <span className="text-[10.5px] font-semibold text-gray-600">
+                            Issue quantity
+                          </span>
+
+                          <input
+                            type="number"
+                            min="1"
+                            max={maxQuantity}
+                            value={issueQuantity}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              if (value === "") {
+                                setIssueQuantity("");
+                                return;
                               }
-                              className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between"
-                            >
-                              <span className="text-[10.5px] font-semibold text-gray-600">
-                                Issue quantity
-                              </span>
-
-                              <input
-                                type="number"
-                                min="1"
-                                max={
-                                  maxQuantity
-                                }
-                                value={
-                                  issueQuantity
-                                }
-                                onChange={(e) => {
-                                  const value =
-                                    e.target
-                                      .value;
-
-                                  if (
-                                    value ===
-                                    ""
-                                  ) {
-                                    setIssueQuantity(
-                                      "",
-                                    );
-                                    return;
-                                  }
-
-                                  const parsed =
-                                    parseInt(
-                                      value,
-                                      10,
-                                    );
-
-                                  if (
-                                    !Number.isNaN(
-                                      parsed,
-                                    )
-                                  ) {
-                                    setIssueQuantity(
-                                      parsed,
-                                    );
-                                  }
-                                }}
-                                onBlur={() => {
-                                  let value =
-                                    parseInt(
-                                      issueQuantity,
-                                      10,
-                                    );
-
-                                  if (
-                                    Number.isNaN(
-                                      value,
-                                    ) ||
-                                    value < 1
-                                  ) {
-                                    value = 1;
-                                  }
-
-                                  if (
-                                    value >
-                                    maxQuantity
-                                  ) {
-                                    value =
-                                      maxQuantity;
-                                  }
-
-                                  setIssueQuantity(
-                                    value,
-                                  );
-                                }}
-                                className="w-16 h-8 text-center text-xs font-bold border border-gray-200 rounded-lg outline-none focus:border-[#1b4d8f]"
-                              />
-                            </div>
-                          )}
-                      </button>
-                    );
-                  },
-                )
+                              const parsed = parseInt(value, 10);
+                              if (!Number.isNaN(parsed)) {
+                                setIssueQuantity(parsed);
+                              }
+                            }}
+                            onBlur={() => {
+                              let value = parseInt(issueQuantity, 10);
+                              if (Number.isNaN(value) || value < 1) value = 1;
+                              if (value > maxQuantity) value = maxQuantity;
+                              setIssueQuantity(value);
+                            }}
+                            className="w-16 h-8 text-center text-xs font-bold border border-gray-200 rounded-lg outline-none focus:border-[#1b4d8f]"
+                          />
+                        </div>
+                      )}
+                    </button>
+                  );
+                })
               )}
             </div>
 
             {/* PAGINATION */}
-
-            {filteredInstruments.length >
-              ITEMS_PER_PAGE && (
+            {filteredInstruments.length > ITEMS_PER_PAGE && (
               <div className="bg-white rounded-xl border border-gray-200 px-3 py-2 flex items-center justify-between">
                 <button
                   type="button"
-                  disabled={
-                    instrumentPage === 1
-                  }
-                  onClick={() =>
-                    setInstrumentPage(
-                      (prev) => prev - 1,
-                    )
-                  }
+                  disabled={instrumentPage === 1}
+                  onClick={() => setInstrumentPage((prev) => prev - 1)}
                   className="flex items-center gap-1 text-[10.5px] font-semibold text-[#1b4d8f] disabled:text-gray-300"
                 >
-                  <ChevronLeft
-                    size={14}
-                  />
+                  <ChevronLeft size={14} />
                   Previous
                 </button>
 
                 <span className="text-[10px] font-medium text-gray-500">
-                  {instrumentPage} /{" "}
-                  {totalInstrumentPages}
+                  {instrumentPage} / {totalInstrumentPages}
                 </span>
 
                 <button
                   type="button"
-                  disabled={
-                    instrumentPage ===
-                    totalInstrumentPages
-                  }
-                  onClick={() =>
-                    setInstrumentPage(
-                      (prev) => prev + 1,
-                    )
-                  }
+                  disabled={instrumentPage === totalInstrumentPages}
+                  onClick={() => setInstrumentPage((prev) => prev + 1)}
                   className="flex items-center gap-1 text-[10.5px] font-semibold text-[#1b4d8f] disabled:text-gray-300"
                 >
                   Next
-                  <ChevronRight
-                    size={14}
-                  />
+                  <ChevronRight size={14} />
                 </button>
               </div>
             )}
           </div>
         )}
 
-        {/* ===================================================
-            STEP 2
-        =================================================== */}
-
+        {/* STEP 2 */}
         {currentStep === 2 && (
           <div className="space-y-3 animate-fade-in">
             {/* SELECTED INSTRUMENT */}
-
             <div className="bg-linear-to-r from-[#1b4d8f] to-[#285f9f] text-white rounded-2xl p-3.5 shadow-md">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center shrink-0">
@@ -1608,31 +1509,23 @@ export default function IssueWizardScreen({
                   </p>
 
                   <h3 className="text-[12.5px] font-bold truncate mt-0.5">
-                    {selectedInstrument?.name ||
-                      "Instrument"}
+                    {selectedInstrument?.name || "Instrument"}
                   </h3>
 
                   <p className="text-[9.5px] text-white/70 font-mono mt-0.5 truncate">
-                    {getAssetId(
-                      selectedInstrument,
-                    )}
+                    {getAssetId(selectedInstrument)}
                   </p>
                 </div>
 
                 <div className="bg-white/15 rounded-xl px-2.5 py-1.5 text-center shrink-0">
-                  <p className="text-[8px] text-white/60">
-                    QTY
-                  </p>
+                  <p className="text-[8px] text-white/60">QTY</p>
 
-                  <p className="text-sm font-bold">
-                    {issueQuantity}
-                  </p>
+                  <p className="text-sm font-bold">{issueQuantity}</p>
                 </div>
               </div>
             </div>
 
             {/* BORROWER SCIENTIST */}
-
             <div className="bg-white rounded-2xl border border-gray-200 p-3.5 shadow-sm">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
@@ -1641,10 +1534,7 @@ export default function IssueWizardScreen({
                   </div>
 
                   <div>
-                    <h3 className="text-[12px] font-bold">
-                      Borrower Scientist
-                    </h3>
-
+                    <h3 className="text-[12px] font-bold">Borrower Scientist</h3>
                     <p className="text-[9.5px] text-gray-400">
                       Person receiving the instrument
                     </p>
@@ -1660,9 +1550,7 @@ export default function IssueWizardScreen({
                 <div className="bg-[#f7faff] border border-[#1b4d8f]/20 rounded-2xl p-3">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-[#1b4d8f] text-white flex items-center justify-center text-[11px] font-bold shrink-0">
-                      {getInitials(
-                        selectedScientist.name,
-                      )}
+                      {getInitials(selectedScientist.name)}
                     </div>
 
                     <div className="min-w-0 flex-1">
@@ -1676,9 +1564,7 @@ export default function IssueWizardScreen({
 
                       {selectedScientist.department && (
                         <span className="inline-block mt-1 text-[8.5px] font-semibold text-[#1b4d8f] bg-[#1b4d8f]/10 px-1.5 py-0.5 rounded-md">
-                          {
-                            selectedScientist.department
-                          }
+                          {selectedScientist.department}
                         </span>
                       )}
                     </div>
@@ -1686,15 +1572,9 @@ export default function IssueWizardScreen({
                     <button
                       type="button"
                       onClick={() => {
-                        setSelectedScientist(
-                          null,
-                        );
-                        setScientistSearchQuery(
-                          "",
-                        );
-                        setIsAddingScientist(
-                          false,
-                        );
+                        setSelectedScientist(null);
+                        setScientistSearchQuery("");
+                        setIsAddingScientist(false);
                       }}
                       className="text-[10px] font-semibold text-[#1b4d8f] border border-[#1b4d8f]/20 bg-white px-2.5 py-1.5 rounded-lg hover:bg-[#1b4d8f] hover:text-white transition-all"
                     >
@@ -1704,8 +1584,6 @@ export default function IssueWizardScreen({
                 </div>
               ) : (
                 <>
-                  {/* SEARCH */}
-
                   <div className="relative">
                     <Search
                       size={14}
@@ -1714,14 +1592,8 @@ export default function IssueWizardScreen({
 
                     <input
                       type="text"
-                      value={
-                        scientistSearchQuery
-                      }
-                      onChange={(e) => {
-                        setScientistSearchQuery(
-                          e.target.value,
-                        );
-                      }}
+                      value={scientistSearchQuery}
+                      onChange={(e) => setScientistSearchQuery(e.target.value)}
                       placeholder="Search name or email..."
                       className="w-full h-9 bg-gray-50 border border-gray-200 rounded-xl pl-8 pr-8 text-[11px] outline-none focus:bg-white focus:border-[#1b4d8f] transition-all"
                     />
@@ -1729,19 +1601,13 @@ export default function IssueWizardScreen({
                     {scientistSearchQuery && (
                       <button
                         type="button"
-                        onClick={() =>
-                          setScientistSearchQuery(
-                            "",
-                          )
-                        }
+                        onClick={() => setScientistSearchQuery("")}
                         className="absolute right-2.5 top-2 text-gray-400"
                       >
                         <X size={14} />
                       </button>
                     )}
                   </div>
-
-                  {/* SEARCH RESULTS */}
 
                   {scientistSearchQuery.trim() ? (
                     <div className="mt-2 space-y-1.5">
@@ -1813,137 +1679,89 @@ export default function IssueWizardScreen({
                 </>
               )}
 
-              {/* ADD SCIENTIST FORM */}
-
-              {isAddingScientist &&
-                !selectedScientist && (
-                  <div className="mt-3 bg-[#f8fafc] border border-[#1b4d8f]/20 rounded-2xl p-3">
-                    <div className="flex items-center justify-between mb-2.5">
-                      <div className="flex items-center gap-1.5">
-                        <UserPlus
-                          size={14}
-                          className="text-[#1b4d8f]"
-                        />
-
-                        <span className="text-[11px] font-bold text-[#1b4d8f]">
-                          Add Scientist
-                        </span>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsAddingScientist(
-                            false,
-                          );
-
-                          setNewScientistName(
-                            "",
-                          );
-
-                          setNewScientistEmail(
-                            "",
-                          );
-
-                          setNewScientistDept(
-                            "APEEG",
-                          );
-                        }}
-                        className="text-gray-400 hover:text-gray-700"
-                      >
-                        <X size={15} />
-                      </button>
+              {isAddingScientist && !selectedScientist && (
+                <div className="mt-3 bg-[#f8fafc] border border-[#1b4d8f]/20 rounded-2xl p-3">
+                  <div className="flex items-center justify-between mb-2.5">
+                    <div className="flex items-center gap-1.5">
+                      <UserPlus size={14} className="text-[#1b4d8f]" />
+                      <span className="text-[11px] font-bold text-[#1b4d8f]">
+                        Add Scientist
+                      </span>
                     </div>
 
-                    <div className="space-y-2">
-                      <input
-                        type="text"
-                        value={
-                          newScientistName
-                        }
-                        onChange={(e) =>
-                          setNewScientistName(
-                            e.target.value,
-                          )
-                        }
-                        placeholder="Full name *"
-                        className="w-full h-9 bg-white border border-gray-200 rounded-xl px-3 text-[10.5px] outline-none focus:border-[#1b4d8f]"
-                      />
-
-                      <input
-                        type="email"
-                        value={
-                          newScientistEmail
-                        }
-                        onChange={(e) =>
-                          setNewScientistEmail(
-                            e.target.value,
-                          )
-                        }
-                        placeholder="Official email *"
-                        className="w-full h-9 bg-white border border-gray-200 rounded-xl px-3 text-[10.5px] outline-none focus:border-[#1b4d8f]"
-                      />
-
-                      <input
-                        type="text"
-                        value={
-                          newScientistDept
-                        }
-                        onChange={(e) =>
-                          setNewScientistDept(
-                            e.target.value,
-                          )
-                        }
-                        placeholder="Department"
-                        className="w-full h-9 bg-white border border-gray-200 rounded-xl px-3 text-[10.5px] outline-none focus:border-[#1b4d8f]"
-                      />
-                    </div>
-
-                    <div className="flex gap-2 mt-2.5">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setIsAddingScientist(
-                            false,
-                          )
-                        }
-                        className="flex-1 h-9 rounded-xl bg-white border border-gray-200 text-gray-600 text-[10.5px] font-semibold"
-                      >
-                        Cancel
-                      </button>
-
-                      <button
-                        type="button"
-                        disabled={
-                          isCreatingScientist
-                        }
-                        onClick={
-                          handleAddNewScientist
-                        }
-                        className="flex-1 h-9 rounded-xl bg-[#1b4d8f] text-white text-[10.5px] font-semibold flex items-center justify-center gap-1.5 disabled:opacity-50"
-                      >
-                        {isCreatingScientist ? (
-                          <>
-                            <Loader2
-                              size={13}
-                              className="animate-spin"
-                            />
-                            Saving...
-                          </>
-                        ) : (
-                          <>
-                            <Check size={13} />
-                            Save & Select
-                          </>
-                        )}
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsAddingScientist(false);
+                        setNewScientistName("");
+                        setNewScientistEmail("");
+                        setNewScientistDept("APEEG");
+                      }}
+                      className="text-gray-400 hover:text-gray-700"
+                    >
+                      <X size={15} />
+                    </button>
                   </div>
-                )}
+
+                  <div className="space-y-2">
+                    <input
+                      type="text"
+                      value={newScientistName}
+                      onChange={(e) => setNewScientistName(e.target.value)}
+                      placeholder="Full name *"
+                      className="w-full h-9 bg-white border border-gray-200 rounded-xl px-3 text-[10.5px] outline-none focus:border-[#1b4d8f]"
+                    />
+
+                    <input
+                      type="email"
+                      value={newScientistEmail}
+                      onChange={(e) => setNewScientistEmail(e.target.value)}
+                      placeholder="Official email *"
+                      className="w-full h-9 bg-white border border-gray-200 rounded-xl px-3 text-[10.5px] outline-none focus:border-[#1b4d8f]"
+                    />
+
+                    <input
+                      type="text"
+                      value={newScientistDept}
+                      onChange={(e) => setNewScientistDept(e.target.value)}
+                      placeholder="Department"
+                      className="w-full h-9 bg-white border border-gray-200 rounded-xl px-3 text-[10.5px] outline-none focus:border-[#1b4d8f]"
+                    />
+                  </div>
+
+                  <div className="flex gap-2 mt-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingScientist(false)}
+                      className="flex-1 h-9 rounded-xl bg-white border border-gray-200 text-gray-600 text-[10.5px] font-semibold"
+                    >
+                      Cancel
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={isCreatingScientist}
+                      onClick={handleAddNewScientist}
+                      className="flex-1 h-9 rounded-xl bg-[#1b4d8f] text-white text-[10.5px] font-semibold flex items-center justify-center gap-1.5 disabled:opacity-50"
+                    >
+                      {isCreatingScientist ? (
+                        <>
+                          <Loader2 size={13} className="animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Check size={13} />
+                          Save & Select
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* INTERMEDIARY STAFF */}
-
             <div className="bg-white rounded-2xl border border-gray-200 p-3.5 shadow-sm">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
@@ -1952,10 +1770,7 @@ export default function IssueWizardScreen({
                   </div>
 
                   <div>
-                    <h3 className="text-[12px] font-bold">
-                      Intermediary Staff
-                    </h3>
-
+                    <h3 className="text-[12px] font-bold">Intermediary Staff</h3>
                     <p className="text-[9.5px] text-gray-400">
                       Optional contact for this issue
                     </p>
@@ -1971,9 +1786,7 @@ export default function IssueWizardScreen({
                 <div className="bg-purple-50/50 border border-purple-100 rounded-2xl p-3">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-purple-600 text-white flex items-center justify-center text-[11px] font-bold shrink-0">
-                      {getInitials(
-                        selectedStaff.name,
-                      )}
+                      {getInitials(selectedStaff.name)}
                     </div>
 
                     <div className="min-w-0 flex-1">
@@ -2011,14 +1824,8 @@ export default function IssueWizardScreen({
 
                     <input
                       type="text"
-                      value={
-                        staffSearchQuery
-                      }
-                      onChange={(e) =>
-                        setStaffSearchQuery(
-                          e.target.value,
-                        )
-                      }
+                      value={staffSearchQuery}
+                      onChange={(e) => setStaffSearchQuery(e.target.value)}
                       placeholder="Search staff by name or email..."
                       className="w-full h-9 bg-gray-50 border border-gray-200 rounded-xl pl-8 pr-8 text-[11px] outline-none focus:bg-white focus:border-purple-500 transition-all"
                     />
@@ -2026,11 +1833,7 @@ export default function IssueWizardScreen({
                     {staffSearchQuery && (
                       <button
                         type="button"
-                        onClick={() =>
-                          setStaffSearchQuery(
-                            "",
-                          )
-                        }
+                        onClick={() => setStaffSearchQuery("")}
                         className="absolute right-2.5 top-2 text-gray-400"
                       >
                         <X size={14} />
@@ -2107,121 +1910,84 @@ export default function IssueWizardScreen({
                       </p>
                     </div>
                   )}
-
                 </>
               )}
 
-              {/* ADD STAFF FORM */}
-
-              {isAddingStaff &&
-                !selectedStaff && (
-                  <div className="mt-3 bg-purple-50/40 border border-purple-100 rounded-2xl p-3">
-                    <div className="flex items-center justify-between mb-2.5">
-                      <div className="flex items-center gap-1.5">
-                        <UserPlus
-                          size={14}
-                          className="text-purple-600"
-                        />
-
-                        <span className="text-[11px] font-bold text-purple-700">
-                          Add Staff Member
-                        </span>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setIsAddingStaff(
-                            false,
-                          )
-                        }
-                        className="text-gray-400"
-                      >
-                        <X size={15} />
-                      </button>
+              {isAddingStaff && !selectedStaff && (
+                <div className="mt-3 bg-purple-50/40 border border-purple-100 rounded-2xl p-3">
+                  <div className="flex items-center justify-between mb-2.5">
+                    <div className="flex items-center gap-1.5">
+                      <UserPlus size={14} className="text-purple-600" />
+                      <span className="text-[11px] font-bold text-purple-700">
+                        Add Staff Member
+                      </span>
                     </div>
 
-                    <div className="space-y-2">
-                      <input
-                        type="text"
-                        value={newStaffName}
-                        onChange={(e) =>
-                          setNewStaffName(
-                            e.target.value,
-                          )
-                        }
-                        placeholder="Staff full name *"
-                        className="w-full h-9 bg-white border border-gray-200 rounded-xl px-3 text-[10.5px] outline-none focus:border-purple-500"
-                      />
-
-                      <input
-                        type="email"
-                        value={
-                          newStaffEmail
-                        }
-                        onChange={(e) =>
-                          setNewStaffEmail(
-                            e.target.value,
-                          )
-                        }
-                        placeholder="Staff email *"
-                        className="w-full h-9 bg-white border border-gray-200 rounded-xl px-3 text-[10.5px] outline-none focus:border-purple-500"
-                      />
-                    </div>
-
-                    <div className="flex gap-2 mt-2.5">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setIsAddingStaff(
-                            false,
-                          )
-                        }
-                        className="flex-1 h-9 rounded-xl bg-white border border-gray-200 text-gray-600 text-[10.5px] font-semibold"
-                      >
-                        Cancel
-                      </button>
-
-                      <button
-                        type="button"
-                        disabled={
-                          isCreatingStaff
-                        }
-                        onClick={
-                          handleAddNewStaff
-                        }
-                        className="flex-1 h-9 rounded-xl bg-purple-600 text-white text-[10.5px] font-semibold flex items-center justify-center gap-1.5 disabled:opacity-50"
-                      >
-                        {isCreatingStaff ? (
-                          <>
-                            <Loader2
-                              size={13}
-                              className="animate-spin"
-                            />
-                            Saving...
-                          </>
-                        ) : (
-                          <>
-                            <Check size={13} />
-                            Save & Select
-                          </>
-                        )}
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingStaff(false)}
+                      className="text-gray-400"
+                    >
+                      <X size={15} />
+                    </button>
                   </div>
-                )}
+
+                  <div className="space-y-2">
+                    <input
+                      type="text"
+                      value={newStaffName}
+                      onChange={(e) => setNewStaffName(e.target.value)}
+                      placeholder="Staff full name *"
+                      className="w-full h-9 bg-white border border-gray-200 rounded-xl px-3 text-[10.5px] outline-none focus:border-purple-500"
+                    />
+
+                    <input
+                      type="email"
+                      value={newStaffEmail}
+                      onChange={(e) => setNewStaffEmail(e.target.value)}
+                      placeholder="Staff email *"
+                      className="w-full h-9 bg-white border border-gray-200 rounded-xl px-3 text-[10.5px] outline-none focus:border-purple-500"
+                    />
+                  </div>
+
+                  <div className="flex gap-2 mt-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingStaff(false)}
+                      className="flex-1 h-9 rounded-xl bg-white border border-gray-200 text-gray-600 text-[10.5px] font-semibold"
+                    >
+                      Cancel
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={isCreatingStaff}
+                      onClick={handleAddNewStaff}
+                      className="flex-1 h-9 rounded-xl bg-purple-600 text-white text-[10.5px] font-semibold flex items-center justify-center gap-1.5 disabled:opacity-50"
+                    >
+                      {isCreatingStaff ? (
+                        <>
+                          <Loader2 size={13} className="animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Check size={13} />
+                          Save & Select
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
 
-        {/* ===================================================
-            STEP 3
-        =================================================== */}
-
+        {/* STEP 3 */}
         {currentStep === 3 && (
           <div className="space-y-3 animate-fade-in">
             {/* DATES */}
-
             <div className="bg-white rounded-2xl border border-gray-200 p-3.5 shadow-sm">
               <div className="flex items-center gap-2 mb-3">
                 <div className="w-8 h-8 rounded-xl bg-[#eef3fa] text-[#1b4d8f] flex items-center justify-center">
@@ -2229,10 +1995,7 @@ export default function IssueWizardScreen({
                 </div>
 
                 <div>
-                  <h3 className="text-[12px] font-bold">
-                    Issue Period
-                  </h3>
-
+                  <h3 className="text-[12px] font-bold">Issue Period</h3>
                   <p className="text-[9.5px] text-gray-400">
                     Set when the instrument will be issued and returned
                   </p>
@@ -2249,11 +2012,7 @@ export default function IssueWizardScreen({
                     type="date"
                     value={issueDate}
                     min={getTodayFormatted()}
-                    onChange={(e) =>
-                      setIssueDate(
-                        e.target.value,
-                      )
-                    }
+                    onChange={(e) => setIssueDate(e.target.value)}
                     className="w-full h-10 bg-gray-50 border border-gray-200 rounded-xl px-2.5 text-[11px] outline-none focus:bg-white focus:border-[#1b4d8f]"
                   />
                 </div>
@@ -2265,38 +2024,23 @@ export default function IssueWizardScreen({
 
                   <input
                     type="date"
-                    value={
-                      expectedReturn
-                    }
-                    min={
-                      issueDate ||
-                      getTodayFormatted()
-                    }
-                    onChange={(e) =>
-                      setExpectedReturn(
-                        e.target.value,
-                      )
-                    }
+                    value={expectedReturn}
+                    min={issueDate || getTodayFormatted()}
+                    onChange={(e) => setExpectedReturn(e.target.value)}
                     className="w-full h-10 bg-gray-50 border border-gray-200 rounded-xl px-2.5 text-[11px] outline-none focus:bg-white focus:border-[#1b4d8f]"
                   />
                 </div>
               </div>
 
               <div className="mt-2.5 flex items-center gap-2 bg-[#eef3fa] rounded-xl px-2.5 py-2">
-                <Info
-                  size={13}
-                  className="text-[#1b4d8f] shrink-0"
-                />
-
+                <Info size={13} className="text-[#1b4d8f] shrink-0" />
                 <p className="text-[9.5px] text-[#53657d]">
-                  Default loan period is 14 days.
-                  You can change the return date above.
+                  Default loan period is 14 days. You can change the return date above.
                 </p>
               </div>
             </div>
 
             {/* PURPOSE */}
-
             <div className="bg-white rounded-2xl border border-gray-200 p-3.5 shadow-sm">
               <div className="flex items-center gap-2 mb-2.5">
                 <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
@@ -2304,10 +2048,7 @@ export default function IssueWizardScreen({
                 </div>
 
                 <div>
-                  <h3 className="text-[12px] font-bold">
-                    Purpose / Project
-                  </h3>
-
+                  <h3 className="text-[12px] font-bold">Purpose / Project</h3>
                   <p className="text-[9.5px] text-gray-400">
                     Tell us why this instrument is being issued
                   </p>
@@ -2316,11 +2057,7 @@ export default function IssueWizardScreen({
 
               <textarea
                 value={purpose}
-                onChange={(e) =>
-                  setPurpose(
-                    e.target.value,
-                  )
-                }
+                onChange={(e) => setPurpose(e.target.value)}
                 rows={3}
                 placeholder="e.g. Thermal monitoring at Bhopal site..."
                 className="w-full bg-gray-50 border border-gray-200 rounded-xl p-2.5 text-[11px] resize-none outline-none focus:bg-white focus:border-[#1b4d8f]"
@@ -2328,7 +2065,6 @@ export default function IssueWizardScreen({
             </div>
 
             {/* CONDITION PHOTO */}
-
             <div className="bg-white rounded-2xl border border-gray-200 p-3.5 shadow-sm">
               <div className="flex items-start justify-between gap-3 mb-3">
                 <div className="flex items-center gap-2">
@@ -2337,10 +2073,7 @@ export default function IssueWizardScreen({
                   </div>
 
                   <div>
-                    <h3 className="text-[12px] font-bold">
-                      Instrument Condition
-                    </h3>
-
+                    <h3 className="text-[12px] font-bold">Instrument Condition</h3>
                     <p className="text-[9.5px] text-gray-400">
                       Photo is mandatory before issuing
                     </p>
@@ -2355,11 +2088,7 @@ export default function IssueWizardScreen({
               <input
                 type="text"
                 value={conditionOut}
-                onChange={(e) =>
-                  setConditionOut(
-                    e.target.value,
-                  )
-                }
+                onChange={(e) => setConditionOut(e.target.value)}
                 placeholder="Condition description..."
                 className="w-full h-10 bg-gray-50 border border-gray-200 rounded-xl px-3 text-[10.5px] outline-none focus:bg-white focus:border-[#1b4d8f]"
               />
@@ -2374,19 +2103,13 @@ export default function IssueWizardScreen({
                     />
 
                     <div className="absolute top-2 left-2 flex items-center gap-1.5 bg-emerald-600 text-white px-2 py-1 rounded-lg text-[9px] font-semibold shadow-sm">
-                      <CheckCircle2
-                        size={12}
-                      />
+                      <CheckCircle2 size={12} />
                       Photo Captured
                     </div>
 
                     <button
                       type="button"
-                      onClick={() =>
-                        setCapturedPhoto(
-                          null,
-                        )
-                      }
+                      onClick={() => setCapturedPhoto(null)}
                       className="absolute top-2 right-2 w-7 h-7 rounded-lg bg-black/50 text-white flex items-center justify-center backdrop-blur-sm"
                     >
                       <X size={14} />
@@ -2403,9 +2126,7 @@ export default function IssueWizardScreen({
                       onClick={startCamera}
                       className="text-[9.5px] font-semibold text-[#1b4d8f] flex items-center gap-1"
                     >
-                      <RefreshCw
-                        size={12}
-                      />
+                      <RefreshCw size={12} />
                       Retake
                     </button>
                   </div>
@@ -2438,22 +2159,16 @@ export default function IssueWizardScreen({
           </div>
         )}
 
-        {/* ===================================================
-            STEP 4
-        =================================================== */}
-
+        {/* STEP 4 */}
         {currentStep === 4 && (
           <div className="space-y-3 animate-fade-in">
-            {/* SUCCESS STYLE HEADER */}
-
+            {/* SUCCESS HEADER */}
             <div className="bg-linear-to-br from-[#12695a] to-[#18816e] rounded-3xl p-5 text-white text-center shadow-md">
               <div className="w-14 h-14 mx-auto rounded-2xl bg-white/15 flex items-center justify-center mb-2">
                 <CheckCircle2 size={29} />
               </div>
 
-              <h3 className="text-base font-bold">
-                Ready to Issue
-              </h3>
+              <h3 className="text-base font-bold">Ready to Issue</h3>
 
               <p className="text-[10px] text-white/75 mt-1">
                 Review the information before confirming.
@@ -2461,30 +2176,22 @@ export default function IssueWizardScreen({
             </div>
 
             {/* SUMMARY */}
-
             <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
               <div className="px-3.5 py-3 border-b border-gray-100">
-                <h3 className="text-[12px] font-bold">
-                  Issue Summary
-                </h3>
+                <h3 className="text-[12px] font-bold">Issue Summary</h3>
               </div>
 
               <div className="divide-y divide-gray-100">
                 <SummaryRow
                   icon={<Package size={13} />}
                   label="Instrument"
-                  value={
-                    selectedInstrument?.name ||
-                    "—"
-                  }
+                  value={selectedInstrument?.name || "—"}
                 />
 
                 <SummaryRow
                   icon={<QrCode size={13} />}
                   label="Asset ID"
-                  value={getAssetId(
-                    selectedInstrument,
-                  )}
+                  value={getAssetId(selectedInstrument)}
                   mono
                 />
 
@@ -2498,25 +2205,17 @@ export default function IssueWizardScreen({
                 <SummaryRow
                   icon={<User size={13} />}
                   label="Borrower Scientist"
-                  value={
-                    selectedScientist?.name ||
-                    "—"
-                  }
+                  value={selectedScientist?.name || "—"}
                 />
 
                 <SummaryRow
                   icon={<Users size={13} />}
                   label="Intermediary Staff"
-                  value={
-                    staffName.trim() ||
-                    "None specified"
-                  }
+                  value={staffName.trim() || "None specified"}
                 />
 
                 <SummaryRow
-                  icon={
-                    <CalendarDays size={13} />
-                  }
+                  icon={<CalendarDays size={13} />}
                   label="Issue Period"
                   value={`${issueDate} → ${expectedReturn}`}
                 />
@@ -2524,10 +2223,7 @@ export default function IssueWizardScreen({
                 <SummaryRow
                   icon={<FileText size={13} />}
                   label="Purpose"
-                  value={
-                    purpose.trim() ||
-                    "Not stated"
-                  }
+                  value={purpose.trim() || "Not stated"}
                 />
 
                 <SummaryRow
@@ -2540,7 +2236,6 @@ export default function IssueWizardScreen({
             </div>
 
             {/* EMAIL CARD */}
-
             <div className="bg-[#eef3fa] border border-[#1b4d8f]/15 rounded-2xl p-3.5">
               <div className="flex items-center gap-2 mb-3">
                 <div className="w-8 h-8 rounded-xl bg-white text-[#1b4d8f] flex items-center justify-center">
@@ -2561,22 +2256,16 @@ export default function IssueWizardScreen({
               <div className="space-y-2">
                 <div className="bg-white rounded-xl p-2.5 flex items-center gap-2.5">
                   <div className="w-8 h-8 rounded-full bg-[#1b4d8f] text-white flex items-center justify-center text-[9px] font-bold">
-                    {getInitials(
-                      selectedScientist?.name,
-                    )}
+                    {getInitials(selectedScientist?.name)}
                   </div>
 
                   <div className="min-w-0">
                     <p className="text-[10.5px] font-bold truncate">
-                      {
-                        selectedScientist?.name
-                      }
+                      {selectedScientist?.name}
                     </p>
 
                     <p className="text-[9px] text-gray-500 font-mono truncate">
-                      {
-                        selectedScientist?.email
-                      }
+                      {selectedScientist?.email}
                     </p>
                   </div>
                 </div>
@@ -2584,15 +2273,12 @@ export default function IssueWizardScreen({
                 {staffEmail.trim() && (
                   <div className="bg-white rounded-xl p-2.5 flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-full bg-purple-600 text-white flex items-center justify-center text-[9px] font-bold">
-                      {getInitials(
-                        staffName,
-                      )}
+                      {getInitials(staffName)}
                     </div>
 
                     <div className="min-w-0">
                       <p className="text-[10.5px] font-bold truncate">
-                        {staffName ||
-                          "Intermediary Staff"}
+                        {staffName || "Intermediary Staff"}
                       </p>
 
                       <p className="text-[9px] text-gray-500 font-mono truncate">
@@ -2606,20 +2292,9 @@ export default function IssueWizardScreen({
               <div className="mt-3 pt-3 border-t border-[#1b4d8f]/10">
                 <p className="text-[9.5px] leading-relaxed text-[#53657d]">
                   {issueQuantity} unit(s) of{" "}
-                  <strong>
-                    {selectedInstrument?.name}
-                  </strong>{" "}
-                  will be issued to{" "}
-                  <strong>
-                    {selectedScientist?.name}
-                  </strong>{" "}
-                  from{" "}
-                  <strong>{issueDate}</strong>{" "}
-                  to{" "}
-                  <strong>
-                    {expectedReturn}
-                  </strong>
-                  .
+                  <strong>{selectedInstrument?.name}</strong> will be issued to{" "}
+                  <strong>{selectedScientist?.name}</strong> from{" "}
+                  <strong>{issueDate}</strong> to <strong>{expectedReturn}</strong>.
                 </p>
               </div>
             </div>
@@ -2627,10 +2302,7 @@ export default function IssueWizardScreen({
         )}
       </div>
 
-      {/* =====================================================
-          QR SCANNER MODAL
-      ===================================================== */}
-
+      {/* QR SCANNER MODAL */}
       {isQrScannerOpen && (
         <div className="fixed inset-0 z-100 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
           <div className="w-full max-w-sm bg-slate-900 rounded-3xl border border-slate-700 shadow-2xl overflow-hidden">
@@ -2653,9 +2325,7 @@ export default function IssueWizardScreen({
 
               <button
                 type="button"
-                onClick={() =>
-                  setIsQrScannerOpen(false)
-                }
+                onClick={() => setIsQrScannerOpen(false)}
                 className="w-8 h-8 rounded-xl bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center"
               >
                 <X size={16} />
@@ -2664,30 +2334,19 @@ export default function IssueWizardScreen({
 
             <div className="p-4">
               <div className="relative overflow-hidden rounded-2xl bg-black border border-slate-800 min-h-67.5 flex items-center justify-center">
-                <div
-                  id="qr-reader-container"
-                  className="w-full"
-                />
+                <div id="qr-reader-container" className="w-full" />
               </div>
 
               <div className="mt-3 flex gap-2 bg-slate-800/70 border border-slate-700 rounded-xl p-2.5">
-                <Info
-                  size={15}
-                  className="text-blue-400 shrink-0 mt-0.5"
-                />
-
+                <Info size={15} className="text-blue-400 shrink-0 mt-0.5" />
                 <p className="text-[9.5px] text-slate-300 leading-relaxed">
-                  Keep the QR code inside the scanner
-                  area. The instrument will be selected
-                  automatically after a successful scan.
+                  Keep the QR code inside the scanner area. The instrument will be selected automatically after a successful scan.
                 </p>
               </div>
 
               <button
                 type="button"
-                onClick={() =>
-                  setIsQrScannerOpen(false)
-                }
+                onClick={() => setIsQrScannerOpen(false)}
                 className="w-full mt-3 h-10 rounded-xl bg-slate-800 border border-slate-700 text-slate-200 text-[11px] font-semibold hover:bg-slate-700"
               >
                 Cancel
@@ -2697,20 +2356,14 @@ export default function IssueWizardScreen({
         </div>
       )}
 
-      {/* =====================================================
-          LIVE CAMERA MODAL
-      ===================================================== */}
-
+      {/* LIVE CAMERA MODAL */}
       {isCameraOpen && (
         <div className="fixed inset-0 z-100 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3">
           <div className="w-full max-w-sm h-[78vh] max-h-175 bg-black rounded-3xl overflow-hidden border border-white/15 shadow-2xl flex flex-col">
             <div className="px-4 py-3 flex items-center justify-between text-white shrink-0">
               <div>
                 <h3 className="text-sm font-bold flex items-center gap-2">
-                  <Camera
-                    size={16}
-                    className="text-blue-400"
-                  />
+                  <Camera size={16} className="text-blue-400" />
                   Capture Instrument Photo
                 </h3>
 
@@ -2769,10 +2422,7 @@ export default function IssueWizardScreen({
         </div>
       )}
 
-      {/* =====================================================
-          BOTTOM ACTION BAR
-      ===================================================== */}
-
+      {/* BOTTOM ACTION BAR */}
       <div className="shrink-0 bg-[#f7f8fb] border-t border-gray-200 px-1 pt-2 pb-1">
         {currentStep === 1 && (
           <button
@@ -2789,9 +2439,7 @@ export default function IssueWizardScreen({
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={() =>
-                setCurrentStep(1)
-              }
+              onClick={() => setCurrentStep(1)}
               className="h-11 px-4 rounded-xl bg-white border border-gray-200 text-gray-700 text-[11px] font-semibold flex items-center gap-1.5"
             >
               <ChevronLeft size={15} />
@@ -2800,9 +2448,7 @@ export default function IssueWizardScreen({
 
             <button
               type="button"
-              onClick={
-                handleContinueStep2
-              }
+              onClick={handleContinueStep2}
               className="flex-1 h-11 rounded-xl bg-[#1b4d8f] text-white text-[12px] font-bold flex items-center justify-center gap-2 shadow-sm"
             >
               Continue
@@ -2815,9 +2461,7 @@ export default function IssueWizardScreen({
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={() =>
-                setCurrentStep(2)
-              }
+              onClick={() => setCurrentStep(2)}
               className="h-11 px-4 rounded-xl bg-white border border-gray-200 text-gray-700 text-[11px] font-semibold flex items-center gap-1.5"
             >
               <ChevronLeft size={15} />
@@ -2826,9 +2470,7 @@ export default function IssueWizardScreen({
 
             <button
               type="button"
-              onClick={
-                handleContinueStep3
-              }
+              onClick={handleContinueStep3}
               disabled={!capturedPhoto}
               className="flex-1 h-11 rounded-xl bg-[#1b4d8f] text-white text-[12px] font-bold flex items-center justify-center gap-2 shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
             >
@@ -2842,9 +2484,7 @@ export default function IssueWizardScreen({
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={() =>
-                setCurrentStep(3)
-              }
+              onClick={() => setCurrentStep(3)}
               disabled={isSubmitting}
               className="h-11 px-4 rounded-xl bg-white border border-gray-200 text-gray-700 text-[11px] font-semibold flex items-center gap-1.5 disabled:opacity-50"
             >
@@ -2855,25 +2495,17 @@ export default function IssueWizardScreen({
             <button
               type="button"
               onClick={handleConfirmIssue}
-              disabled={
-                isSubmitting ||
-                !capturedPhoto
-              }
+              disabled={isSubmitting || !capturedPhoto}
               className="flex-1 h-11 rounded-xl bg-[#12695a] hover:bg-[#0f5a4d] text-white text-[12px] font-bold flex items-center justify-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? (
                 <>
-                  <Loader2
-                    size={16}
-                    className="animate-spin"
-                  />
+                  <Loader2 size={16} className="animate-spin" />
                   Issuing Instrument...
                 </>
               ) : (
                 <>
-                  <CheckCircle2
-                    size={16}
-                  />
+                  <CheckCircle2 size={16} />
                   Confirm & Send Mail
                 </>
               )}
