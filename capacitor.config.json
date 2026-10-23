@@ -3,7 +3,7 @@
   "appName": "CSIR - Yantra Drishti",
   "webDir": "dist",
   "server": {
-    "androidScheme": "http",
+    "androidScheme": "https",
     "cleartext": true
   }
 }
