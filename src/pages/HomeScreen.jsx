@@ -1,31 +1,17 @@
 import React, { useState, useEffect } from "react";
-import { Image as ImageIcon } from "lucide-react";
 import {
   getInstruments,
   getActiveIssueRecords,
 } from "../api/instrumentService";
 import { isRecordOverdue } from "../utils/dateUtils";
-import { SERVER_BASE_URL } from "../api/config";
+import { Maximize2, X, Info, Activity } from "lucide-react";
 
-const PAGE_SIZE = 10;
-
-export default function HomeScreen({ onNavigate, onSelectInstrument }) {
+export default function HomeScreen({ onNavigate }) {
   const [instruments, setInstruments] = useState([]);
   const [issueRecords, setIssueRecords] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
-
-  // Scroll smoothly to top whenever pagination page changes
-  useEffect(() => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-
-    // Reset scroll on any internal main container if applicable
-    const mainContainer = document.querySelector("main");
-    if (mainContainer) {
-      mainContainer.scrollTop = 0;
-    }
-  }, [currentPage]);
+  const [isFlowModalOpen, setIsFlowModalOpen] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -39,7 +25,6 @@ export default function HomeScreen({ onNavigate, onSelectInstrument }) {
         ]);
 
         if (isMounted) {
-          // Filter issueRecords to only include OPEN loans
           const openRecords = (recordsData || []).filter(
             (r) => r.state === "OPEN" || r.state === "ISSUED" || !r.state,
           );
@@ -60,14 +45,6 @@ export default function HomeScreen({ onNavigate, onSelectInstrument }) {
       isMounted = false;
     };
   }, []);
-
-  // Reset page if total records shrink below active page offset
-  useEffect(() => {
-    const totalPages = Math.ceil(issueRecords.length / PAGE_SIZE) || 1;
-    if (currentPage > totalPages) {
-      setCurrentPage(1);
-    }
-  }, [issueRecords.length, currentPage]);
 
   // 1. Available instruments count
   const availableCount = instruments.filter(
@@ -90,70 +67,14 @@ export default function HomeScreen({ onNavigate, onSelectInstrument }) {
   // 5. On-time Issued count = Total ISSUED minus Overdue
   const issuedCount = Math.max(0, totalDbIssuedCount - overdueCount);
 
-  // Pagination Math
-  const totalPages = Math.ceil(issueRecords.length / PAGE_SIZE) || 1;
-  const startIndex = (currentPage - 1) * PAGE_SIZE;
-  const slicedRecords = issueRecords.slice(startIndex, startIndex + PAGE_SIZE);
-
-  // Helper function to build a full instrument object before navigating to detail view
-  const handleCardClick = (record) => {
-    if (!onSelectInstrument) return;
-
-    const instrumentData = record.instrument || {};
-    const itemId =
-      instrumentData.id ||
-      instrumentData._id ||
-      record.instrumentId ||
-      record.instrument;
-    const overdue = isRecordOverdue(record);
-    const dateDisplay = record.dueDate || record.due_date || "N/A";
-
-    const borrowerName =
-      record.borrowerScientist?.name ||
-      record.borrower_scientist?.name ||
-      record.staffName ||
-      record.staff_name ||
-      "Borrower";
-
-    // Find original instrument from list if available, or build full fallback
-    const matchedInstrument = instruments.find(
-      (i) => (i.id || i._id) === itemId,
-    );
-
-    const fullInstrumentToPass = {
-      ...(matchedInstrument || instrumentData),
-      id: itemId,
-      _id: itemId,
-      name: instrumentData.name || matchedInstrument?.name || "Instrument",
-      assetId:
-        instrumentData.assetId ||
-        instrumentData.asset_id ||
-        matchedInstrument?.assetId ||
-        "N/A",
-      asset_id:
-        instrumentData.assetId ||
-        instrumentData.asset_id ||
-        matchedInstrument?.asset_id ||
-        "N/A",
-      photoPath:
-        instrumentData.photoPath ||
-        instrumentData.photo_path ||
-        matchedInstrument?.photoPath,
-      photo_path:
-        instrumentData.photoPath ||
-        instrumentData.photo_path ||
-        matchedInstrument?.photo_path,
-      status: overdue ? "OVERDUE" : "ISSUED",
-      isOverdue: overdue,
-      dueDate: dateDisplay,
-      holder: borrowerName,
-    };
-
-    onSelectInstrument(fullInstrumentToPass);
-  };
-
   return (
-    <div className="space-y-4 font-sans text-[#1b1a18]">
+    <div className="space-y-4 font-sans text-[#1b1a18] pb-4">
+      {error && (
+        <div className="bg-[#fcf2f2] text-[#c92a2a] text-[11.5px] p-2.5 rounded-xl border border-[#f5c2c2]">
+          {error}
+        </div>
+      )}
+
       {/* 4 Stat Tiles Grid */}
       <div className="grid grid-cols-2 gap-2.5">
         <div
@@ -201,174 +122,260 @@ export default function HomeScreen({ onNavigate, onSelectInstrument }) {
       <div className="flex gap-2.5 pt-1">
         <button
           onClick={() => onNavigate && onNavigate("Due")}
-          className="flex-1 bg-white text-[#1b1a18] border border-gray-300 py-2.5 px-2 rounded-xl text-[13px] font-medium shadow-xs active:scale-95 transition-all text-center"
+          className="flex-1 bg-white text-[#1b1a18] border border-gray-300 py-2.5 px-2 rounded-xl text-[13px] font-medium shadow-xs active:scale-95 transition-all text-center cursor-pointer"
         >
           Due
         </button>
         <button
           onClick={() => onNavigate && onNavigate("Receive")}
-          className="flex-1 bg-white text-[#1b1a18] border border-gray-300 py-2.5 px-2 rounded-xl text-[13px] font-medium shadow-xs active:scale-95 transition-all text-center"
+          className="flex-1 bg-white text-[#1b1a18] border border-gray-300 py-2.5 px-2 rounded-xl text-[13px] font-medium shadow-xs active:scale-95 transition-all text-center cursor-pointer"
         >
           Receive
         </button>
         <button
           onClick={() => onNavigate && onNavigate("Add item")}
-          className="flex-1 bg-white text-[#1b1a18] border border-gray-300 py-2.5 px-2 rounded-xl text-[13px] font-medium shadow-xs active:scale-95 transition-all text-center"
+          className="flex-1 bg-white text-[#1b1a18] border border-gray-300 py-2.5 px-2 rounded-xl text-[13px] font-medium shadow-xs active:scale-95 transition-all text-center cursor-pointer"
         >
           Add Item
         </button>
       </div>
 
-      {/* Currently Out List Section */}
-      <div className="pt-2 space-y-2.5">
-        <div className="flex items-center justify-between">
-          <span className="text-[11px] font-bold tracking-wider text-[#5d5b56] uppercase">
-            CURRENTLY OUT ({issueRecords.length})
-          </span>
-          <button
-            onClick={() => onNavigate && onNavigate("Items")}
-            className="text-[12px] text-[#1b4d8f] hover:underline"
-          >
-            All instruments
-          </button>
-        </div>
-
-        {error && (
-          <div className="bg-[#fcf2f2] text-[#c92a2a] text-[11.5px] p-2.5 rounded-xl border border-[#f5c2c2]">
-            {error}
+      {/* Interactive Continuously Animated Flow Card */}
+      <div className="pt-2">
+        <div className="bg-white p-4 rounded-2xl border border-black/10 shadow-xs space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5 text-[#1b4d8f]">
+              <Activity size={16} className="animate-pulse text-[#1b4d8f]" />
+              <span className="text-[12px] font-bold tracking-wider uppercase">
+                System Lifecycle Flow
+              </span>
+            </div>
+            <button
+              onClick={() => setIsFlowModalOpen(true)}
+              className="flex items-center gap-1 text-[11px] font-medium text-[#1b4d8f] bg-[#eef3fa] px-2.5 py-1 rounded-lg hover:bg-[#dce7f4] active:scale-95 transition-all cursor-pointer"
+            >
+              <Maximize2 size={12} /> Full Screen
+            </button>
           </div>
-        )}
 
-        {isLoading ? (
-          <p className="text-xs text-gray-400 py-2">
-            Loading active records...
+          <p className="text-[11.5px] text-[#5d5b56] leading-relaxed">
+            Live animated diagram showing how instruments transition through QR scanning, issued loans, return condition checks, and maintenance.
           </p>
-        ) : issueRecords.length === 0 ? (
-          <div className="bg-white p-4 rounded-2xl border border-black/10 text-center text-xs text-gray-400">
-            No instruments are currently issued out.
-          </div>
-        ) : (
-          <>
-            <div className="space-y-2.5">
-              {slicedRecords.map((record) => {
-                const overdue = isRecordOverdue(record);
-                const dateDisplay = record.dueDate || record.due_date || "N/A";
 
-                // Borrower Name Resolution
-                const borrowerName =
-                  record.borrowerScientist?.name ||
-                  record.borrower_scientist?.name ||
-                  record.staffName ||
-                  record.staff_name ||
-                  "Borrower";
-
-                // Photo URL Resolution
-                const photoPath =
-                  record.instrument?.photoPath || record.instrument?.photo_path;
-
-                const photoUrl = photoPath
-                  ? photoPath.startsWith("http") ||
-                    photoPath.startsWith("data:")
-                    ? photoPath
-                    : `${SERVER_BASE_URL}${photoPath.startsWith("/") ? photoPath : `/${photoPath}`}`
-                  : null;
-
-
-                const assetIdDisplay =
-                  record.instrument?.assetId ||
-                  record.instrument?.asset_id ||
-                  "N/A";
-
-                return (
-                  <div
-                    key={record.id || record._id}
-                    onClick={() => handleCardClick(record)}
-                    className={`bg-white p-3 rounded-2xl border shadow-xs cursor-pointer hover:border-[#1b4d8f] active:scale-98 transition-all flex items-center gap-3 ${
-                      overdue ? "border-[#f5c2c2]" : "border-black/10"
-                    }`}
-                  >
-                    {/* Left Side: Photo Thumbnail */}
-                    <div className="w-20 h-20 shrink-0 bg-gray-100 rounded-xl overflow-hidden border border-black/10 flex items-center justify-center">
-                      {photoUrl ? (
-                        <img
-                          src={photoUrl}
-                          alt={record.instrument?.name || "Instrument"}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <ImageIcon size={22} className="text-gray-400" />
-                      )}
-                    </div>
-
-                    {/* Right Side: Card Details */}
-                    <div className="flex-1 min-w-0 space-y-1">
-                      <div className="flex items-start justify-between gap-1.5">
-                        <h3 className="text-[13px] font-bold text-[#1b1a18] leading-snug truncate">
-                          {record.instrument?.name || "Instrument"}
-                        </h3>
-                        <span
-                          className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-md ${
-                            overdue
-                              ? "bg-[#fbe4e0] text-[#8f2318] border border-[#f5c2c2]"
-                              : "bg-[#fbf0dc] text-[#8a5a12]"
-                          }`}
-                        >
-                          {overdue ? "OVERDUE" : "Issued"}
-                        </span>
-                      </div>
-
-                      <div className="font-mono text-[10.5px] text-[#7a7872] truncate">
-                        Asset ID: {assetIdDisplay}
-                      </div>
-
-                      <div className="text-[11.5px] text-[#5d5b56] truncate">
-                        {overdue ? (
-                          <span className="text-[#c92a2a] font-bold">
-                            {borrowerName} · Due: {dateDisplay}
-                          </span>
-                        ) : (
-                          <span>
-                            {borrowerName} · Due: {dateDisplay}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+          {/* Embedded Animated Flowchart Container */}
+          <div
+            onClick={() => setIsFlowModalOpen(true)}
+            className="bg-[#f8f9fa] border border-gray-200 rounded-xl p-3 cursor-pointer hover:border-[#1b4d8f] active:scale-[0.99] transition-all relative group overflow-hidden"
+          >
+            <div className="absolute top-2 right-2 bg-white/90 p-1 rounded-md shadow-xs text-gray-500 group-hover:text-[#1b4d8f] z-10">
+              <Maximize2 size={14} />
             </div>
 
-            {/* Pagination Controls */}
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between pt-2 text-[12px] text-[#5d5b56]">
-                <button
-                  disabled={currentPage === 1}
-                  onClick={() => {
-                    setCurrentPage((prev) => Math.max(1, prev - 1));
-                    window.scrollTo({ top: 0, behavior: "smooth" });
-                  }}
-                  className="px-3 py-1.5 bg-white border border-gray-300 rounded-xl font-medium shadow-xs disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 transition-all cursor-pointer"
-                >
-                  Prev
-                </button>
-                <span className="font-semibold">
-                  Page {currentPage} of {totalPages}
-                </span>
-                <button
-                  disabled={currentPage === totalPages}
-                  onClick={() => {
-                    setCurrentPage((prev) => Math.min(totalPages, prev + 1));
-                    window.scrollTo({ top: 0, behavior: "smooth" });
-                  }}
-                  className="px-3 py-1.5 bg-white border border-gray-300 rounded-xl font-medium shadow-xs disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 transition-all cursor-pointer"
-                >
-                  Next
-                </button>
-              </div>
-            )}
-          </>
-        )}
+            <AnimatedFlowChartSVG />
+          </div>
+        </div>
       </div>
+
+      {/* Full Screen Android Modal Overlay */}
+      {isFlowModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex flex-col justify-between p-4 animate-fade-in">
+          {/* Modal Header */}
+          <div className="flex items-center justify-between text-white pt-2 pb-3 border-b border-white/20">
+            <div className="flex items-center gap-2">
+              <Activity size={18} className="animate-pulse text-[#dce7f4]" />
+              <div>
+                <h3 className="text-sm font-bold tracking-wide">
+                  Live Instrument Regulation Flowchart
+                </h3>
+                <p className="text-[10.5px] text-gray-300">
+                  CSIR-Yantra Dhristi Application Workflow
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setIsFlowModalOpen(false)}
+              className="p-2 bg-white/20 hover:bg-white/30 rounded-full text-white active:scale-90 transition-all cursor-pointer"
+            >
+              <X size={20} />
+            </button>
+          </div>
+
+          {/* Interactive Full Screen Scroll Area */}
+          <div className="flex-1 overflow-y-auto my-4 py-2 flex items-center justify-center">
+            <div className="w-full bg-white rounded-2xl p-4 shadow-2xl overflow-x-auto">
+              <AnimatedFlowChartSVG />
+            </div>
+          </div>
+
+          {/* Modal Footer / Close Action */}
+          <div className="pt-2">
+            <button
+              onClick={() => setIsFlowModalOpen(false)}
+              className="w-full py-3 bg-[#1b4d8f] text-white text-xs font-bold rounded-xl active:scale-98 transition-all shadow-md cursor-pointer"
+            >
+              Close Full Screen View
+            </button>
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+/* =========================================================
+   CONTINUOUSLY ANIMATED SVG FLOWCHART COMPONENT
+   ========================================================= */
+function AnimatedFlowChartSVG() {
+  return (
+    <svg
+      viewBox="0 0 340 510"
+      className="w-full h-auto select-none"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <style>{`
+        /* Flow line dash movement */
+        @keyframes flowDash {
+          0% { stroke-dashoffset: 24; }
+          100% { stroke-dashoffset: 0; }
+        }
+        .animate-flow-dash {
+          stroke-dasharray: 6, 6;
+          animation: flowDash 1.2s linear infinite;
+        }
+
+        /* Pulsing node animation */
+        @keyframes pulseGlow {
+          0%, 100% { opacity: 0.3; transform: scale(1); }
+          50% { opacity: 0.8; transform: scale(1.03); }
+        }
+        .animate-pulse-glow {
+          animation: pulseGlow 2s ease-in-out infinite;
+          transform-origin: center;
+        }
+
+        /* Moving beam/particle down main path */
+        @keyframes beamMove {
+          0% { cy: 55; }
+          100% { cy: 165; }
+        }
+        .animate-beam-dot {
+          animation: beamMove 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        /* Scanning laser line on QR block */
+        @keyframes laserScan {
+          0% { y: 88; opacity: 0.2; }
+          50% { y: 132; opacity: 0.8; }
+          100% { y: 88; opacity: 0.2; }
+        }
+        .animate-laser {
+          animation: laserScan 2s ease-in-out infinite;
+        }
+      `}</style>
+
+      {/* Node 1: Add Instrument */}
+      <rect x="20" y="10" width="300" height="48" rx="10" fill="#1b4d8f" />
+      <text x="170" y="32" textAnchor="middle" fill="#ffffff" fontSize="12" fontWeight="bold">
+        1. Instrument Registered
+      </text>
+      <text x="170" y="46" textAnchor="middle" fill="#dce7f4" fontSize="9">
+        Status: AVAILABLE (QR Label Printed)
+      </text>
+
+      {/* Flow Line 1 (Animated Dashes) */}
+      <path d="M170 58 V80" stroke="#1b4d8f" strokeWidth="2.5" className="animate-flow-dash" />
+      <polygon points="170,85 165,77 175,77" fill="#1b4d8f" />
+
+      {/* Node 2: QR Scan & Issue Wizard */}
+      <rect x="20" y="85" width="300" height="52" rx="10" fill="#ffffff" stroke="#1b4d8f" strokeWidth="1.5" />
+      {/* Animated Scan Line effect */}
+      <rect x="25" y="88" width="290" height="2" fill="#1b4d8f" className="animate-laser" />
+      <text x="170" y="107" textAnchor="middle" fill="#1b1a18" fontSize="12" fontWeight="bold">
+        2. QR Scan / Issue Wizard
+      </text>
+      <text x="170" y="123" textAnchor="middle" fill="#5d5b56" fontSize="9.5">
+        Captures borrower, due date & emails staff
+      </text>
+
+      {/* Flow Line 2 */}
+      <path d="M170 137 V160" stroke="#1b4d8f" strokeWidth="2.5" className="animate-flow-dash" />
+      <polygon points="170,165 165,157 175,157" fill="#1b4d8f" />
+
+      {/* Node 3: Active Loan / In Use */}
+      <rect x="20" y="165" width="300" height="48" rx="10" fill="#fbf0dc" stroke="#8a5a12" strokeWidth="1.5" />
+      {/* Pulse effect behind node */}
+      <rect x="18" y="163" width="304" height="52" rx="12" fill="#8a5a12" className="animate-pulse-glow" opacity="0.15" />
+      <text x="170" y="187" textAnchor="middle" fill="#8a5a12" fontSize="12" fontWeight="bold">
+        3. Instrument In Use (ISSUED)
+      </text>
+      <text x="170" y="201" textAnchor="middle" fill="#8a5a12" fontSize="9">
+        Automated daily reminders if overdue
+      </text>
+
+      {/* Flow Line 3 */}
+      <path d="M170 213 V235" stroke="#1b4d8f" strokeWidth="2.5" className="animate-flow-dash" />
+      <polygon points="170,240 165,232 175,232" fill="#1b4d8f" />
+
+      {/* Continuous Particle/Beam Dot moving down */}
+      <circle cx="170" cy="55" r="4" fill="#12695a" className="animate-beam-dot" />
+
+      {/* Decision Node: Return Inspection */}
+      <polygon points="170,240 280,270 170,300 60,270" fill="#ffffff" stroke="#1b4d8f" strokeWidth="1.5" />
+      <text x="170" y="267" textAnchor="middle" fill="#1b1a18" fontSize="11" fontWeight="bold">
+        Receive Return
+      </text>
+      <text x="170" y="279" textAnchor="middle" fill="#5d5b56" fontSize="8.5">
+        Condition Check
+      </text>
+
+      {/* Path A: GOOD Condition */}
+      <path d="M60 270 H30 V350 H70" stroke="#12695a" strokeWidth="2.5" className="animate-flow-dash" />
+      <polygon points="75,350 67,345 67,355" fill="#12695a" />
+      <text x="25" y="260" fill="#12695a" fontSize="9" fontWeight="bold">
+        GOOD
+      </text>
+
+      {/* Node 4A: Available */}
+      <rect x="75" y="328" width="105" height="44" rx="8" fill="#e8f5e9" stroke="#12695a" strokeWidth="1.5" />
+      <text x="127" y="348" textAnchor="middle" fill="#12695a" fontSize="10" fontWeight="bold">
+        AVAILABLE
+      </text>
+      <text x="127" y="360" textAnchor="middle" fill="#12695a" fontSize="8">
+        Ready to reissue
+      </text>
+
+      {/* Path B: BAD Condition */}
+      <path d="M280 270 H310 V350 H265" stroke="#8f2318" strokeWidth="2.5" className="animate-flow-dash" />
+      <polygon points="260,350 268,345 268,355" fill="#8f2318" />
+      <text x="285" y="260" fill="#8f2318" fontSize="9" fontWeight="bold">
+        BAD
+      </text>
+
+      {/* Node 4B: Maintenance */}
+      <rect x="160" y="328" width="100" height="44" rx="8" fill="#fbe4e0" stroke="#8f2318" strokeWidth="1.5" />
+      <text x="210" y="348" textAnchor="middle" fill="#8f2318" fontSize="10" fontWeight="bold">
+        MAINTENANCE
+      </text>
+      <text x="210" y="360" textAnchor="middle" fill="#8f2318" fontSize="8">
+        Locked for repair
+      </text>
+
+      {/* Re-entry Path back to Available */}
+      <path d="M210 372 V400 H127 V372" stroke="#12695a" strokeWidth="1.5" className="animate-flow-dash" />
+      <polygon points="127,372 122,380 132,380" fill="#12695a" />
+      <text x="170" y="415" textAnchor="middle" fill="#5d5b56" fontSize="8.5">
+        Calibration completed & cleared
+      </text>
+
+      {/* Bottom Summary Badge */}
+      <rect x="20" y="435" width="300" height="45" rx="10" fill="#eef3fa" stroke="#1b4d8f" strokeWidth="1" />
+      <text x="170" y="454" textAnchor="middle" fill="#1b4d8f" fontSize="10" fontWeight="bold">
+        Automated Email Logging & Stakeholder Sync
+      </text>
+      <text x="170" y="468" textAnchor="middle" fill="#5d5b56" fontSize="8.5">
+        Notifies Borrower, Staff Member & Owner
+      </text>
+    </svg>
   );
 }
